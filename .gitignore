@@ -22,6 +22,7 @@ gateway.err.log
 /.env
 .env.*
 !/.env.example
+!dashboard/.env.example
 deploy/compose/.env
 *.pem
 *.key
@@ -39,11 +40,15 @@ Thumbs.db
 .vscode/
 *.swp
 
-# Node / dashboard (lands in M3)
+# Node / dashboard (M3)
 node_modules/
 dashboard/dist/
 dashboard/.next/
 dashboard/coverage/
+dashboard/.vite/
+dashboard/*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
 
 # Python demo agents (land in a later milestone)
 __pycache__/

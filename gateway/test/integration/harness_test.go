@@ -25,9 +25,12 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"github.com/kyurem-project/kyurem/gateway/internal/config"
+	"github.com/kyurem-project/kyurem/gateway/internal/cost"
 	"github.com/kyurem-project/kyurem/gateway/internal/metrics"
+	"github.com/kyurem-project/kyurem/gateway/internal/mgmtapi"
 	"github.com/kyurem-project/kyurem/gateway/internal/proxy"
 	"github.com/kyurem-project/kyurem/gateway/internal/registry"
+	"github.com/kyurem-project/kyurem/gateway/internal/storage"
 	"github.com/kyurem-project/kyurem/gateway/internal/telemetry"
 )
 
@@ -313,12 +316,24 @@ func forwardTraceContext(ctx context.Context, ec *a2asrv.ExecutorContext) contex
 	return a2aclient.AttachServiceParams(ctx, params)
 }
 
+// harnessPriceTable is the demo price table the gateway prices reported
+// token usage with (CO-2).
+func harnessPriceTable() cost.Table {
+	return cost.NewTable([]cost.Price{
+		{Model: "demo-echo", InputPer1KUSD: 0.001, OutputPer1KUSD: 0.002},
+	})
+}
+
 // gwStack is the in-process gateway: config -> registry -> card cache ->
-// telemetry -> proxy handler under an httptest server.
+// telemetry -> proxy handler under an httptest server. It also carries the
+// management API (M3) and the in-process span store behind it.
 type gwStack struct {
-	base *httptest.Server
-	reg  *registry.Registry
-	tel  *telemetry.Telemetry
+	base    *httptest.Server
+	reg     *registry.Registry
+	tel     *telemetry.Telemetry
+	store   *storage.MemoryStore
+	mgmt    http.Handler
+	queries storage.Queries
 }
 
 // startGateway builds the full wiring exactly as server.New does, with
@@ -355,12 +370,16 @@ agents:
 	if err != nil {
 		t.Fatalf("build registry: %v", err)
 	}
+	// The in-process span store backs the management API: the finished
+	// spans are published to it by the telemetry sink.
+	store := storage.NewMemoryStore(1024)
 	cache := registry.NewCardCache(
 		reg, nil,
 		cfg.CardCache.TTL.Std(), cfg.CardCache.StaleGrace.Std(), cfg.CardCache.MaxCardBytes,
 		logger,
 	)
-	tel, err := telemetry.NewWithExporter(context.Background(), cfg.Telemetry, logger, mtr, exporter)
+	tel, err := telemetry.NewWithExporter(context.Background(), cfg.Telemetry, logger, mtr, exporter,
+		telemetry.WithSink(store))
 	if err != nil {
 		t.Fatalf("build telemetry: %v", err)
 	}
@@ -369,9 +388,21 @@ agents:
 		defer cancel()
 		_ = tel.Shutdown(ctx)
 	})
-	s := &gwStack{reg: reg, tel: tel}
-	s.base = httptest.NewServer(proxy.New(cfg, reg, cache, mtr, tel, logger))
+	s := &gwStack{reg: reg, tel: tel, store: store, queries: storage.NewQueries(store)}
+	s.base = httptest.NewServer(proxy.New(cfg, reg, cache, mtr, tel, logger,
+		proxy.WithPriceTable(harnessPriceTable())))
 	t.Cleanup(s.base.Close)
+	s.mgmt = mgmtapi.New(mgmtapi.Deps{
+		Queries:       s.queries,
+		Registry:      reg,
+		Cards:         cache,
+		Metrics:       mtr,
+		Telemetry:     tel,
+		StorageDriver: "memory",
+		AuthToken:     "",
+		Logger:        logger,
+		Uptime:        time.Now(),
+	})
 	return s
 }
 

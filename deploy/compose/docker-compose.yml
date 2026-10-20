@@ -60,9 +60,14 @@ services:
       context: ../..
       dockerfile: deploy/docker/gateway.Dockerfile
     command: ["serve", "--config", "/etc/kyurem/config.yaml"]
+    environment:
+      # Demo credentials; override them in any real deployment.
+      KYUREM_MANAGEMENT_AUTH_TOKEN: ${KYUREM_MANAGEMENT_AUTH_TOKEN:-kyurem-demo}
+      KYUREM_MANAGEMENT_STORAGE_CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-kyurem-demo}
     ports:
       - "127.0.0.1:8080:8080"
       - "127.0.0.1:8081:8081"
+      - "127.0.0.1:8082:8082"
     volumes:
       - ../../config/kyurem.compose.yaml:/etc/kyurem/config.yaml:ro
     depends_on:
@@ -74,6 +79,17 @@ services:
       timeout: 3s
       retries: 20
       start_period: 5s
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/dashboard.Dockerfile
+    ports:
+      - "127.0.0.1:3001:80"
+    depends_on:
+      gateway:
+        condition: service_healthy
     restart: unless-stopped
 
   go-echo:

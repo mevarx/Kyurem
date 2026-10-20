@@ -149,6 +149,7 @@ func (h *Handler) finishHandoff(st *handoffState) {
 		respPrefix = st.responseTap.Prefix()
 	}
 	ids := telemetry.ExtractPayloadIDs(reqPrefix, respPrefix)
+	usage := telemetry.ExtractUsage(reqPrefix, respPrefix)
 
 	attrs := []attribute.KeyValue{
 		attribute.Int64(telemetry.AttrBytesIn, st.bytesIn),
@@ -169,6 +170,23 @@ func (h *Handler) finishHandoff(st *handoffState) {
 	}
 	if ids.TaskStatus != "" {
 		attrs = append(attrs, attribute.String(telemetry.AttrTaskStatus, ids.TaskStatus))
+	}
+	// Token usage and cost (CO-1, CO-2). Usage the agent did not report
+	// stays unknown: the span says so instead of claiming zero tokens.
+	if usage.Known {
+		attrs = append(attrs,
+			attribute.Int64(telemetry.AttrUsageInput, usage.InputTokens),
+			attribute.Int64(telemetry.AttrUsageOutput, usage.OutputTokens),
+			attribute.Bool(telemetry.AttrTokensKnown, true),
+		)
+	}
+	if usage.Model != "" {
+		attrs = append(attrs, attribute.String(telemetry.AttrRequestModel, usage.Model))
+	}
+	if usage.Known && usage.Model != "" {
+		if usd, ok := h.prices.Cost(usage.Model, usage.InputTokens, usage.OutputTokens); ok {
+			attrs = append(attrs, attribute.Float64(telemetry.AttrCostUSD, usd))
+		}
 	}
 	st.span.SetAttributes(attrs...)
 

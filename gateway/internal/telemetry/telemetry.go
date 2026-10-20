@@ -34,26 +34,46 @@ type Telemetry struct {
 	tracker    *CallerTracker
 	cfg        config.Telemetry
 	exporting  bool
+	sinkProc   *sinkProcessor
+}
+
+// Option customizes the telemetry setup.
+type Option func(*options)
+
+// options collects the optional wiring of the telemetry package.
+type options struct {
+	sink Sink
+}
+
+// WithSink publishes finished spans to a management-API sink (the
+// in-process span store). The sink is fed independently of the OTLP
+// exporter, so the dashboard keeps working when export is disabled.
+func WithSink(s Sink) Option {
+	return func(o *options) { o.sink = s }
 }
 
 // New builds telemetry from configuration. An empty OTLP endpoint creates a
 // real TracerProvider without an exporter: spans and W3C propagation still
 // work, nothing leaves the process.
-func New(ctx context.Context, cfg config.Telemetry, logger *slog.Logger, rec Recorder) (*Telemetry, error) {
+func New(ctx context.Context, cfg config.Telemetry, logger *slog.Logger, rec Recorder, opts ...Option) (*Telemetry, error) {
 	cfg = normalize(cfg)
 	exporter, err := newExporter(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
-	return NewWithExporter(ctx, cfg, logger, rec, exporter)
+	return NewWithExporter(ctx, cfg, logger, rec, exporter, opts...)
 }
 
 // NewWithExporter is the test seam: it wires the same processor, resource
 // and sampler but uses the supplied exporter. Passing nil disables export.
-func NewWithExporter(ctx context.Context, cfg config.Telemetry, logger *slog.Logger, rec Recorder, exporter sdktrace.SpanExporter) (*Telemetry, error) {
+func NewWithExporter(ctx context.Context, cfg config.Telemetry, logger *slog.Logger, rec Recorder, exporter sdktrace.SpanExporter, opts ...Option) (*Telemetry, error) {
 	cfg = normalize(cfg)
 	if logger == nil {
 		logger = slog.Default()
+	}
+	var o options
+	for _, opt := range opts {
+		opt(&o)
 	}
 
 	res, err := resource.Merge(
@@ -71,13 +91,13 @@ func NewWithExporter(ctx context.Context, cfg config.Telemetry, logger *slog.Log
 		return nil, fmt.Errorf("build otel resource: %w", err)
 	}
 
-	opts := []sdktrace.TracerProviderOption{
+	opts2 := []sdktrace.TracerProviderOption{
 		sdktrace.WithResource(res),
 		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.EffectiveSampleRatio()))),
 	}
 	exporting := exporter != nil
 	if exporting {
-		opts = append(opts, sdktrace.WithSpanProcessor(newAsyncProcessor(
+		opts2 = append(opts2, sdktrace.WithSpanProcessor(newAsyncProcessor(
 			exporter,
 			rec,
 			logger,
@@ -90,7 +110,12 @@ func NewWithExporter(ctx context.Context, cfg config.Telemetry, logger *slog.Log
 			cfg.MaxBackoff.Std(),
 		)))
 	}
-	provider := sdktrace.NewTracerProvider(opts...)
+	// The management sink is fed even without an exporter.
+	sinkProc := newSinkProcessor(o.sink, logger)
+	if sinkProc != nil {
+		opts2 = append(opts2, sdktrace.WithSpanProcessor(sinkProc))
+	}
+	provider := sdktrace.NewTracerProvider(opts2...)
 
 	return &Telemetry{
 		provider:   provider,
@@ -99,6 +124,7 @@ func NewWithExporter(ctx context.Context, cfg config.Telemetry, logger *slog.Log
 		tracker:    NewCallerTracker(4096),
 		cfg:        cfg,
 		exporting:  exporting,
+		sinkProc:   sinkProc,
 	}, nil
 }
 
@@ -132,10 +158,24 @@ func (t *Telemetry) Remember(sc trace.SpanContext, agent string, hop int) {
 }
 
 // ForceFlush exports queued spans, bounded by ctx.
-func (t *Telemetry) ForceFlush(ctx context.Context) error { return t.provider.ForceFlush(ctx) }
+func (t *Telemetry) ForceFlush(ctx context.Context) error {
+	if t.sinkProc != nil {
+		if err := t.sinkProc.ForceFlush(ctx); err != nil {
+			return err
+		}
+	}
+	return t.provider.ForceFlush(ctx)
+}
 
 // Shutdown drains and shuts the provider down, bounded by ctx.
-func (t *Telemetry) Shutdown(ctx context.Context) error { return t.provider.Shutdown(ctx) }
+func (t *Telemetry) Shutdown(ctx context.Context) error {
+	if t.sinkProc != nil {
+		if err := t.sinkProc.Shutdown(ctx); err != nil {
+			return err
+		}
+	}
+	return t.provider.Shutdown(ctx)
+}
 
 // Exporting reports whether an OTLP exporter is configured.
 func (t *Telemetry) Exporting() bool { return t.exporting }

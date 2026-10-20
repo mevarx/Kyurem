@@ -4,8 +4,11 @@
 package metrics
 
 import (
+	"math"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
+	dto "github.com/prometheus/client_model/go"
 )
 
 // Metrics bundles all gateway instruments; a *Metrics registers itself and
@@ -177,6 +180,87 @@ func (m *Metrics) SpanDropped(reason string, n int) {
 		return
 	}
 	m.TelemetrySpansDroppedTotal.WithLabelValues(reason).Add(float64(n))
+}
+
+// TelemetryCounters returns the export-pipeline counters: spans ended,
+// spans exported, failed batches, retried attempts and the per-reason
+// drop counts. The management API reports them; the Prometheus endpoint
+// exports the same numbers.
+//
+// The values are read from the registered collectors, so the API and
+// /metrics can never disagree.
+func (m *Metrics) TelemetryCounters() (ended, exported, failures, retries int64, dropped map[string]int64) {
+	dropped = map[string]int64{}
+	if m == nil {
+		return 0, 0, 0, 0, dropped
+	}
+	ended = int64(counterValue(m.TelemetrySpansEndedTotal))
+	exported = int64(counterValue(m.TelemetrySpansExportedTotal))
+	failures = int64(counterValue(m.TelemetryExportFailuresTotal))
+	retries = int64(counterValue(m.TelemetryExportRetriesTotal))
+	for reason, n := range m.droppedCounts() {
+		dropped[reason] = n
+	}
+	return ended, exported, failures, retries, dropped
+}
+
+// TelemetryQueue returns the current queue depth and its configured bound.
+func (m *Metrics) TelemetryQueue() (depth, capacity int) {
+	if m == nil {
+		return 0, 0
+	}
+	return int(gaugeValue(m.TelemetryQueueDepth)), int(gaugeValue(m.TelemetryQueueCapacity))
+}
+
+// droppedCounts reads the drop counter vec into a reason -> count map.
+func (m *Metrics) droppedCounts() map[string]int64 {
+	out := map[string]int64{}
+	if m == nil || m.TelemetrySpansDroppedTotal == nil {
+		return out
+	}
+	ch := make(chan prometheus.Metric, 32)
+	go func() {
+		m.TelemetrySpansDroppedTotal.Collect(ch)
+		close(ch)
+	}()
+	for metric := range ch {
+		d := &dto.Metric{}
+		if err := metric.Write(d); err != nil {
+			continue
+		}
+		reason := ""
+		for _, l := range d.GetLabel() {
+			if l.GetName() == "reason" {
+				reason = l.GetValue()
+			}
+		}
+		out[reason] = int64(math.Round(d.GetCounter().GetValue()))
+	}
+	return out
+}
+
+// counterValue reads a plain counter through its protobuf representation.
+func counterValue(c prometheus.Counter) float64 {
+	if c == nil {
+		return 0
+	}
+	m := &dto.Metric{}
+	if err := c.Write(m); err != nil {
+		return 0
+	}
+	return m.GetCounter().GetValue()
+}
+
+// gaugeValue reads a plain gauge.
+func gaugeValue(g prometheus.Gauge) float64 {
+	if g == nil {
+		return 0
+	}
+	m := &dto.Metric{}
+	if err := g.Write(m); err != nil {
+		return 0
+	}
+	return m.GetGauge().GetValue()
 }
 
 // SpanExported records spans delivered to the collector.

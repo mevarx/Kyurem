@@ -14,9 +14,16 @@ sides.
 span, a task is one trace tree across agent hops, and spans carry the
 caller/callee, task/context identity, status, latency and byte counters the
 dashboard will need. Export is asynchronous and bounded: a collector outage
-costs spans, never traffic. Later milestones (per PRD §10) add durable
-storage, the management API/dashboard, trust, failover and production
-hardening.
+costs spans, never traffic.
+
+**M3 — Dashboard MVP (in progress).** A read-only management API on its own
+listener, a React dashboard (overview, tasks, task detail with a
+root-cause hint, agent graph, costs, agents, settings) and cost accounting
+for the agents that report token usage. Later milestones (per PRD §10) add
+trust and policy, failure handling and production hardening.
+
+The milestone plan, including what is explicitly out of scope, lives in
+[`docs/milestones.md`](docs/milestones.md).
 
 ## What M1 delivers
 
@@ -44,6 +51,16 @@ hardening.
 The attribute contract, sampling rules, drop semantics and the pinned
 semantic-convention commit live in
 [`docs/telemetry-conventions.md`](docs/telemetry-conventions.md).
+
+## What M3 delivers
+
+| Piece | What it means |
+|---|---|
+| Management API | `GET /api/v1/{tasks,tasks/{id},graph,agents,costs,overview,settings}` on `listeners.mgmt.addr`, bearer-authenticated, described by [`api/openapi.yaml`](api/openapi.yaml) |
+| Task detail | The span tree of one task, its events, its cost breakdown and a **root-cause hint** (a heuristic, labelled as such) |
+| Agent graph | Caller-to-callee edges with call counts, error rate, p95 latency and cost |
+| Costs | Token usage read from what the agent reported, priced from a config table, aggregated per agent/task/model/window — unknown stays unknown |
+| Dashboard | React + TypeScript + Vite app (`dashboard/`), dark and light themes, generated API types |
 
 ## Quickstart
 
@@ -108,6 +125,43 @@ Without Docker the gateway still traces: set
 `telemetry.otlp_endpoint` to any OTLP collector, or leave it empty and keep
 the W3C propagation only.
 
+## The management API and dashboard (M3)
+
+The gateway serves a read-only management API on its own listener
+(`listeners.mgmt.addr`, default `127.0.0.1:8082`), authenticated with a
+bearer token. The contract is [`api/openapi.yaml`](api/openapi.yaml); the
+dashboard's types are generated from it, never hand-written.
+
+```bash
+# the API, straight from the gateway (loopback, no token needed)
+curl -s http://127.0.0.1:8082/api/v1/tasks | head
+curl -s http://127.0.0.1:8082/api/v1/overview | head
+
+# the dashboard (needs Node 20+)
+make dashboard-install
+make dashboard-check      # typecheck, lint, component tests
+make dashboard-build
+cd dashboard && npm run dev
+```
+
+With the compose stack the dashboard is served by nginx on
+<http://localhost:3001> and proxies `/api` to the gateway; the demo token
+is `kyurem-demo` (set it in the dashboard's Settings page).
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/overview` | summary cards, time series, top agents, recent failures |
+| `GET /api/v1/tasks` | filtered, paginated task list |
+| `GET /api/v1/tasks/{id}` | span tree, events, cost breakdown, root-cause hint |
+| `GET /api/v1/graph` | agent-to-agent edges with counts, error rate, latency, cost |
+| `GET /api/v1/agents` | registry, card status, verification, health, traffic |
+| `GET /api/v1/costs` | cost and token roll-ups (by agent, model, task, window) |
+| `GET /api/v1/settings` | versions, telemetry counters, storage driver |
+
+Costs are honest: an agent that does not report token usage yields
+`null` (unknown), never `0`. The demo echo agent reports usage so the path
+is visible end to end.
+
 ## The demo agents
 
 Both are ordinary SDK A2A agents — no gateway awareness:
@@ -124,25 +178,30 @@ Both are ordinary SDK A2A agents — no gateway awareness:
 
 ```
 kyurem/
-├── gateway/                  # Go module: the gateway
-│   ├── cmd/kyurem/           # serve | validate | version
+├── api/openapi.yaml            # management API contract (dashboard types are generated from it)
+├── gateway/                    # Go module: the gateway
+│   ├── cmd/kyurem/             # serve | validate | version
 │   ├── internal/
-│   │   ├── config/           # YAML + env loading, validation
-│   │   ├── server/           # listeners, health, graceful shutdown
-│   │   ├── proxy/            # A2A forwarding, streaming, card rewriting
-│   │   ├── registry/         # agent registry, card fetch and cache
-│   │   ├── telemetry/        # OTel setup, handoff spans, async OTLP export
-│   │   └── metrics/          # Prometheus collectors
-│   └── test/integration/     # in-process gateway + SDK agents
-├── demo/                     # Go module: demo agents and the demo client
-│   ├── agents/go-echo/       # SDK echo agent
-│   ├── agents/go-upper/      # SDK chained agent (calls echo via the gateway)
-│   └── scenarios/            # scripted demos (m1-basic, m2-tracing)
-├── config/                   # shipped configurations (example + compose)
-├── deploy/                   # Dockerfiles, compose stack, collector, ClickHouse,
-│                             # Prometheus and Grafana provisioning
-├── docs/                     # configuration, telemetry conventions, ADRs
-└── .github/workflows/        # CI: build, vet, format, tests, compose validation
+│   │   ├── config/             # YAML + env loading, validation
+│   │   ├── server/             # listeners, health, graceful shutdown
+│   │   ├── proxy/              # A2A forwarding, streaming, card rewriting
+│   │   ├── registry/           # agent registry, card fetch and cache
+│   │   ├── telemetry/          # OTel setup, handoff spans, async OTLP export
+│   │   ├── storage/            # span store (memory, clickhouse) + query layer
+│   │   ├── cost/               # price table, per-span cost, token usage
+│   │   ├── mgmtapi/            # management API handlers (M3)
+│   │   └── metrics/            # Prometheus collectors
+│   └── test/integration/       # in-process gateway + SDK agents
+├── dashboard/                  # TypeScript app: React + Vite (M3)
+├── demo/                       # Go module: demo agents and the demo client
+│   ├── agents/go-echo/         # SDK echo agent (reports token usage)
+│   ├── agents/go-upper/        # SDK chained agent (calls echo via the gateway)
+│   └── scenarios/              # scripted demos (m1-basic, m2-tracing)
+├── config/                     # shipped configurations (example + compose)
+├── deploy/                     # Dockerfiles, compose stack, collector, ClickHouse,
+│                               # Prometheus, Grafana and nginx provisioning
+├── docs/                       # configuration, telemetry conventions, milestones, ADRs
+└── .github/workflows/          # CI: build, vet, format, tests, compose + dashboard
 ```
 
 ## Configuration
@@ -162,10 +221,12 @@ environment variable, is in [`docs/configuration.md`](docs/configuration.md).
 ## Development
 
 ```bash
-make test        # gateway unit + integration tests (race detector)
-make test-demo   # demo module tests
+make test             # gateway unit + integration tests (race detector)
+make test-demo        # demo module tests
 make vet
-make build-demo  # demo agents + client
+make build-demo       # demo agents + client
+make demo-m3          # a scripted failure is diagnosable through the API
+make dashboard-check  # dashboard typecheck, lint and component tests
 ```
 
 The integration suite (`gateway/test/integration`) spins up real SDK demo
@@ -175,21 +236,26 @@ rules, unreachable-upstream 502 and the upper→echo chain. The M2 suite
 additionally asserts the trace tree: two handoff spans in one trace with
 the right parent, the GenAI/kyurem attributes, task identity on a streamed
 task, error marking on a failed handoff and the pinned resource attributes.
+The M3 suite drives the same traffic and reads it back through the
+management API: the task list, the span tree, the root-cause hint of a
+failed task, the agent graph and the "cost unknown" rule.
 
-**Verification status.** The M2 Go path is covered by those tests. The
-compose stack (`deploy/`) was authored but **not executed** in the
-environment where M2 was implemented, because Docker was unavailable there;
-CI validates the compose file and both configs statically. Run
-`make demo-m2` on a Docker host to verify the collector/ClickHouse path
-end to end.
+**Verification status.** The Go path (M1 to M3) is covered by those tests.
+The compose stack (`deploy/`) was authored but **not executed** in the
+environment where M3 was implemented, because Docker was unavailable there;
+CI validates the compose file and both configs statically, and runs the
+dashboard's typecheck, lint, tests and build. Run `make demo-m2` on a
+Docker host to verify the collector/ClickHouse path end to end.
 
 ## Documentation
 
 | Document | Contents |
 |---|---|
+| [`docs/milestones.md`](docs/milestones.md) | what each milestone delivers, how it is verified, what is out of scope |
 | [`docs/configuration.md`](docs/configuration.md) | every configuration key, env var and validation rule |
 | [`docs/telemetry-conventions.md`](docs/telemetry-conventions.md) | pinned conventions, span/attribute contract, sampling, export and drop semantics, trace queries |
-| [`docs/adr/`](docs/adr/) | architecture decision records (module layout, routing/cards, trace context, trace export) |
+| [`api/openapi.yaml`](api/openapi.yaml) | the management API contract |
+| [`docs/adr/`](docs/adr/) | architecture decision records (module layout, routing/cards, trace context, trace export, management API, cost model) |
 
 The product requirements document (`Kyurem Product Requirements Document.md`)
 is a local source document and is intentionally not committed.

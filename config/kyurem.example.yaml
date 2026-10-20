@@ -24,6 +24,11 @@ listeners:
   admin:
     addr: "127.0.0.1:8081"
 
+  # The management API (M3) lives on its own listener: the A2A data path
+  # stays transparent, the management API is authenticated and versioned.
+  mgmt:
+    addr: "127.0.0.1:8082"
+
 logging:
   # debug | info | warn | error
   level: info
@@ -55,6 +60,34 @@ telemetry:
   max_backoff: 10s
   # TR-4 is not implemented in M2; true fails validation.
   payload_capture: false
+
+# Management API (M3). Read-only views for the dashboard: tasks, task
+# detail, agent graph, costs and settings.
+management:
+  enabled: true
+  # Bearer token the API requires ("Authorization: Bearer <token>"). Empty
+  # means the API is open, which validation only allows on a loopback
+  # listener.
+  auth_token: ""
+  storage:
+    # memory: bounded in-process ring of recent spans (no dependencies).
+    # clickhouse: the store the OTel collector writes to.
+    driver: memory
+    memory_capacity: 4096
+    clickhouse:
+      url: ""
+      database: otel
+      username: default
+      password: ""
+      timeout: 10s
+
+# Price table (CO-2). The key matches the model an agent reports
+# (gen_ai.request.model). An agent that reports no model has no computable
+# cost, which the dashboard shows as unknown rather than as zero.
+pricing:
+  - model: "demo-echo"
+    input_per_1k_usd: 0.001
+    output_per_1k_usd: 0.002
 
 agents:
   # `name` and at least one upstream are required. Aliases are extra

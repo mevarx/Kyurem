@@ -16,6 +16,11 @@ listeners:
   admin:
     addr: "0.0.0.0:8081"
 
+  # The management API (M3) the dashboard reads. It is a separate listener:
+  # the A2A data path stays transparent.
+  mgmt:
+    addr: "0.0.0.0:8082"
+
 logging:
   level: info
   format: json
@@ -34,6 +39,30 @@ telemetry:
   initial_backoff: 500ms
   max_backoff: 10s
   payload_capture: false
+
+# Management API (M3). The dashboard reads the same spans the collector
+# writes to ClickHouse.
+management:
+  enabled: true
+  # Demo token. The compose stack overrides it through
+  # KYUREM_MANAGEMENT_AUTH_TOKEN; never reuse it outside a demo.
+  auth_token: "kyurem-demo"
+  storage:
+    driver: clickhouse
+    memory_capacity: 4096
+    clickhouse:
+      url: "http://clickhouse:8123"
+      database: otel
+      username: default
+      # Overridden by KYUREM_MANAGEMENT_STORAGE_CLICKHOUSE_PASSWORD.
+      password: "kyurem-demo"
+      timeout: 10s
+
+# Price table (CO-2) for the demo agents.
+pricing:
+  - model: "demo-echo"
+    input_per_1k_usd: 0.001
+    output_per_1k_usd: 0.002
 
 agents:
   - name: echo

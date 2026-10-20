@@ -4,13 +4,15 @@
 GO      ?= go
 GATEWAY := ./gateway
 DEMO    := ./demo
+DASH    := ./dashboard
 COMPOSE := docker compose -f deploy/compose/docker-compose.yml
 
-.PHONY: help build build-demo test test-demo vet fmt run-demo demo-m2 \
-        validate compose-up compose-down clean
+.PHONY: help build build-demo test test-demo vet fmt run-demo demo-m2 demo-m3 \
+        validate compose-up compose-down dashboard-install dashboard-check \
+        dashboard-build clean
 
 help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
 build: ## Build the gateway binary
 	$(GO) build -o bin/kyurem $(GATEWAY)/cmd/kyurem
@@ -45,11 +47,24 @@ run-demo: ## Start the M1 demo (gateway + two agents) locally
 demo-m2: ## Start the M2 demo (compose stack) and assert one task = one trace tree
 	bash demo/scenarios/m2-tracing.sh
 
+demo-m3: ## Run the M3 demo: a scripted failure is diagnosable through the management API
+	bash demo/scenarios/m3-dashboard.sh
+
 compose-up: ## Build and start the M2 compose stack
 	$(COMPOSE) up --build -d
 
-compose-down: ## Stop the M2 compose stack and drop its volumes
+compose-down: ## Stop the compose stack and drop its volumes
 	$(COMPOSE) down -v
 
+dashboard-install: ## Install the dashboard dependencies
+	cd $(DASH) && npm ci
+
+dashboard-check: ## Typecheck, lint and test the dashboard
+	cd $(DASH) && npm run gen:api && npm run typecheck && npm run lint && npm test
+
+dashboard-build: ## Build the dashboard for production
+	cd $(DASH) && npm run build
+
 clean: ## Remove build artifacts
-	rm -rf bin demo/bin
+	rm -rf bin demo/bin $(DASH)/dist
+

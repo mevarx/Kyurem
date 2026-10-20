@@ -42,6 +42,18 @@ const (
 	AttrBytesOut     = "kyurem.bytes.out"
 	AttrLatencyMS    = "kyurem.latency.ms"
 	AttrTaskStatus   = "kyurem.task.status"
+	// AttrCostUSD is the computed cost of the span (CO-2). It is only
+	// set when the agent reported usage AND the price table knows the
+	// model; an unknown cost is never written as zero.
+	AttrCostUSD = "kyurem.cost.usd"
+)
+
+// GenAI usage and model attributes (CO-1). They are only set when the
+// agent reported them.
+const (
+	AttrUsageInput   = "gen_ai.usage.input_tokens"
+	AttrUsageOutput  = "gen_ai.usage.output_tokens"
+	AttrRequestModel = "gen_ai.request.model"
 )
 
 // Standard HTTP attributes carried alongside the A2A fields.

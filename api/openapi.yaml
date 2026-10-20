@@ -1,0 +1,523 @@
+openapi: 3.1.0
+info:
+  title: Kyurem Management API
+  version: "1.0.0"
+  description: |
+    Read-only management API for the Kyurem A2A gateway (PRD §4.6, M3).
+
+    The API is served on its own listener, separate from the A2A data path,
+    and is authenticated with a bearer token. It reads the same spans the
+    OTel collector exports, so the dashboard shows exactly what the trace
+    backend shows.
+
+    Every cost or token field is nullable: an agent that does not report
+    usage yields `null` (unknown), never `0`.
+  license:
+    name: Apache-2.0
+servers:
+  - url: http://127.0.0.1:8082
+    description: Default management listener
+security:
+  - bearerAuth: []
+tags:
+  - name: overview
+  - name: tasks
+  - name: graph
+  - name: agents
+  - name: costs
+  - name: settings
+paths:
+  /api/v1/overview:
+    get:
+      tags: [overview]
+      summary: Dashboard summary for a time window
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Overview" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/tasks:
+    get:
+      tags: [tasks]
+      summary: List tasks with filters and pagination
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: status
+          in: query
+          description: Filter on the derived task status
+          schema: { type: string, enum: [succeeded, failed, unknown] }
+        - name: agent
+          in: query
+          description: Filter on any agent involved (caller or callee)
+          schema: { type: string }
+        - name: task_id
+          in: query
+          description: Exact task id or prefix
+          schema: { type: string }
+        - name: min_cost_usd
+          in: query
+          schema: { type: number, format: double }
+        - name: max_cost_usd
+          in: query
+          schema: { type: number, format: double }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: Task page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/tasks/{task_id}:
+    get:
+      tags: [tasks]
+      summary: "Task detail: span tree, root-cause hint, cost breakdown"
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Task detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/graph:
+    get:
+      tags: [graph]
+      summary: Agent-to-agent edges with call counts, error rate, latency and cost
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+      responses:
+        "200":
+          description: Call graph
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Graph" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/agents:
+    get:
+      tags: [agents]
+      summary: Registered agents with card, verification, health and traffic stats
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+      responses:
+        "200":
+          description: Agents
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/AgentInfo" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/costs:
+    get:
+      tags: [costs]
+      summary: Cost and token aggregates
+      parameters:
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: group_by
+          in: query
+          schema: { type: string, enum: [agent, model, task, window], default: agent }
+      responses:
+        "200":
+          description: Cost report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CostReport" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/settings:
+    get:
+      summary: Gateway status, versions, telemetry counters and retention
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Settings" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /healthz:
+    get:
+      summary: Liveness probe of the management listener
+      security: []
+      responses:
+        "200":
+          description: Alive
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+  /readyz:
+    get:
+      summary: Readiness probe of the management listener
+      security: []
+      responses:
+        "200":
+          description: Ready
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        `Authorization: Bearer <token>` with the token from
+        `management.auth_token` (KYUREM_MANAGEMENT_AUTH_TOKEN).
+  parameters:
+    From:
+      name: from
+      in: query
+      description: |
+        Start of the window. RFC 3339 timestamp or a relative duration
+        such as `15m`, `1h`, `24h`, `7d`. Defaults to 24h ago.
+      schema: { type: string, default: 24h }
+    To:
+      name: to
+      in: query
+      description: |
+        End of the window. RFC 3339 timestamp or a relative duration.
+        Defaults to now.
+      schema: { type: string }
+  responses:
+    BadRequest:
+      description: Invalid query parameters
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: No such task
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, examples: ["ok"] }
+        agents: { type: integer }
+    Task:
+      type: object
+      required:
+        [task_id, trace_id, status, started_at, duration_ms, agents, span_count, tokens_known]
+      properties:
+        task_id: { type: string }
+        trace_id: { type: string }
+        context_id: { type: string }
+        status: { type: string, enum: [succeeded, failed, unknown] }
+        started_at: { type: string, format: date-time }
+        duration_ms: { type: number, format: double }
+        agents:
+          type: array
+          items: { type: string }
+        root_caller: { type: string }
+        cost_usd:
+          type: [number, "null"]
+          format: double
+          description: Null when the cost is unknown.
+        input_tokens: { type: [integer, "null"], format: int64 }
+        output_tokens: { type: [integer, "null"], format: int64 }
+        tokens_known: { type: boolean }
+        span_count: { type: integer }
+        error_type: { type: string }
+        error_message: { type: string }
+    TaskPage:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Task" }
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+    TaskDetail:
+      type: object
+      required: [task, spans, cost]
+      properties:
+        task: { $ref: "#/components/schemas/Task" }
+        spans:
+          type: array
+          items: { $ref: "#/components/schemas/Span" }
+        root_cause:
+          oneOf:
+            - { $ref: "#/components/schemas/RootCause" }
+            - { type: "null" }
+        cost: { $ref: "#/components/schemas/CostReport" }
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/Event" }
+    Span:
+      type: object
+      required: [trace_id, span_id, name, kind, started_at, duration_ms, attributes]
+      properties:
+        trace_id: { type: string }
+        span_id: { type: string }
+        parent_span_id: { type: string }
+        name: { type: string }
+        kind: { type: string }
+        service_name: { type: string }
+        agent: { type: string }
+        caller: { type: string }
+        error_type: { type: string }
+        started_at: { type: string, format: date-time }
+        duration_ms: { type: number, format: double }
+        status_code: { type: string }
+        status_message: { type: string }
+        attributes:
+          type: object
+          additionalProperties: { type: string }
+    RootCause:
+      type: object
+      required: [span_id, span_name, message, affected_span_ids, confidence]
+      properties:
+        span_id: { type: string }
+        span_name: { type: string }
+        agent: { type: string }
+        error_type: { type: string }
+        message:
+          type: string
+          description: Plain-language summary of the heuristic.
+        affected_span_ids:
+          type: array
+          items: { type: string }
+        confidence:
+          type: string
+          enum: [heuristic]
+    CostReport:
+      type: object
+      required: [group_by, spans, unknown_spans, buckets]
+      properties:
+        group_by: { type: string }
+        total_usd: { type: [number, "null"], format: double }
+        input_tokens: { type: [integer, "null"], format: int64 }
+        output_tokens: { type: [integer, "null"], format: int64 }
+        spans: { type: integer }
+        unknown_spans: { type: integer }
+        buckets:
+          type: array
+          items: { $ref: "#/components/schemas/CostBucket" }
+    CostBucket:
+      type: object
+      required: [key, spans, unknown_spans]
+      properties:
+        key: { type: string }
+        cost_usd: { type: [number, "null"], format: double }
+        spans: { type: integer }
+        unknown_spans: { type: integer }
+        input_tokens: { type: [integer, "null"], format: int64 }
+        output_tokens: { type: [integer, "null"], format: int64 }
+    Graph:
+      type: object
+      required: [nodes, edges]
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        nodes:
+          type: array
+          items: { $ref: "#/components/schemas/GraphNode" }
+        edges:
+          type: array
+          items: { $ref: "#/components/schemas/GraphEdge" }
+    GraphNode:
+      type: object
+      required: [name, calls, errors, error_rate, p50_ms, p95_ms]
+      properties:
+        name: { type: string }
+        calls: { type: integer }
+        errors: { type: integer }
+        error_rate: { type: number, format: double }
+        p50_ms: { type: number, format: double }
+        p95_ms: { type: number, format: double }
+        cost_usd: { type: [number, "null"], format: double }
+        last_seen: { type: [string, "null"], format: date-time }
+    GraphEdge:
+      type: object
+      required: [from, to, calls, errors, error_rate, p50_ms, p95_ms]
+      properties:
+        from: { type: string }
+        to: { type: string }
+        calls: { type: integer }
+        errors: { type: integer }
+        error_rate: { type: number, format: double }
+        p50_ms: { type: number, format: double }
+        p95_ms: { type: number, format: double }
+        cost_usd: { type: [number, "null"], format: double }
+    AgentInfo:
+      type: object
+      required: [name, aliases, upstreams, card_status, verification, spans, errors, error_rate]
+      properties:
+        name: { type: string }
+        aliases:
+          type: array
+          items: { type: string }
+        tags:
+          type: array
+          items: { type: string }
+        path: { type: string }
+        upstreams:
+          type: array
+          items: { type: string }
+        card_status:
+          type: string
+          enum: [ok, stale, error, unknown]
+        card_fetched_at: { type: [string, "null"], format: date-time }
+        verification:
+          type: string
+          enum: [unchecked]
+          description: Card signature verification lands in M5.
+        breaker_state:
+          type: string
+          enum: [closed, open, half_open, unknown]
+          description: Circuit breaker state lands in M6.
+        last_seen: { type: [string, "null"], format: date-time }
+        spans: { type: integer }
+        errors: { type: integer }
+        error_rate: { type: number, format: double }
+        p50_ms: { type: number, format: double }
+        p95_ms: { type: number, format: double }
+        cost_usd: { type: [number, "null"], format: double }
+    TimeBucket:
+      type: object
+      required: [bucket, succeeded, failed, unknown, spans]
+      properties:
+        bucket: { type: string, format: date-time }
+        succeeded: { type: integer }
+        failed: { type: integer }
+        unknown: { type: integer }
+        cost_usd: { type: [number, "null"], format: double }
+        spans: { type: integer }
+    FailingAgent:
+      type: object
+      required: [name, errors, error_rate]
+      properties:
+        name: { type: string }
+        errors: { type: integer }
+        error_rate: { type: number, format: double }
+    Overview:
+      type: object
+      required:
+        [
+          tasks_total,
+          tasks_succeeded,
+          tasks_failed,
+          error_rate,
+          p50_task_duration_ms,
+          p95_task_duration_ms,
+          active_agents,
+          spans_total,
+          tasks_over_time,
+          cost_over_time,
+          top_agents_by_cost,
+          top_failing_agents,
+          recent_failed_tasks,
+        ]
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        tasks_total: { type: integer }
+        tasks_succeeded: { type: integer }
+        tasks_failed: { type: integer }
+        error_rate: { type: number, format: double }
+        p50_task_duration_ms: { type: number, format: double }
+        p95_task_duration_ms: { type: number, format: double }
+        total_cost_usd: { type: [number, "null"], format: double }
+        active_agents: { type: integer }
+        spans_total: { type: integer }
+        tasks_over_time:
+          type: array
+          items: { $ref: "#/components/schemas/TimeBucket" }
+        cost_over_time:
+          type: array
+          items: { $ref: "#/components/schemas/TimeBucket" }
+        top_agents_by_cost:
+          type: array
+          items: { $ref: "#/components/schemas/CostBucket" }
+        top_failing_agents:
+          type: array
+          items: { $ref: "#/components/schemas/FailingAgent" }
+        recent_failed_tasks:
+          type: array
+          items: { $ref: "#/components/schemas/Task" }
+    Event:
+      type: object
+      required: [span_id, time, name, attributes]
+      properties:
+        span_id: { type: string }
+        time: { type: string, format: date-time }
+        name: { type: string }
+        attributes:
+          type: object
+          additionalProperties: { type: string }
+    Settings:
+      type: object
+      required: [version, spec_version, service_name, agents, telemetry, storage]
+      properties:
+        version: { type: string }
+        spec_version: { type: string }
+        a2a_go_sdk_version: { type: string }
+        service_name: { type: string }
+        uptime_seconds: { type: number, format: double }
+        agents: { type: integer }
+        telemetry:
+          type: object
+          required: [exporting, spans_ended, spans_exported, spans_dropped]
+          properties:
+            exporting: { type: boolean }
+            otlp_endpoint: { type: string }
+            protocol: { type: string }
+            sample_ratio: { type: number, format: double }
+            queue_depth: { type: integer }
+            queue_capacity: { type: integer }
+            spans_ended: { type: integer }
+            spans_exported: { type: integer }
+            spans_dropped:
+              type: object
+              additionalProperties: { type: integer }
+            export_failures: { type: integer }
+            export_retries: { type: integer }
+        storage:
+          type: object
+          required: [driver]
+          properties:
+            driver: { type: string, enum: [memory, clickhouse] }
+            database: { type: string }

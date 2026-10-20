@@ -104,9 +104,29 @@ func echoExecutor() a2asrv.AgentExecutor {
 			}
 			// Non-streaming: a single agent message terminates processing
 			// per the A2A event contract.
-			yield(a2a.NewMessage(a2a.MessageRoleAgent, a2a.NewTextPart(replyPrefix+input)), nil)
+			reply := a2a.NewMessage(a2a.MessageRoleAgent, a2a.NewTextPart(replyPrefix+input))
+			reply.Metadata = usageMetadata(input, replyPrefix+input)
+			yield(reply, nil)
 		}
 	})
+}
+
+// demoModel is the model name this demo agent reports. A real agent would
+// report the model that actually served the request; the demo reports a
+// fixed name so the gateway can price the usage (PRD CO-1/CO-2).
+const demoModel = "demo-echo"
+
+// usageMetadata reports the token usage of a demo exchange. The counts are
+// word counts: deterministic, cheap and good enough to exercise the cost
+// path end to end. Agents that report nothing keep the cost unknown.
+func usageMetadata(input, output string) map[string]any {
+	return map[string]any{
+		"model": demoModel,
+		"usage": map[string]any{
+			"input_tokens":  len(strings.Fields(input)),
+			"output_tokens": len(strings.Fields(output)),
+		},
+	}
 }
 
 // streamEcho emits the full task lifecycle: submitted -> working ->
@@ -114,7 +134,11 @@ func echoExecutor() a2asrv.AgentExecutor {
 // task frames the user message as task history.
 func streamEcho(ec *a2asrv.ExecutorContext, input string, yield func(a2a.Event, error) bool) {
 	if ec.StoredTask == nil {
-		if !yield(a2a.NewSubmittedTask(ec, ec.Message), nil) {
+		task := a2a.NewSubmittedTask(ec, ec.Message)
+		// Report the usage on the task so the gateway can price the hop
+		// even when the response is streamed.
+		task.Metadata = usageMetadata(input, replyPrefix+input)
+		if !yield(task, nil) {
 			return
 		}
 	}

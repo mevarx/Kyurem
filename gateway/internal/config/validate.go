@@ -150,6 +150,8 @@ func Validate(cfg *Config) error {
 	errs = append(errs, checkNonNegative("limits.timeouts.request", cfg.Limits.Timeouts.Request)...)
 
 	errs = append(errs, validateTelemetry(cfg.Telemetry)...)
+	errs = append(errs, validateManagement(cfg.Management, cfg.Listeners.Mgmt.Addr)...)
+	errs = append(errs, validatePricing(cfg.Pricing)...)
 
 	switch cfg.Logging.Level {
 	case "", "debug", "info", "warn", "error":
@@ -251,6 +253,78 @@ func validateTelemetry(t Telemetry) []error {
 		errs = append(errs, errors.New("telemetry.payload_capture: not implemented in M2 (TR-4); must remain false"))
 	}
 	return errs
+}
+
+// validateManagement checks the M3 management API settings. The API is
+// authenticated, so an open API is only acceptable on a loopback listener.
+func validateManagement(m Management, mgmtAddr string) []error {
+	var errs []error
+
+	switch m.Storage.Driver {
+	case "", "memory", "clickhouse":
+	default:
+		errs = append(errs, fmt.Errorf("management.storage.driver %q: one of memory|clickhouse", m.Storage.Driver))
+	}
+	if m.Storage.MemoryCapacity <= 0 {
+		errs = append(errs, errors.New("management.storage.memory_capacity: must be positive"))
+	} else if m.Storage.MemoryCapacity > 1<<20 {
+		errs = append(errs, errors.New("management.storage.memory_capacity: must be at most 1048576"))
+	}
+
+	if m.Storage.Driver == "clickhouse" {
+		ch := m.Storage.ClickHouse
+		if strings.TrimSpace(ch.URL) == "" {
+			errs = append(errs, errors.New("management.storage.clickhouse.url: required when the driver is clickhouse"))
+		} else if u, err := url.Parse(ch.URL); err != nil {
+			errs = append(errs, fmt.Errorf("management.storage.clickhouse.url %q: %v", ch.URL, err))
+		} else if u.Host == "" {
+			errs = append(errs, fmt.Errorf("management.storage.clickhouse.url %q: missing host", ch.URL))
+		}
+		if ch.Timeout < 0 {
+			errs = append(errs, errors.New("management.storage.clickhouse.timeout: must be positive"))
+		}
+	}
+
+	if m.Enabled && m.AuthToken == "" && mgmtAddr != "" && !isLoopbackAddr(mgmtAddr) {
+		errs = append(errs, fmt.Errorf(
+			"management.auth_token: required when the management listener %s is not loopback", mgmtAddr))
+	}
+	return errs
+}
+
+// validatePricing checks the price table (CO-2). Negative prices are
+// rejected: a negative price would produce a negative cost, which is
+// worse than an unknown cost.
+func validatePricing(prices []Price) []error {
+	var errs []error
+	for i, p := range prices {
+		switch {
+		case strings.TrimSpace(p.Model) == "":
+			errs = append(errs, fmt.Errorf("pricing[%d].model: required", i))
+		case p.InputPer1KUSD < 0:
+			errs = append(errs, fmt.Errorf("pricing[%d].input_per_1k_usd: must not be negative", i))
+		case p.OutputPer1KUSD < 0:
+			errs = append(errs, fmt.Errorf("pricing[%d].output_per_1k_usd: must not be negative", i))
+		}
+	}
+	return errs
+}
+
+// isLoopbackAddr reports whether a listen address only accepts local
+// connections.
+func isLoopbackAddr(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+	}
+	if host == "" {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func checkOTLPEndpoint(raw, protocol string) []error {

@@ -17,29 +17,36 @@ import (
 	"time"
 
 	"github.com/kyurem-project/kyurem/gateway/internal/config"
+	"github.com/kyurem-project/kyurem/gateway/internal/cost"
 	"github.com/kyurem-project/kyurem/gateway/internal/metrics"
+	"github.com/kyurem-project/kyurem/gateway/internal/mgmtapi"
 	"github.com/kyurem-project/kyurem/gateway/internal/proxy"
 	"github.com/kyurem-project/kyurem/gateway/internal/registry"
+	"github.com/kyurem-project/kyurem/gateway/internal/storage"
 	"github.com/kyurem-project/kyurem/gateway/internal/telemetry"
 	"github.com/kyurem-project/kyurem/gateway/internal/version"
 )
 
 // Server owns every goroutine and listener the gateway runs.
 type Server struct {
-	cfg    *config.Config
-	logger *slog.Logger
-	reg    *registry.Registry
-	cache  *registry.CardCache
-	mtr    *metrics.Metrics
-	tel    *telemetry.Telemetry
-	proxy  *proxy.Handler
+	cfg     *config.Config
+	logger  *slog.Logger
+	reg     *registry.Registry
+	cache   *registry.CardCache
+	mtr     *metrics.Metrics
+	tel     *telemetry.Telemetry
+	proxy   *proxy.Handler
+	store   storage.Store
+	queries storage.Queries
 
 	a2aSrv   *http.Server
 	adminSrv *http.Server
+	mgmtSrv  *http.Server
 
 	ready   atomic.Bool
 	healthy atomic.Bool
 	done    chan struct{}
+	started time.Time
 }
 
 // New wires all components; Start launches them. Telemetry setup can fail
@@ -47,10 +54,24 @@ type Server struct {
 // the error instead of serving without the promised tracing.
 func New(cfg *config.Config, logger *slog.Logger) (*Server, error) {
 	mtr := metrics.New()
-	tel, err := telemetry.New(context.Background(), cfg.Telemetry, logger, mtr)
+
+	// The span store feeds the management API. The in-process driver also
+	// receives the finished spans, so the dashboard works without any
+	// external database.
+	store, err := buildStore(cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("storage: %w", err)
+	}
+
+	var sink telemetry.Sink
+	if s, ok := store.(telemetry.Sink); ok {
+		sink = s
+	}
+	tel, err := telemetry.New(context.Background(), cfg.Telemetry, logger, mtr, telemetry.WithSink(sink))
 	if err != nil {
 		return nil, fmt.Errorf("telemetry: %w", err)
 	}
+
 	reg := buildRegistry(cfg)
 	cache := registry.NewCardCache(
 		reg,
@@ -60,17 +81,19 @@ func New(cfg *config.Config, logger *slog.Logger) (*Server, error) {
 		cfg.CardCache.MaxCardBytes,
 		logger,
 	)
-	h := proxy.New(cfg, reg, cache, mtr, tel, logger)
+	h := proxy.New(cfg, reg, cache, mtr, tel, logger, proxy.WithPriceTable(buildPriceTable(cfg)))
 
 	s := &Server{
-		cfg:    cfg,
-		logger: logger,
-		reg:    reg,
-		cache:  cache,
-		mtr:    mtr,
-		tel:    tel,
-		proxy:  h,
-		done:   make(chan struct{}),
+		cfg:     cfg,
+		logger:  logger,
+		reg:     reg,
+		cache:   cache,
+		mtr:     mtr,
+		tel:     tel,
+		proxy:   h,
+		store:   store,
+		queries: storage.NewQueries(store),
+		started: time.Now(),
 	}
 	s.a2aSrv = &http.Server{
 		Addr:              cfg.Listeners.A2A.Addr,
@@ -86,7 +109,48 @@ func New(cfg *config.Config, logger *slog.Logger) (*Server, error) {
 		ReadHeaderTimeout: headerTimeout(cfg.Limits.Timeouts.ResponseHeader.Std()),
 		IdleTimeout:       120 * time.Second,
 	}
+	if cfg.Management.Enabled {
+		s.mgmtSrv = &http.Server{
+			Addr:              cfg.Listeners.Mgmt.Addr,
+			Handler:           s.mgmtHandler(),
+			ReadHeaderTimeout: headerTimeout(cfg.Limits.Timeouts.ResponseHeader.Std()),
+			IdleTimeout:       120 * time.Second,
+		}
+	}
 	return s, nil
+}
+
+// buildStore creates the span store the management API reads from.
+func buildStore(cfg *config.Config, logger *slog.Logger) (storage.Store, error) {
+	switch cfg.Management.Storage.Driver {
+	case "", "memory":
+		return storage.NewMemoryStore(cfg.Management.Storage.MemoryCapacity), nil
+	case "clickhouse":
+		ch := cfg.Management.Storage.ClickHouse
+		return storage.NewClickHouseStore(storage.ClickHouseOptions{
+			URL:      ch.URL,
+			Database: ch.Database,
+			Username: ch.Username,
+			Password: ch.Password,
+			Timeout:  ch.Timeout.Std(),
+		})
+	default:
+		return nil, fmt.Errorf("unknown storage driver %q", cfg.Management.Storage.Driver)
+	}
+}
+
+// buildPriceTable converts the configured prices into the cost table the
+// proxy uses to price a span (CO-2).
+func buildPriceTable(cfg *config.Config) cost.Table {
+	prices := make([]cost.Price, 0, len(cfg.Pricing))
+	for _, p := range cfg.Pricing {
+		prices = append(prices, cost.Price{
+			Model:          p.Model,
+			InputPer1KUSD:  p.InputPer1KUSD,
+			OutputPer1KUSD: p.OutputPer1KUSD,
+		})
+	}
+	return cost.NewTable(prices)
 }
 
 // headerTimeout converts response-header semantics to request-header
@@ -150,6 +214,23 @@ func (s *Server) adminHandler() http.Handler {
 	return recoveryMiddleware(mux, s.logger)
 }
 
+// mgmtHandler serves the management API (M3) on its own listener: the A2A
+// data path stays transparent, the API is authenticated and versioned.
+func (s *Server) mgmtHandler() http.Handler {
+	return mgmtapi.New(mgmtapi.Deps{
+		Queries:         s.queries,
+		Registry:        s.reg,
+		Cards:           s.cache,
+		Metrics:         s.mtr,
+		Telemetry:       s.tel,
+		StorageDriver:   s.cfg.Management.Storage.Driver,
+		StorageDatabase: s.cfg.Management.Storage.ClickHouse.Database,
+		AuthToken:       s.cfg.Management.AuthToken,
+		Logger:          s.logger,
+		Uptime:          s.started,
+	})
+}
+
 func writeJSON(w http.ResponseWriter, v any) error {
 	w.Header().Set("Content-Type", "application/json")
 	return json.NewEncoder(w).Encode(v)
@@ -171,6 +252,15 @@ func (s *Server) Start(ctx context.Context) error {
 		_ = a2aLn.Close()
 		return err
 	}
+	var mgmtLn net.Listener
+	if s.mgmtSrv != nil {
+		mgmtLn, err = net.Listen("tcp", s.mgmtSrv.Addr)
+		if err != nil {
+			_ = a2aLn.Close()
+			_ = adminLn.Close()
+			return err
+		}
+	}
 	s.logger.Info("kyurem gateway starting",
 		"a2a_addr", a2aLn.Addr().String(),
 		"admin_addr", adminLn.Addr().String(),
@@ -179,6 +269,12 @@ func (s *Server) Start(ctx context.Context) error {
 		"a2a_go_sdk_version", version.GoVersion(),
 		"log_format", s.cfg.Logging.Format,
 	)
+	if mgmtLn != nil {
+		s.logger.Info("management API enabled",
+			"mgmt_addr", mgmtLn.Addr().String(),
+			"storage_driver", s.cfg.Management.Storage.Driver,
+			"authenticated", s.cfg.Management.AuthToken != "")
+	}
 	if s.tel.Exporting() {
 		s.logger.Info("telemetry export enabled",
 			"otlp_endpoint", s.cfg.Telemetry.OTLPEndpoint,
@@ -205,6 +301,16 @@ func (s *Server) Start(ctx context.Context) error {
 			s.logger.Error("admin listener terminated", "err", serveErr)
 		}
 	}()
+	if mgmtLn != nil {
+		serveWG.Add(1)
+		go func() {
+			defer serveWG.Done()
+			serveErr := s.mgmtSrv.Serve(mgmtLn)
+			if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+				s.logger.Error("management listener terminated", "err", serveErr)
+			}
+		}()
+	}
 
 	s.healthy.Store(true)
 	s.ready.Store(true)
@@ -222,7 +328,11 @@ func (s *Server) Start(ctx context.Context) error {
 	// Servers shut down concurrently: admin first would be fine too, but
 	// concurrent is simplest and symmetric for tests already using both.
 	var shutdownWG sync.WaitGroup
-	for _, srv := range []*http.Server{s.adminSrv, s.a2aSrv} {
+	servers := []*http.Server{s.adminSrv, s.a2aSrv}
+	if s.mgmtSrv != nil {
+		servers = append(servers, s.mgmtSrv)
+	}
+	for _, srv := range servers {
 		shutdownWG.Add(1)
 		go func(srv *http.Server) {
 			defer shutdownWG.Done()
@@ -251,5 +361,10 @@ func (s *Server) shutdownTelemetry() {
 	defer cancel()
 	if err := s.tel.Shutdown(ctx); err != nil {
 		s.logger.Warn("telemetry shutdown incomplete; queued spans were dropped", "err", err)
+	}
+	if s.store != nil {
+		if err := s.store.Close(); err != nil {
+			s.logger.Warn("span store close failed", "err", err)
+		}
 	}
 }

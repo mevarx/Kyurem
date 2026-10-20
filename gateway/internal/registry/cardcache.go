@@ -105,6 +105,19 @@ func NewCardCache(reg *Registry, client *http.Client, ttl, staleGrace time.Durat
 	}
 }
 
+// Peek returns the cached card snapshot for the agent without triggering a
+// fetch. It is a read-only view for management surfaces (the dashboard
+// wants to show card freshness, not to force a round trip). It returns nil
+// when no card was fetched yet.
+func (c *CardCache) Peek(e *Entry) *CardResult {
+	if c == nil || e == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.cards[e.Name]
+}
+
 // Get returns the current card snapshot for the agent, refreshing it when
 // stale. Concurrent fetches for the same agent collapse (singleflight).
 func (c *CardCache) Get(ctx context.Context, e *Entry) (*CardResult, error) {

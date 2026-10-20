@@ -18,6 +18,7 @@ import (
 	"github.com/a2aproject/a2a-go/v2/a2a"
 
 	"github.com/kyurem-project/kyurem/gateway/internal/config"
+	"github.com/kyurem-project/kyurem/gateway/internal/cost"
 	"github.com/kyurem-project/kyurem/gateway/internal/metrics"
 	"github.com/kyurem-project/kyurem/gateway/internal/registry"
 	"github.com/kyurem-project/kyurem/gateway/internal/telemetry"
@@ -55,6 +56,17 @@ type Handler struct {
 	streams   chan struct{} // semaphore when streamCap > 0
 	knownBase string        // configured public_base_url ('' = derive per request)
 	routes    []route       // ordered: longer prefixes first
+	prices    cost.Table    // price table for the per-span cost (CO-2)
+}
+
+// Option customizes the handler.
+type Option func(*Handler)
+
+// WithPriceTable gives the handler the price table used to turn reported
+// token usage into a per-span cost (CO-2). Without a table the cost stays
+// unknown, which is reported as such.
+func WithPriceTable(prices cost.Table) Option {
+	return func(h *Handler) { h.prices = prices }
 }
 
 // route binds a listen-path prefix to its registry entry.
@@ -65,7 +77,7 @@ type route struct {
 
 // New builds the handler: routing table, reverse proxy, upstream transport
 // with GW-6 timeouts, and Prometheus instruments.
-func New(cfg *config.Config, reg *registry.Registry, cache *registry.CardCache, mtr *metrics.Metrics, tel *telemetry.Telemetry, logger *slog.Logger) *Handler {
+func New(cfg *config.Config, reg *registry.Registry, cache *registry.CardCache, mtr *metrics.Metrics, tel *telemetry.Telemetry, logger *slog.Logger, opts ...Option) *Handler {
 	if tel == nil {
 		// Defensive: a disabled provider still mints valid trace IDs and
 		// propagates W3C context, so ad-hoc uses never lose M1 behavior.
@@ -81,6 +93,9 @@ func New(cfg *config.Config, reg *registry.Registry, cache *registry.CardCache, 
 		maxBody:   cfg.Limits.MaxRequestBodyBytes,
 		streamCap: cfg.Limits.MaxConcurrentStreams,
 		transport: newTransport(cfg),
+	}
+	for _, opt := range opts {
+		opt(h)
 	}
 	h.knownBase = strings.TrimSuffix(cfg.Listeners.A2A.PublicBaseURL, "/")
 	h.pool = bufferPool{p: sync.Pool{New: func() any {

@@ -104,10 +104,19 @@ func parseDurationValue(v any) (Duration, error) {
 	}
 }
 
-// Listeners configures the two HTTP listeners.
+// Listeners configures the HTTP listeners.
 type Listeners struct {
 	A2A   A2AListener `yaml:"a2a" env:"A2A"`
 	Admin Admin       `yaml:"admin" env:"ADMIN"`
+	// Mgmt hosts the management API (M3). It is separate from the A2A
+	// data path on purpose: the data path stays transparent, the
+	// management API is authenticated and versioned.
+	Mgmt Mgmt `yaml:"mgmt" env:"MGMT"`
+}
+
+// Mgmt is the management API listener.
+type Mgmt struct {
+	Addr string `yaml:"addr" env:"ADDR" default:"127.0.0.1:8082"`
 }
 
 // A2AListener is the A2A data path listener.
@@ -241,14 +250,69 @@ func (t Telemetry) EffectiveSampleRatio() float64 {
 	return *t.SampleRatio
 }
 
+// Management configures the management API (M3): its own listener, its
+// authentication and where the dashboard reads its data from.
+type Management struct {
+	// Enabled serves the management API. When false the listener is not
+	// started and /api/v1 answers nothing.
+	Enabled bool `yaml:"enabled" env:"ENABLED" default:"true"`
+	// AuthToken is the bearer token the API requires ("Authorization:
+	// Bearer <token>"). Empty means the API is open, which is only
+	// acceptable on a loopback listener: validation rejects an open API
+	// bound to a non-loopback address.
+	AuthToken string `yaml:"auth_token" env:"AUTH_TOKEN"`
+	// Storage selects where the dashboard data comes from.
+	Storage Storage `yaml:"storage" env:"STORAGE"`
+}
+
+// Storage selects the span store behind the management API.
+type Storage struct {
+	// Driver is "memory" (bounded in-process ring, no dependencies) or
+	// "clickhouse" (the store the OTel collector writes to).
+	Driver string `yaml:"driver" env:"DRIVER" default:"memory"`
+	// MemoryCapacity is the number of spans the in-process ring keeps.
+	MemoryCapacity int `yaml:"memory_capacity" env:"MEMORY_CAPACITY" default:"4096"`
+	// ClickHouse configures the clickhouse driver.
+	ClickHouse ClickHouse `yaml:"clickhouse" env:"CLICKHOUSE"`
+}
+
+// ClickHouse points at the ClickHouse HTTP interface that holds the spans.
+type ClickHouse struct {
+	// URL is the HTTP endpoint, e.g. "http://clickhouse:8123". The
+	// "clickhouse://" scheme is accepted as an alias.
+	URL string `yaml:"url" env:"URL"`
+	// Database holds the spans (the collector creates it, "otel" by
+	// default).
+	Database string `yaml:"database" env:"DATABASE" default:"otel"`
+	// Username and Password authenticate the queries.
+	Username string `yaml:"username" env:"USERNAME"`
+	Password string `yaml:"password" env:"PASSWORD"`
+	// Timeout bounds one query.
+	Timeout Duration `yaml:"timeout" env:"TIMEOUT" default:"10s"`
+}
+
+// Price is one entry of the price table (CO-2). The model key matches the
+// model an agent reports (gen_ai.request.model); an agent that reports no
+// model has no computable cost, which is shown as unknown, never as zero.
+type Price struct {
+	// Model is the model name (or alias) the prices apply to.
+	Model string `yaml:"model"`
+	// InputPer1KUSD is the price per 1000 input tokens.
+	InputPer1KUSD float64 `yaml:"input_per_1k_usd"`
+	// OutputPer1KUSD is the price per 1000 output tokens.
+	OutputPer1KUSD float64 `yaml:"output_per_1k_usd"`
+}
+
 // Config is the root configuration document.
 type Config struct {
-	Listeners Listeners  `yaml:"listeners" env:"LISTENERS"`
-	Logging   LogConfig  `yaml:"logging" env:"LOGGING"`
-	Telemetry Telemetry  `yaml:"telemetry" env:"TELEMETRY"`
-	CardCache CardCache  `yaml:"card_cache" env:"CARD_CACHE"`
-	Limits    Limits     `yaml:"limits" env:"LIMITS"`
-	Agents    []AgentReg `yaml:"agents"`
+	Listeners  Listeners  `yaml:"listeners" env:"LISTENERS"`
+	Logging    LogConfig  `yaml:"logging" env:"LOGGING"`
+	Telemetry  Telemetry  `yaml:"telemetry" env:"TELEMETRY"`
+	Management Management `yaml:"management" env:"MANAGEMENT"`
+	CardCache  CardCache  `yaml:"card_cache" env:"CARD_CACHE"`
+	Limits     Limits     `yaml:"limits" env:"LIMITS"`
+	Pricing    []Price    `yaml:"pricing"`
+	Agents     []AgentReg `yaml:"agents"`
 }
 
 // Load reads, defaults, environment-overrides and validates a config file.

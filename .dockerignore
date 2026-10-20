@@ -1,7 +1,8 @@
 # Keep the Docker build context small and free of local state.
 #
-# The images only need the Go module they build (gateway/ or demo/), so
-# everything else is excluded here.
+# The images need the Go module they build (gateway/ or demo/) and, for the
+# dashboard, api/ (the OpenAPI contract the types are generated from) plus
+# dashboard/ itself. Everything else is excluded here.
 
 .git
 .github
@@ -11,11 +12,15 @@
 # Build outputs and local state
 bin
 demo/bin
+**/node_modules
 **/*.exe
 **/*.test
 **/*.out
 **/*.log
 **/*.pid
+dashboard/dist
+dashboard/coverage
+dashboard/.vite
 
 # Local secrets
 .env
@@ -25,6 +30,5 @@ deploy/compose/.env
 *.key
 
 # Not needed inside the images
-dashboard
 docs
 tmp

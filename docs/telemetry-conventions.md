@@ -121,16 +121,37 @@ M2, so no `gen_ai.usage.*` attributes are invented.
 | `kyurem.callee.agent` | string | Registry name of the upstream agent |
 | `kyurem.hop.index` | int | `0` for an unattributed root, incremented per nested gateway hop |
 | `kyurem.card.verified` | string | `unchecked` in M2 (signature verification is M5) |
-| `kyurem.tokens.known` | bool | always `false` in M2; cost accounting lands later |
+| `kyurem.tokens.known` | bool | `true` when the agent reported token usage, `false` otherwise |
 | `kyurem.bytes.in` | int64 | request body bytes read from the client |
 | `kyurem.bytes.out` | int64 | response body bytes written to the client |
 | `kyurem.latency.ms` | float64 | wall-clock handoff duration in milliseconds |
 | `kyurem.task.status` | string | latest A2A task state observed in the response/SSE stream |
+| `kyurem.cost.usd` | float64 | computed cost of the span (M3, CO-2); absent when unknown |
 
 `kyurem.task.status` keeps the **latest** state, not the first one: a
 streamed lifecycle ends as `TASK_STATE_COMPLETED`, not `TASK_STATE_SUBMITTED`.
 Plain JSON, JSON-RPC, SSE `data:` frames and truncated prefixes are supported;
 the extraction is tolerant but never retains more than the bounded prefix.
+
+### Token usage and cost (M3, CO-1/CO-2)
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `gen_ai.usage.input_tokens` | int64 | input tokens the agent reported |
+| `gen_ai.usage.output_tokens` | int64 | output tokens the agent reported |
+| `gen_ai.request.model` | string | the model the agent reported |
+
+The gateway reads the usage an agent reports (`metadata.usage` with
+`input_tokens`/`output_tokens` or `prompt_tokens`/`completion_tokens`, and a
+`model` string) from the bounded response prefix. When the agent reports
+nothing, the span keeps `kyurem.tokens.known=false` and carries **no** usage
+attributes: unknown is never rendered as zero.
+
+The cost is computed when the span ends: the price table (`pricing:` in the
+config) is matched against the reported model, and `kyurem.cost.usd` is
+written only when both the usage and a price are known. A model without a
+price entry leaves the cost unknown — the attribute is simply absent. See
+[ADR 0006](adr/0006-token-usage-and-cost-model.md).
 
 ### HTTP attributes
 
@@ -257,10 +278,22 @@ compose/collector configuration is validated statically in CI.
 
 - **TR-4 payload capture** is not implemented. `telemetry.payload_capture:
   true` is rejected at startup. The gateway retains only a bounded prefix in
-  memory to extract IDs and status, and discards it when the span ends.
-- **Token usage and cost** (`CO-*`) are later milestones. Spans say
-  `kyurem.tokens.known=false` instead of reporting a misleading zero.
+  memory to extract IDs, status and reported usage, and discards it when
+  the span ends.
 - **Card verification** is `unchecked` until M5.
 - **Baggage** is not propagated; only `traceparent`/`tracestate` are.
 - **Exemplars, logs and metrics over OTLP** are not part of the M2 trace
   pipeline. Gateway metrics stay on the Prometheus admin endpoint.
+- **Budget alerts** (CO-4) arrive with a later milestone.
+
+## Management API and cost (M3)
+
+M3 adds a read-only management API on its own listener
+(`listeners.mgmt.addr`) and the dashboard on top of it. The API reads the
+same spans this document describes, from ClickHouse (the compose stack) or
+from a bounded in-process ring (local development), and the aggregation
+semantics live in one place: a task is a trace, the cost of a task is the
+sum of the known span costs, and a group without a known cost is reported
+as unknown, never as zero. See
+[ADR 0005](adr/0005-management-api-and-storage-drivers.md) and
+[ADR 0006](adr/0006-token-usage-and-cost-model.md).

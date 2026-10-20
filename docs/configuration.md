@@ -11,7 +11,7 @@ strings; bare numbers mean seconds (both in YAML and env).
 Structures that are lists — `agents` — are file-only: they cannot be
 overridden by environment variables.
 
-## Reference (M1 + M2)
+## Reference (M1 + M2 + M3)
 
 | YAML path | Meaning | Default |
 |---|---|---|
@@ -19,6 +19,7 @@ overridden by environment variables.
 | `listeners.a2a.public_base_url` | Base URL used for card rewriting; empty = derive from request Host | `""` |
 | `listeners.a2a.route_prefix` | Listen prefix under which agents are exposed | `/a2a` |
 | `listeners.admin.addr` | Health/readiness/metrics listener | `127.0.0.1:8081` |
+| `listeners.mgmt.addr` | Management API listener (M3), separate from the data path | `127.0.0.1:8082` |
 | `logging.level` | `debug` \| `info` \| `warn` \| `error` | `info` |
 | `logging.format` | `text` \| `json` | `json` |
 | `telemetry.service_name` | `service.name` resource attribute | `kyurem-gateway` |
@@ -34,6 +35,18 @@ overridden by environment variables.
 | `telemetry.initial_backoff` | First retry delay (exponential) | `500ms` |
 | `telemetry.max_backoff` | Upper bound of the retry delay | `10s` |
 | `telemetry.payload_capture` | Reserved for TR-4; `true` is rejected at startup | `false` |
+| `management.enabled` | Serve the management API on `listeners.mgmt.addr` | `true` |
+| `management.auth_token` | Bearer token the API requires; empty = open (loopback only) | `""` |
+| `management.storage.driver` | `memory` (in-process ring) \| `clickhouse` | `memory` |
+| `management.storage.memory_capacity` | Spans kept in the in-process ring | `4096` |
+| `management.storage.clickhouse.url` | ClickHouse HTTP endpoint (`http://host:8123`) | `""` |
+| `management.storage.clickhouse.database` | Database holding the spans | `otel` |
+| `management.storage.clickhouse.username` | ClickHouse user | `""` |
+| `management.storage.clickhouse.password` | ClickHouse password | `""` |
+| `management.storage.clickhouse.timeout` | Deadline of one query | `10s` |
+| `pricing[].model` | Model name the prices apply to (CO-2) | — |
+| `pricing[].input_per_1k_usd` | Price per 1000 input tokens | — |
+| `pricing[].output_per_1k_usd` | Price per 1000 output tokens | — |
 | `card_cache.ttl` | Freshness window of fetched agent cards | `60s` |
 | `card_cache.stale_grace` | Serve stale cards this long when refreshes fail | `10m` |
 | `card_cache.max_card_bytes` | Hard cap on a fetched card body (untrusted input) | 256 KiB |
@@ -91,6 +104,69 @@ Validation rules (see `gateway/internal/config/validate.go`):
 
 Span names, attributes, sampling and drop semantics are specified in
 `docs/telemetry-conventions.md`.
+
+## Management API and pricing (M3)
+
+The management API is a read-only, authenticated, versioned HTTP API under
+`/api/v1` on its own listener. It backs the dashboard and is described by
+`api/openapi.yaml`.
+
+```yaml
+listeners:
+  mgmt:
+    addr: "127.0.0.1:8082"
+
+management:
+  enabled: true
+  # Bearer token: "Authorization: Bearer <token>". Empty means open, which
+  # validation only allows on a loopback address.
+  auth_token: ""
+  storage:
+    # memory: bounded in-process ring of recent spans (no dependencies).
+    # clickhouse: the store the OTel collector writes to.
+    driver: memory
+    memory_capacity: 4096
+    clickhouse:
+      url: "http://clickhouse:8123"
+      database: otel
+      username: default
+      password: ""
+      timeout: 10s
+
+# Price table (CO-2). The key matches the model an agent reports
+# (gen_ai.request.model). An agent that reports no model has no computable
+# cost, which the dashboard shows as unknown rather than as zero.
+pricing:
+  - model: "demo-echo"
+    input_per_1k_usd: 0.001
+    output_per_1k_usd: 0.002
+```
+
+Environment overrides:
+
+| Environment variable | Overrides |
+|---|---|
+| `KYUREM_LISTENERS_MGMT_ADDR` | `listeners.mgmt.addr` |
+| `KYUREM_MANAGEMENT_ENABLED` | `management.enabled` |
+| `KYUREM_MANAGEMENT_AUTH_TOKEN` | `management.auth_token` |
+| `KYUREM_MANAGEMENT_STORAGE_DRIVER` | `management.storage.driver` |
+| `KYUREM_MANAGEMENT_STORAGE_MEMORY_CAPACITY` | `management.storage.memory_capacity` |
+| `KYUREM_MANAGEMENT_STORAGE_CLICKHOUSE_URL` | `management.storage.clickhouse.url` |
+| `KYUREM_MANAGEMENT_STORAGE_CLICKHOUSE_DATABASE` | `management.storage.clickhouse.database` |
+| `KYUREM_MANAGEMENT_STORAGE_CLICKHOUSE_USERNAME` | `management.storage.clickhouse.username` |
+| `KYUREM_MANAGEMENT_STORAGE_CLICKHOUSE_PASSWORD` | `management.storage.clickhouse.password` |
+| `KYUREM_MANAGEMENT_STORAGE_CLICKHOUSE_TIMEOUT` | `management.storage.clickhouse.timeout` |
+
+`pricing` is a list and therefore file-only.
+
+Validation rules:
+
+- `management.storage.driver` is `memory` or `clickhouse`;
+- `memory_capacity` is positive and at most 1048576;
+- the clickhouse driver requires `clickhouse.url` with a host;
+- `management.auth_token` is required when the management listener is not
+  loopback;
+- every `pricing` entry has a model and non-negative prices.
 
 ## Agents
 

@@ -45,6 +45,11 @@ jobs:
           go run ./cmd/kyurem validate --config ../config/kyurem.example.yaml
           go run ./cmd/kyurem validate --config ../config/kyurem.compose.yaml
         working-directory: gateway
+      - name: M3 demo (a scripted failure is diagnosable)
+        # The M3 exit criterion, executed: a failing task shows up in the
+        # management API with a root-cause hint.
+        shell: pwsh
+        run: ./demo/scenarios/m3-dashboard.ps1
 
   demo:
     name: Demo agents (go)
@@ -90,16 +95,3 @@ jobs:
       - name: Validate compose file
         run: docker compose -f deploy/compose/docker-compose.yml config --quiet
 
-  dashboard:
-    name: Dashboard (ts)
-    runs-on: ubuntu-latest
-    # The dashboard lands in M3 (see docs/milestones.md); this job is a placeholder
-    # so the workflow shape is stable from the start.
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - if: hashFiles('dashboard/package.json') != ''
-        run: npm ci && npm run typecheck && npm test
-        working-directory: dashboard
