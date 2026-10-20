@@ -7,7 +7,9 @@ bin/
 *.exe
 *.out
 *.test
-kyurem
+# Only the root-level binary: a bare "kyurem" pattern would also match
+# gateway/cmd/kyurem/ and silently drop the gateway entrypoint.
+/kyurem
 
 # Logs and runtime artifacts
 *.log

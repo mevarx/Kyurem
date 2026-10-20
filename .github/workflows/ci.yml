@@ -15,7 +15,12 @@ jobs:
         with:
           go-version: "1.26.x"
       - name: Build
-        run: go build ./...
+        run: |
+          go build ./...
+          # Build the entrypoint explicitly: `go build ./...` silently skips
+          # a missing package directory, which once hid the missing
+          # gateway/cmd/kyurem from the whole pipeline.
+          go build -o "$RUNNER_TEMP/kyurem" ./cmd/kyurem
         working-directory: gateway
       - name: Vet
         run: go vet ./...
@@ -45,7 +50,11 @@ jobs:
         with:
           go-version: "1.26.x"
       - name: Build
-        run: go build ./...
+        run: |
+          go build ./...
+          go build -o "$RUNNER_TEMP/go-echo" ./agents/go-echo
+          go build -o "$RUNNER_TEMP/go-upper" ./agents/go-upper
+          go build -o "$RUNNER_TEMP/demo-client" ./scenarios/client
         working-directory: demo
       - name: Vet
         run: go vet ./...
