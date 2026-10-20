@@ -41,6 +41,21 @@ function Get-Json($url) {
     (Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10).Content | ConvertFrom-Json
 }
 
+# Start-Background launches a process without a console window. The
+# -WindowStyle parameter only exists on Windows, so it is added there only:
+# the script also runs on Linux CI.
+function Start-Background($file, $arguments, $stdout, $stderr) {
+    $params = @{
+        FilePath               = $file
+        ArgumentList           = $arguments
+        PassThru               = $true
+        RedirectStandardOutput = $stdout
+        RedirectStandardError  = $stderr
+    }
+    if ($IsWindows) { $params.WindowStyle = 'Hidden' }
+    Start-Process @params
+}
+
 try {
     Note '== building binaries =='
     New-Item -ItemType Directory -Force -Path demo/bin | Out-Null
@@ -54,9 +69,8 @@ try {
     if ($LASTEXITCODE -ne 0) { Fail 'config validate' }
 
     Note '== booting the gateway (no upstream agents: every call fails) =='
-    $Jobs += Start-Process -FilePath 'demo/bin/kyurem.exe' `
-        -ArgumentList 'serve --config config/kyurem.example.yaml' -PassThru -WindowStyle Hidden `
-        -RedirectStandardOutput 'demo\bin\gateway.log' -RedirectStandardError 'demo\bin\gateway.err.log'
+    $Jobs += Start-Background 'demo/bin/kyurem.exe' 'serve --config config/kyurem.example.yaml' `
+        'demo/bin/gateway.log' 'demo/bin/gateway.err.log'
 
     Wait-Http "http://$AdminHost/healthz" 'gateway admin'
     Wait-Http "http://$MgmtHost/healthz" 'gateway management API'

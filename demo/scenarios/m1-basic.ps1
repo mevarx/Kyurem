@@ -40,6 +40,21 @@ function Wait-Http($url, $name) {
     Fail "$name not ready: $url"
 }
 
+# Start-Background launches a process without a console window. The
+# -WindowStyle parameter only exists on Windows, so it is added there only:
+# the script also runs on Linux CI.
+function Start-Background($file, $arguments, $stdout, $stderr) {
+    $params = @{
+        FilePath               = $file
+        ArgumentList           = $arguments
+        PassThru               = $true
+    }
+    if ($stdout) { $params.RedirectStandardOutput = $stdout }
+    if ($stderr) { $params.RedirectStandardError = $stderr }
+    if ($IsWindows) { $params.WindowStyle = 'Hidden' }
+    Start-Process @params
+}
+
 try {
     Note '== building binaries =='
     New-Item -ItemType Directory -Force -Path demo/bin | Out-Null
@@ -57,10 +72,10 @@ try {
     if ($LASTEXITCODE -ne 0) { Fail 'config validate' }
 
     Note '== booting: echo -> gateway -> upper =='
-    $Jobs += Start-Process -FilePath 'demo/bin/go-echo.exe' -ArgumentList "--port $EchoPort" -PassThru -WindowStyle Hidden
-    $Jobs += Start-Process -FilePath 'demo/bin/kyurem.exe' -ArgumentList 'serve --config config/kyurem.example.yaml' -PassThru -WindowStyle Hidden -RedirectStandardOutput 'demo\bin\gateway.log' -RedirectStandardError 'demo\bin\gateway.err.log'
+    $Jobs += Start-Background 'demo/bin/go-echo.exe' "--port $EchoPort" $null $null
+    $Jobs += Start-Background 'demo/bin/kyurem.exe' 'serve --config config/kyurem.example.yaml' 'demo/bin/gateway.log' 'demo/bin/gateway.err.log'
     $echoCard = "http://$A2AHost/a2a/echo/.well-known/agent-card.json"
-    $Jobs += Start-Process -FilePath 'demo/bin/go-upper.exe' -ArgumentList "--port $UpperPort --echo-card-url $echoCard" -PassThru -WindowStyle Hidden
+    $Jobs += Start-Background 'demo/bin/go-upper.exe' "--port $UpperPort --echo-card-url $echoCard" $null $null
 
     Wait-Http "http://$AdminHost/healthz" 'gateway admin'
     Wait-Http "http://$A2AHost/a2a/echo/.well-known/agent-card.json" 'gateway echo route'
