@@ -2,6 +2,7 @@
 
 # Build outputs
 /bin/
+bin/
 /demo/bin/
 *.exe
 *.out
@@ -12,6 +13,17 @@ kyurem
 *.log
 gateway.log
 gateway.err.log
+*.pid
+*.sock
+
+# Local secrets / environment overrides (compose, OTLP credentials)
+/.env
+.env.*
+!/.env.example
+deploy/compose/.env
+*.pem
+*.key
+secrets/
 
 # Go
 *.coverprofile
@@ -31,10 +43,15 @@ dashboard/dist/
 dashboard/.next/
 dashboard/coverage/
 
+# Python demo agents (land in a later milestone)
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
 # Temporary / scratch
 *.tmp
 /tmp/
-
 
 # Source documents not committed
 Kyurem Product Requirements Document.md

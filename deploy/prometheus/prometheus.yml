@@ -1,0 +1,17 @@
+# Prometheus scrape config for the Kyurem M2 compose stack.
+#
+# Telemetry export health is visible here even when the collector is down:
+# queue depth/capacity, spans ended/exported, drops by reason, retry counts
+# and export failures (TR-5).
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: kyurem-gateway
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["gateway:8081"]
+        labels:
+          service: kyurem-gateway

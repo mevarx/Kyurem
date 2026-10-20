@@ -3,6 +3,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"math"
+	"net"
 	"net/url"
 	"regexp"
 	"strings"
@@ -147,6 +149,8 @@ func Validate(cfg *Config) error {
 	errs = append(errs, checkNonNegative("limits.timeouts.response_header", cfg.Limits.Timeouts.ResponseHeader)...)
 	errs = append(errs, checkNonNegative("limits.timeouts.request", cfg.Limits.Timeouts.Request)...)
 
+	errs = append(errs, validateTelemetry(cfg.Telemetry)...)
+
 	switch cfg.Logging.Level {
 	case "", "debug", "info", "warn", "error":
 	default:
@@ -192,6 +196,94 @@ func normalizedPrefix(p string) string {
 
 func normalizePath(p string) string {
 	return "/" + strings.Trim(p, "/")
+}
+
+// validateTelemetry checks the M2 export settings. Export may be disabled
+// (empty endpoint), but configured values must still be internally
+// consistent so a typo cannot silently turn into dropped spans at runtime.
+func validateTelemetry(t Telemetry) []error {
+	var errs []error
+
+	switch t.OTLPProtocol {
+	case "", "http/protobuf", "grpc":
+	default:
+		errs = append(errs, fmt.Errorf("telemetry.otlp_protocol %q: one of http/protobuf|grpc", t.OTLPProtocol))
+	}
+	if t.OTLPEndpoint != "" {
+		errs = append(errs, checkOTLPEndpoint(t.OTLPEndpoint, t.OTLPProtocol)...)
+	}
+
+	ratio := t.EffectiveSampleRatio()
+	if math.IsNaN(ratio) || ratio < 0 || ratio > 1 {
+		errs = append(errs, fmt.Errorf("telemetry.sample_ratio: must be between 0 and 1, got %v", ratio))
+	}
+
+	if t.QueueSize <= 0 {
+		errs = append(errs, errors.New("telemetry.queue_size: must be positive"))
+	} else if t.QueueSize > 1<<20 {
+		errs = append(errs, errors.New("telemetry.queue_size: must be at most 1048576"))
+	}
+	if t.BatchSize <= 0 {
+		errs = append(errs, errors.New("telemetry.batch_size: must be positive"))
+	} else if t.QueueSize > 0 && t.BatchSize > t.QueueSize {
+		errs = append(errs, fmt.Errorf("telemetry.batch_size: must not exceed telemetry.queue_size (%d)", t.QueueSize))
+	}
+	if t.BatchTimeout <= 0 {
+		errs = append(errs, errors.New("telemetry.batch_timeout: must be positive"))
+	}
+	if t.ExportTimeout <= 0 {
+		errs = append(errs, errors.New("telemetry.export_timeout: must be positive"))
+	}
+	if t.MaxRetries < 0 {
+		errs = append(errs, errors.New("telemetry.max_retries: must be >= 0"))
+	} else if t.MaxRetries > 10 {
+		errs = append(errs, errors.New("telemetry.max_retries: must be at most 10"))
+	}
+	if t.InitialBackoff <= 0 {
+		errs = append(errs, errors.New("telemetry.initial_backoff: must be positive"))
+	}
+	if t.MaxBackoff <= 0 {
+		errs = append(errs, errors.New("telemetry.max_backoff: must be positive"))
+	} else if t.InitialBackoff > 0 && t.MaxBackoff < t.InitialBackoff {
+		errs = append(errs, errors.New("telemetry.max_backoff: must be >= telemetry.initial_backoff"))
+	}
+	if t.PayloadCapture {
+		errs = append(errs, errors.New("telemetry.payload_capture: not implemented in M2 (TR-4); must remain false"))
+	}
+	return errs
+}
+
+func checkOTLPEndpoint(raw, protocol string) []error {
+	if strings.Contains(raw, "://") {
+		if protocol == "grpc" {
+			return []error{fmt.Errorf("telemetry.otlp_endpoint %q: grpc endpoints use host:port, not a URL", raw)}
+		}
+		u, err := url.Parse(raw)
+		if err != nil {
+			return []error{fmt.Errorf("telemetry.otlp_endpoint %q: %v", raw, err)}
+		}
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return []error{fmt.Errorf("telemetry.otlp_endpoint %q: scheme must be http or https", raw)}
+		}
+		if u.Host == "" {
+			return []error{fmt.Errorf("telemetry.otlp_endpoint %q: missing host", raw)}
+		}
+		if u.User != nil {
+			return []error{fmt.Errorf("telemetry.otlp_endpoint %q: must not contain credentials", raw)}
+		}
+		return nil
+	}
+	host, port, err := net.SplitHostPort(raw)
+	if err != nil {
+		return []error{fmt.Errorf("telemetry.otlp_endpoint %q: must be host:port or an http(s) URL: %v", raw, err)}
+	}
+	if host == "" {
+		return []error{fmt.Errorf("telemetry.otlp_endpoint %q: missing host", raw)}
+	}
+	if port == "" {
+		return []error{fmt.Errorf("telemetry.otlp_endpoint %q: missing port", raw)}
+	}
+	return nil
 }
 
 func checkAddr(field, addr string) []error {

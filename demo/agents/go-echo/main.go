@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,7 +33,10 @@ import (
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
 )
 
-var port = flag.Int("port", 9010, "port to listen on")
+var (
+	port = flag.Int("port", 9010, "port to listen on")
+	host = flag.String("host", "127.0.0.1", "interface to listen on (0.0.0.0 inside containers)")
+)
 
 const (
 	// replyPrefix marks every reply so gateway tests (and the chained
@@ -67,7 +71,7 @@ func main() {
 
 	handler := a2asrv.NewHandler(echoExecutor())
 
-	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *port))
+	listener, err := net.Listen("tcp", net.JoinHostPort(*host, strconv.Itoa(*port)))
 	if err != nil {
 		log.Fatalf("bind failed: %v", err)
 	}

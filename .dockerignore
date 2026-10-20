@@ -1,0 +1,30 @@
+# Keep the Docker build context small and free of local state.
+#
+# The images only need the Go module they build (gateway/ or demo/), so
+# everything else is excluded here.
+
+.git
+.github
+.gitignore
+.dockerignore
+
+# Build outputs and local state
+bin
+demo/bin
+**/*.exe
+**/*.test
+**/*.out
+**/*.log
+**/*.pid
+
+# Local secrets
+.env
+.env.*
+deploy/compose/.env
+*.pem
+*.key
+
+# Not needed inside the images
+dashboard
+docs
+tmp

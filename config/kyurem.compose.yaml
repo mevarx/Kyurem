@@ -1,0 +1,61 @@
+# Kyurem gateway configuration for deploy/compose/docker-compose.yml.
+#
+# The compose stack supplies the same file at /etc/kyurem/config.yaml and
+# starts demo agents under their service DNS names. Validate it with:
+#   kyurem validate --config config/kyurem.compose.yaml
+
+listeners:
+  a2a:
+    # Card rewriting follows the request Host header. Host clients use
+    # http://localhost:8080 and agents inside the compose network use
+    # http://gateway:8080; both then receive cards that point back to the
+    # same reachable gateway address.
+    addr: "0.0.0.0:8080"
+    public_base_url: ""
+    route_prefix: "/a2a"
+  admin:
+    addr: "0.0.0.0:8081"
+
+logging:
+  level: info
+  format: json
+
+telemetry:
+  service_name: kyurem-gateway
+  otlp_endpoint: "http://otel-collector:4318"
+  otlp_protocol: http/protobuf
+  otlp_insecure: true
+  sample_ratio: 1
+  queue_size: 2048
+  batch_size: 512
+  batch_timeout: 5s
+  export_timeout: 10s
+  max_retries: 4
+  initial_backoff: 500ms
+  max_backoff: 10s
+  payload_capture: false
+
+agents:
+  - name: echo
+    aliases: [greeter]
+    upstreams:
+      - url: http://go-echo:9010
+        binding: JSONRPC
+
+  - name: upper
+    upstreams:
+      - url: http://go-upper:9011
+        binding: JSONRPC
+
+card_cache:
+  ttl: 60s
+  stale_grace: 10m
+
+limits:
+  max_concurrent_streams: 1024
+  max_request_body_bytes: 67108864
+  shutdown_grace: 30s
+  timeouts:
+    connect: 5s
+    response_header: 30s
+    request: 0s

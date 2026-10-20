@@ -69,3 +69,27 @@ clients and agents. Two competing forces:
   flows remain uncorrelated — poor DX for the demo and M2-fail scenarios.
 - **Reject malformed traceparents** (4xx): spec-purist but fragile clients
   crash data flows for observability reasons, violating the PRD guarantee.
+
+## M2 implementation note (2026-10-20)
+
+M2 replaced the hand-rolled derivation with the OpenTelemetry
+`TraceContext` propagator (`gateway/internal/telemetry/telemetry.go`); the
+manual helpers in `gateway/internal/proxy/tracectx.go` were deleted. The
+observable rule did not change:
+
+- valid inbound `traceparent` → same trace ID, **new** gateway span ID,
+  inbound flags and `tracestate` preserved;
+- absent or malformed `traceparent` → a fresh gateway root (head-sampled by
+  `telemetry.sample_ratio`);
+- the outbound request always carries the gateway's own `traceparent`, so
+  the hop is materialized as a span (never a relay);
+- propagation is fail-open: a propagation problem never changes an HTTP
+  status.
+
+What M2 adds around this rule: the gateway now *emits* the hop as a SERVER
+span named `invoke_agent {callee}` and the parent of that span is the
+caller's context, so a chain of agents is one trace tree (TR-1/TR-2). The
+M1 tests that asserted the derivation rules were kept and now assert them
+through the OTel propagator. See ADR 0004 for the export pipeline and the
+caller-attribution rules, and `docs/telemetry-conventions.md` for the
+attribute contract.

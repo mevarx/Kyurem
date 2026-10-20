@@ -1,12 +1,12 @@
-# Kyurem gateway example configuration (M1 scope).
+# Kyurem gateway example configuration (M1+M2 scope).
 #
 # Run without starting the server:
 #   kyurem validate --config config/kyurem.example.yaml
 #
 # Every scalar option can be overridden from the environment, e.g.:
 #   KYUREM_LISTENERS_A2A_ADDR=":8080"
-# Sections that do not exist yet (trust, policy, failover, telemetry, pricing)
-# are introduced in later milestones; unknown keys fail validation here.
+# Sections that do not exist yet (trust, policy, failover, pricing) are
+# introduced in later milestones; unknown keys fail validation here.
 
 listeners:
   # The A2A data path. Agents point their clients at this listener.
@@ -29,6 +29,32 @@ logging:
   level: info
   # text | json (json is structured and trace-id aware; default json)
   format: json
+
+# OpenTelemetry trace export (M2). W3C traceparent/tracestate propagation
+# runs even when otlp_endpoint is empty; only export is disabled.
+telemetry:
+  service_name: kyurem-gateway
+  # OTLP collector endpoint. Empty = export disabled.
+  # http/protobuf accepts `host:port` or an http(s):// URL; grpc accepts
+  # `host:port`. For a local collector (compose):
+  #   otlp_endpoint: "http://127.0.0.1:4318"
+  otlp_endpoint: ""
+  otlp_protocol: http/protobuf
+  # Only used for host:port endpoints; URL endpoints decide by scheme.
+  otlp_insecure: true
+  # Head-sampling probability for gateway-rooted traces. Inbound sampled
+  # traces always keep the caller's decision.
+  sample_ratio: 1
+  # Bounded async export (TR-5): overload drops spans, never traffic.
+  queue_size: 2048
+  batch_size: 512
+  batch_timeout: 5s
+  export_timeout: 10s
+  max_retries: 4
+  initial_backoff: 500ms
+  max_backoff: 10s
+  # TR-4 is not implemented in M2; true fails validation.
+  payload_capture: false
 
 agents:
   # `name` and at least one upstream are required. Aliases are extra

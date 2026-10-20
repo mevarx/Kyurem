@@ -1,0 +1,28 @@
+# Grafana datasource for the M2 compose stack.
+#
+# `otelEnabled` switches the ClickHouse plugin into traces mode, so Explore's
+# trace search and trace view render the same `otel.otel_traces` table the
+# collector writes. The password is supplied by the compose environment.
+
+apiVersion: 1
+
+datasources:
+  - name: ClickHouse
+    uid: clickhouse
+    type: grafana-clickhouse-datasource
+    access: proxy
+    isDefault: true
+    jsonData:
+      host: clickhouse
+      port: 9000
+      protocol: native
+      secure: false
+      username: default
+      defaultDatabase: otel
+      defaultTable: otel_traces
+      otelEnabled: true
+      otelVersion: latest
+      dialTimeout: 10
+      queryTimeout: 30
+    secureJsonData:
+      password: $CLICKHOUSE_PASSWORD

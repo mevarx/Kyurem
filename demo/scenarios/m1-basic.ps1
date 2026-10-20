@@ -9,6 +9,7 @@
 #   5. alias routing: /a2a/greeter reaches the echo agent (GW-1)
 #   6. agent-to-agent chain:  upper -> gateway -> echo (GW-1, go-upper demo)
 #   7. unknown agents fail closed with 404 (GW-1)
+#   8. streamed chain: upper runs a task lifecycle through the gateway
 #
 # Requirements: PowerShell 7, go. No Docker needed.
 $ErrorActionPreference = 'Stop'
@@ -119,6 +120,14 @@ try {
         Invoke-WebRequest -Uri "http://$A2AHost/a2a/does-not-exist" -UseBasicParsing -TimeoutSec 5 | Out-Null
     } catch { $code = [int]$_.Exception.Response.StatusCode }
     if ($code -eq 404) { Pass 'unknown agent -> 404' } else { Fail "unknown agent -> HTTP $code" }
+
+    Note '-- 8. streamed chain: upper runs a task lifecycle through the gateway --'
+    $out = & demo/bin/demo-client.exe --gateway-url "http://$A2AHost/a2a/upper" --message 'hello gateway' --stream (5s)
+    if ($LASTEXITCODE -ne 0) { Fail "demo-client upper stream failed: $($out -join ' ')" }
+    $joined = $out -join "`n"
+    if (-not $joined.Contains('TASK_STATE_COMPLETED')) { Fail "upper stream has no completed state: $joined" }
+    if ($joined.Contains('RESULT: upper: HELLO GATEWAY')) { Pass 'streamed chain completes with the upper reply' }
+    else { Fail "unexpected: $joined" }
 
     Write-Host ''
     Write-Host "== $script:Pass assertions passed — M1 demo OK =="

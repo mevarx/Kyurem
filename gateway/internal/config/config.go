@@ -194,12 +194,51 @@ type Limits struct {
 	Timeouts      Timeouts `yaml:"timeouts" env:"TIMEOUTS"`
 }
 
+// Telemetry configures OTLP trace export (M2). Trace-context propagation
+// always runs, even when export is disabled; only the exporter is optional.
 type Telemetry struct {
-	// OTLPEndpoint is accepted now (validated) and consumed by tracing in
-	// M2. Empty disables export.
+	// ServiceName is the OpenTelemetry service.name resource attribute.
+	ServiceName string `yaml:"service_name" env:"SERVICE_NAME" default:"kyurem-gateway"`
+	// OTLPEndpoint is the collector endpoint. Empty disables export while
+	// keeping W3C propagation. http/protobuf accepts `host:port` or an
+	// http(s):// URL; grpc accepts `host:port`.
 	OTLPEndpoint string `yaml:"otlp_endpoint" env:"OTLP_ENDPOINT"`
-	// PayloadCapture is reserved for TR-4 (off by default per PRD).
+	// OTLPProtocol is `http/protobuf` or `grpc`.
+	OTLPProtocol string `yaml:"otlp_protocol" env:"OTLP_PROTOCOL" default:"http/protobuf"`
+	// OTLPInsecure disables TLS for `host:port` endpoints (local collectors).
+	// URL endpoints decide by scheme.
+	OTLPInsecure bool `yaml:"otlp_insecure" env:"OTLP_INSECURE"`
+	// SampleRatio is the head-sampling probability for gateway-rooted
+	// traces. Inbound sampled traces always follow the caller's decision.
+	// A pointer keeps an explicit 0 (sample nothing at the root) distinct
+	// from "unset" (default 1).
+	SampleRatio *float64 `yaml:"sample_ratio" env:"SAMPLE_RATIO" default:"1"`
+	// QueueSize bounds spans waiting for export; overflow is counted and
+	// dropped, never blocking the data path (TR-5).
+	QueueSize int `yaml:"queue_size" env:"QUEUE_SIZE" default:"2048"`
+	// BatchSize is the maximum spans per OTLP request.
+	BatchSize int `yaml:"batch_size" env:"BATCH_SIZE" default:"512"`
+	// BatchTimeout flushes a partial batch after this delay.
+	BatchTimeout Duration `yaml:"batch_timeout" env:"BATCH_TIMEOUT" default:"5s"`
+	// ExportTimeout bounds one OTLP export attempt (per retry).
+	ExportTimeout Duration `yaml:"export_timeout" env:"EXPORT_TIMEOUT" default:"10s"`
+	// MaxRetries is the number of retries after a failed export attempt.
+	MaxRetries int `yaml:"max_retries" env:"MAX_RETRIES" default:"4"`
+	// InitialBackoff and MaxBackoff bound the exponential retry delay.
+	InitialBackoff Duration `yaml:"initial_backoff" env:"INITIAL_BACKOFF" default:"500ms"`
+	MaxBackoff     Duration `yaml:"max_backoff" env:"MAX_BACKOFF" default:"10s"`
+	// PayloadCapture is reserved for TR-4 (off by default per PRD). M2
+	// rejects true: capturing payloads is not implemented yet.
 	PayloadCapture bool `yaml:"payload_capture" env:"PAYLOAD_CAPTURE"`
+}
+
+// EffectiveSampleRatio returns the configured head-sampling probability,
+// defaulting to 1 when the field was constructed without config loading.
+func (t Telemetry) EffectiveSampleRatio() float64 {
+	if t.SampleRatio == nil {
+		return 1
+	}
+	return *t.SampleRatio
 }
 
 // Config is the root configuration document.
@@ -299,7 +338,21 @@ func walkStruct(t reflect.Type, val reflect.Value, prefix string, mode walkMode,
 
 		switch mode {
 		case walkDefaults:
-			if def, ok := f.Tag.Lookup("default"); ok && fv.IsZero() {
+			def, ok := f.Tag.Lookup("default")
+			if !ok {
+				continue
+			}
+			if fv.Kind() == reflect.Ptr {
+				if fv.IsNil() {
+					elem := reflect.New(fv.Type().Elem())
+					if err := setScalar(elem.Elem(), def); err != nil {
+						panic(fmt.Sprintf("bad default tag %s.%s: %v", t.Name(), f.Name, err))
+					}
+					fv.Set(elem)
+				}
+				continue
+			}
+			if fv.IsZero() {
 				if err := setScalar(fv, def); err != nil {
 					panic(fmt.Sprintf("bad default tag %s.%s: %v", t.Name(), f.Name, err))
 				}
@@ -310,8 +363,16 @@ func walkStruct(t reflect.Type, val reflect.Value, prefix string, mode walkMode,
 			}
 			key := "KYUREM_" + prefix + envSeg
 			if raw, ok := os.LookupEnv(key); ok {
-				if err := setScalar(fv, raw); err != nil {
+				target := fv
+				var ptr reflect.Value
+				if fv.Kind() == reflect.Ptr {
+					ptr = reflect.New(fv.Type().Elem())
+					target = ptr.Elem()
+				}
+				if err := setScalar(target, raw); err != nil {
 					*envErrs = append(*envErrs, fmt.Errorf("%s=%q: %w", key, raw, err))
+				} else if ptr.IsValid() {
+					fv.Set(ptr)
 				}
 			}
 		}
@@ -342,6 +403,12 @@ func setScalar(fv reflect.Value, raw string) error {
 				return fmt.Errorf("not an integer: %w", err)
 			}
 			fv.SetInt(n)
+		case reflect.Float32, reflect.Float64:
+			n, err := strconv.ParseFloat(raw, fv.Type().Bits())
+			if err != nil {
+				return fmt.Errorf("not a number: %w", err)
+			}
+			fv.SetFloat(n)
 		case reflect.Bool:
 			b, err := strconv.ParseBool(raw)
 			if err != nil {

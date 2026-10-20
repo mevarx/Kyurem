@@ -20,6 +20,7 @@ import (
 	"github.com/kyurem-project/kyurem/gateway/internal/config"
 	"github.com/kyurem-project/kyurem/gateway/internal/metrics"
 	"github.com/kyurem-project/kyurem/gateway/internal/registry"
+	"github.com/kyurem-project/kyurem/gateway/internal/telemetry"
 )
 
 // context keys store per-request routing decisions for the shared
@@ -28,8 +29,7 @@ type ctxKey int
 
 const (
 	ctxOutboundURL ctxKey = iota
-	ctxTraceparent
-	ctxTracestate
+	ctxHandoff
 )
 
 // Handler is the A2A data-path HTTP handler:
@@ -44,6 +44,7 @@ type Handler struct {
 	reg       *registry.Registry
 	cache     *registry.CardCache
 	mtr       *metrics.Metrics
+	tel       *telemetry.Telemetry
 	logger    *slog.Logger
 	requestTO time.Duration
 	maxBody   int64
@@ -58,17 +59,23 @@ type Handler struct {
 
 // route binds a listen-path prefix to its registry entry.
 type route struct {
-	raw   string           // configured path (canonical case, used for URLs)
+	raw   string // configured path (canonical case, used for URLs)
 	entry *registry.Entry
 }
 
 // New builds the handler: routing table, reverse proxy, upstream transport
 // with GW-6 timeouts, and Prometheus instruments.
-func New(cfg *config.Config, reg *registry.Registry, cache *registry.CardCache, mtr *metrics.Metrics, logger *slog.Logger) *Handler {
+func New(cfg *config.Config, reg *registry.Registry, cache *registry.CardCache, mtr *metrics.Metrics, tel *telemetry.Telemetry, logger *slog.Logger) *Handler {
+	if tel == nil {
+		// Defensive: a disabled provider still mints valid trace IDs and
+		// propagates W3C context, so ad-hoc uses never lose M1 behavior.
+		tel, _ = telemetry.New(context.Background(), config.Telemetry{}, logger, mtr)
+	}
 	h := &Handler{
 		reg:       reg,
 		cache:     cache,
 		mtr:       mtr,
+		tel:       tel,
 		logger:    logger,
 		requestTO: cfg.Limits.Timeouts.Request.Std(),
 		maxBody:   cfg.Limits.MaxRequestBodyBytes,
@@ -96,10 +103,10 @@ func New(cfg *config.Config, reg *registry.Registry, cache *registry.CardCache, 
 		h.streams = make(chan struct{}, h.streamCap)
 	}
 	h.rp = &httputil.ReverseProxy{
-		Rewrite:       h.rewrite,
-		Transport:     h.transport,
-		FlushInterval: -1, // stream-friendly: flush on every write (GW-2)
-		BufferPool:    &h.pool,
+		Rewrite:        h.rewrite,
+		Transport:      h.transport,
+		FlushInterval:  -1, // stream-friendly: flush on every write (GW-2)
+		BufferPool:     &h.pool,
 		ModifyResponse: h.modifyResponse,
 		ErrorHandler:   h.errorHandler,
 	}

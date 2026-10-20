@@ -14,6 +14,7 @@
 #   5. alias routing: /a2a/greeter reaches the echo agent (GW-1)
 #   6. agent-to-agent chain:  upper -> gateway -> echo  (GW-1, go-upper demo)
 #   7. unknown agents fail closed with 404 (GW-1)
+#   8. streamed chain: upper runs a task lifecycle through the gateway
 #
 # Requirements: bash, curl, go. No Docker needed.
 set -euo pipefail
@@ -114,6 +115,14 @@ echo "$out" | grep -q '^RESULT: upper: HELLO GATEWAY$' \
 echo "-- 7. unknown agent fails closed --"
 code="$(curl -s -o /dev/null -w '%{http_code}' "http://$A2A_HOST/a2a/does-not-exist")"
 [ "$code" = "404" ] && pass "unknown agent -> 404" || fail "unknown agent -> HTTP $code"
+
+echo "-- 8. streamed chain: upper runs a task lifecycle through the gateway --"
+chain_stream="$(./demo/bin/demo-client --gateway-url "http://$A2A_HOST/a2a/upper" \
+  --message "hello gateway" --stream 5s)"
+echo "$chain_stream" | grep -q 'TASK_STATE_COMPLETED' \
+  || fail "upper stream has no completed state: $chain_stream"
+echo "$chain_stream" | grep -q '^RESULT: upper: HELLO GATEWAY$' \
+  && pass "streamed chain completes with the upper reply" || fail "unexpected: $chain_stream"
 
 echo
 echo "== $PASS assertions passed — M1 demo OK =="

@@ -292,6 +292,6 @@ func (c *CardCache) nextRefreshDelay() time.Duration {
 	// Half the TTL plus jitter up to a quarter TTL: multiple gateways and
 	// multiple agents stay spread out while cards remain fresh on demand.
 	half := c.ttl / 2
-	jitter := time.Duration(rand.Int63n(int64(c.ttl / 4 + 1)))
+	jitter := time.Duration(rand.Int63n(int64(c.ttl/4 + 1)))
 	return half + jitter
 }

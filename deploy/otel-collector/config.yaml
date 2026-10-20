@@ -1,0 +1,52 @@
+# OTel Collector for the Kyurem M2 compose stack.
+#
+# The gateway exports OTLP/HTTP to this collector; the ClickHouse exporter
+# creates the `otel.otel_traces` table on first start and applies the demo
+# retention (7 days). The collector's own bounded queue plus the gateway's
+# bounded processor provide back-pressure without ever touching the A2A path.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+
+exporters:
+  clickhouse:
+    endpoint: tcp://clickhouse:9000
+    database: otel
+    username: default
+    password: ${env:CLICKHOUSE_PASSWORD}
+    create_schema: true
+    ttl: 168h
+    timeout: 10s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 5m
+    sending_queue:
+      enabled: true
+      num_consumers: 4
+      queue_size: 1000
+
+service:
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [clickhouse]

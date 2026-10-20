@@ -22,11 +22,13 @@ import (
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
 	"github.com/a2aproject/a2a-go/v2/a2aclient/agentcard"
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"github.com/kyurem-project/kyurem/gateway/internal/config"
 	"github.com/kyurem-project/kyurem/gateway/internal/metrics"
 	"github.com/kyurem-project/kyurem/gateway/internal/proxy"
 	"github.com/kyurem-project/kyurem/gateway/internal/registry"
+	"github.com/kyurem-project/kyurem/gateway/internal/telemetry"
 )
 
 const (
@@ -187,9 +189,26 @@ func upperExecutor(echo *a2aclient.Client) a2asrv.AgentExecutor {
 				yield(nil, fmt.Errorf("upper expects a message"))
 				return
 			}
-			resp, err := echo.SendMessage(ctx, &a2a.SendMessageRequest{
-				Message: a2a.NewMessage(a2a.MessageRoleUser, a2a.NewTextPart(textOf(ec.Message))),
-			})
+			// A streaming call runs the same task lifecycle as the demo
+			// go-upper agent, so the gateway observes a task id and a
+			// context id on this hop.
+			streaming := false
+			if cc, ok := a2asrv.CallContextFrom(ctx); ok && cc.Method() == streamBarrier {
+				streaming = true
+			}
+			if streaming && ec.StoredTask == nil {
+				if !yield(a2a.NewSubmittedTask(ec, ec.Message), nil) {
+					return
+				}
+			}
+			// Propagate the inbound W3C context and preserve the A2A
+			// conversation ID so client -> gateway -> upper -> gateway ->
+			// echo is one trace tree and one task context. The task ID is
+			// intentionally not forwarded: it belongs to upper's task,
+			// which echo does not have in its store.
+			msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.NewTextPart(textOf(ec.Message)))
+			msg.ContextID = ec.ContextID
+			resp, err := echo.SendMessage(forwardTraceContext(ctx, ec), &a2a.SendMessageRequest{Message: msg})
 			if err != nil {
 				yield(nil, fmt.Errorf("echo call failed: %w", err))
 				return
@@ -199,7 +218,18 @@ func upperExecutor(echo *a2aclient.Client) a2asrv.AgentExecutor {
 				yield(nil, fmt.Errorf("echo reply missing the %q marker", echoPrefix))
 				return
 			}
-			yield(a2a.NewMessage(a2a.MessageRoleAgent, a2a.NewTextPart(upperPrefix+strings.ToUpper(payload))), nil)
+			reply := upperPrefix + strings.ToUpper(payload)
+			if streaming {
+				if !yield(a2a.NewStatusUpdateEvent(ec, a2a.TaskStateWorking, nil), nil) {
+					return
+				}
+				if !yield(a2a.NewArtifactEvent(ec, a2a.NewTextPart(reply)), nil) {
+					return
+				}
+				yield(a2a.NewStatusUpdateEvent(ec, a2a.TaskStateCompleted, nil), nil)
+				return
+			}
+			yield(a2a.NewMessage(a2a.MessageRoleAgent, a2a.NewTextPart(reply)), nil)
 		}
 	})
 }
@@ -268,15 +298,39 @@ func captureMiddleware(inner http.Handler, c *traceCapture) http.Handler {
 	})
 }
 
-// gwStack is the M1 gateway in-process: config -> registry -> card cache ->
-// proxy handler under an httptest server.
+// forwardTraceContext copies the inbound W3C headers plus the caller hint
+// onto an outbound SDK call. a2aclient transports these as HTTP headers.
+func forwardTraceContext(ctx context.Context, ec *a2asrv.ExecutorContext) context.Context {
+	params := a2aclient.ServiceParams{
+		telemetry.CallerHeader: {"upper"},
+	}
+	if vals, ok := ec.ServiceParams.Get("traceparent"); ok && len(vals) > 0 {
+		params["traceparent"] = vals
+	}
+	if vals, ok := ec.ServiceParams.Get("tracestate"); ok && len(vals) > 0 {
+		params["tracestate"] = vals
+	}
+	return a2aclient.AttachServiceParams(ctx, params)
+}
+
+// gwStack is the in-process gateway: config -> registry -> card cache ->
+// telemetry -> proxy handler under an httptest server.
 type gwStack struct {
 	base *httptest.Server
 	reg  *registry.Registry
+	tel  *telemetry.Telemetry
 }
 
-// startGateway builds the full wiring exactly as server.New does.
+// startGateway builds the full wiring exactly as server.New does, with
+// export disabled but real trace-context propagation.
 func startGateway(t *testing.T, agents []config.AgentReg) *gwStack {
+	t.Helper()
+	return startGatewayWithExporter(t, agents, nil)
+}
+
+// startGatewayWithExporter is the M2 seam: passing an in-memory OTLP-like
+// exporter lets tests inspect the exported span tree without a collector.
+func startGatewayWithExporter(t *testing.T, agents []config.AgentReg, exporter sdktrace.SpanExporter) *gwStack {
 	t.Helper()
 	// Seed config passes startup validation; the agent list is replaced
 	// with the runtime-resolved upstream URLs before the registry builds.
@@ -306,8 +360,17 @@ agents:
 		cfg.CardCache.TTL.Std(), cfg.CardCache.StaleGrace.Std(), cfg.CardCache.MaxCardBytes,
 		logger,
 	)
-	s := &gwStack{reg: reg}
-	s.base = httptest.NewServer(proxy.New(cfg, reg, cache, mtr, logger))
+	tel, err := telemetry.NewWithExporter(context.Background(), cfg.Telemetry, logger, mtr, exporter)
+	if err != nil {
+		t.Fatalf("build telemetry: %v", err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = tel.Shutdown(ctx)
+	})
+	s := &gwStack{reg: reg, tel: tel}
+	s.base = httptest.NewServer(proxy.New(cfg, reg, cache, mtr, tel, logger))
 	t.Cleanup(s.base.Close)
 	return s
 }

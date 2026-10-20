@@ -20,9 +20,58 @@ jobs:
       - name: Vet
         run: go vet ./...
         working-directory: gateway
+      - name: Format check
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "gofmt needed for:"; echo "$unformatted"; exit 1
+          fi
+        working-directory: gateway
       - name: Test (race)
         run: go test -race ./...
         working-directory: gateway
+      - name: Validate shipped configs
+        run: |
+          go run ./cmd/kyurem validate --config ../config/kyurem.example.yaml
+          go run ./cmd/kyurem validate --config ../config/kyurem.compose.yaml
+        working-directory: gateway
+
+  demo:
+    name: Demo agents (go)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+      - name: Build
+        run: go build ./...
+        working-directory: demo
+      - name: Vet
+        run: go vet ./...
+        working-directory: demo
+      - name: Format check
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "gofmt needed for:"; echo "$unformatted"; exit 1
+          fi
+        working-directory: demo
+      - name: Test (race)
+        run: go test -race ./...
+        working-directory: demo
+
+  compose:
+    name: Compose stack (config only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The M2 compose stack is a local demo; CI checks that the file stays
+      # valid Compose configuration. Running the stack (collector ->
+      # ClickHouse -> Grafana) needs Docker images and is a manual step:
+      # `make demo-m2`.
+      - name: Validate compose file
+        run: docker compose -f deploy/compose/docker-compose.yml config --quiet
 
   dashboard:
     name: Dashboard (ts)

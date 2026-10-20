@@ -32,6 +32,26 @@ type Metrics struct {
 	CardServedTotal *prometheus.CounterVec
 	// RegistrySize gauges the number of registered agents.
 	RegistrySize prometheus.Gauge
+
+	// TelemetrySpansEndedTotal counts spans handed to the exporter
+	// pipeline, including ones later dropped.
+	TelemetrySpansEndedTotal prometheus.Counter
+	// TelemetrySpansExportedTotal counts spans successfully exported.
+	TelemetrySpansExportedTotal prometheus.Counter
+	// TelemetrySpansDroppedTotal counts spans discarded before export,
+	// labelled by reason (queue_full, shutdown, export_failed).
+	TelemetrySpansDroppedTotal *prometheus.CounterVec
+	// TelemetryExportFailuresTotal counts batches that exhausted retries.
+	TelemetryExportFailuresTotal prometheus.Counter
+	// TelemetryExportRetriesTotal counts failed export attempts that were
+	// retried.
+	TelemetryExportRetriesTotal prometheus.Counter
+	// TelemetryExportDurationSeconds measures one OTLP export attempt.
+	TelemetryExportDurationSeconds prometheus.Histogram
+	// TelemetryQueueDepth is the current number of spans waiting for export.
+	TelemetryQueueDepth prometheus.Gauge
+	// TelemetryQueueCapacity is the configured queue bound.
+	TelemetryQueueCapacity prometheus.Gauge
 }
 
 // New builds and registers the gateway metrics into a fresh registry.
@@ -72,6 +92,39 @@ func New() *Metrics {
 			Name: "kyurem_registry_agents",
 			Help: "Registered agent count.",
 		}),
+		TelemetrySpansEndedTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "kyurem_telemetry_spans_ended_total",
+			Help: "Handoff spans ended and handed to the export pipeline.",
+		}),
+		TelemetrySpansExportedTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "kyurem_telemetry_spans_exported_total",
+			Help: "Handoff spans successfully exported over OTLP.",
+		}),
+		TelemetrySpansDroppedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "kyurem_telemetry_spans_dropped_total",
+			Help: "Handoff spans dropped before export, by reason.",
+		}, []string{"reason"}),
+		TelemetryExportFailuresTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "kyurem_telemetry_export_failures_total",
+			Help: "OTLP batches that failed after all retries.",
+		}),
+		TelemetryExportRetriesTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "kyurem_telemetry_export_retries_total",
+			Help: "Failed OTLP export attempts that were retried.",
+		}),
+		TelemetryExportDurationSeconds: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "kyurem_telemetry_export_duration_seconds",
+			Help:    "Time spent in one OTLP export attempt.",
+			Buckets: prometheus.ExponentialBuckets(0.005, 2, 12), // 5ms .. ~20s
+		}),
+		TelemetryQueueDepth: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "kyurem_telemetry_queue_depth",
+			Help: "Spans currently waiting for OTLP export.",
+		}),
+		TelemetryQueueCapacity: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "kyurem_telemetry_queue_capacity",
+			Help: "Configured span export queue capacity.",
+		}),
 	}
 
 	reg.MustRegister(
@@ -83,6 +136,14 @@ func New() *Metrics {
 		m.CardLookupsTotal,
 		m.CardServedTotal,
 		m.RegistrySize,
+		m.TelemetrySpansEndedTotal,
+		m.TelemetrySpansExportedTotal,
+		m.TelemetrySpansDroppedTotal,
+		m.TelemetryExportFailuresTotal,
+		m.TelemetryExportRetriesTotal,
+		m.TelemetryExportDurationSeconds,
+		m.TelemetryQueueDepth,
+		m.TelemetryQueueCapacity,
 		// Process- and Go-runtime collectors aid capacity work (PRD §7).
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 		collectors.NewGoCollector(),
@@ -105,6 +166,42 @@ func (m *Metrics) ObserveBytes(agent, direction string, n int64) {
 		return
 	}
 	m.ProxyBytesTotal.WithLabelValues(agent, direction).Add(float64(n))
+}
+
+// SpanEnded records one ended handoff span entering the export pipeline.
+func (m *Metrics) SpanEnded() { m.TelemetrySpansEndedTotal.Inc() }
+
+// SpanDropped records spans discarded before export.
+func (m *Metrics) SpanDropped(reason string, n int) {
+	if n <= 0 {
+		return
+	}
+	m.TelemetrySpansDroppedTotal.WithLabelValues(reason).Add(float64(n))
+}
+
+// SpanExported records spans delivered to the collector.
+func (m *Metrics) SpanExported(n int) {
+	if n <= 0 {
+		return
+	}
+	m.TelemetrySpansExportedTotal.Add(float64(n))
+}
+
+// ExportFailed records a batch that exhausted its retry budget.
+func (m *Metrics) ExportFailed(int) { m.TelemetryExportFailuresTotal.Inc() }
+
+// ExportRetried records one failed attempt that will be retried.
+func (m *Metrics) ExportRetried() { m.TelemetryExportRetriesTotal.Inc() }
+
+// ObserveExportDuration records the duration of one export attempt.
+func (m *Metrics) ObserveExportDuration(seconds float64) {
+	m.TelemetryExportDurationSeconds.Observe(seconds)
+}
+
+// SetQueueDepth publishes the export queue occupancy.
+func (m *Metrics) SetQueueDepth(depth, capacity int) {
+	m.TelemetryQueueDepth.Set(float64(depth))
+	m.TelemetryQueueCapacity.Set(float64(capacity))
 }
 
 // codeClass buckets status codes to bounded label space.

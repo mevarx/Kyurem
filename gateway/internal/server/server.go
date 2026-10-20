@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 	"github.com/kyurem-project/kyurem/gateway/internal/metrics"
 	"github.com/kyurem-project/kyurem/gateway/internal/proxy"
 	"github.com/kyurem-project/kyurem/gateway/internal/registry"
+	"github.com/kyurem-project/kyurem/gateway/internal/telemetry"
 	"github.com/kyurem-project/kyurem/gateway/internal/version"
 )
 
@@ -29,6 +31,7 @@ type Server struct {
 	reg    *registry.Registry
 	cache  *registry.CardCache
 	mtr    *metrics.Metrics
+	tel    *telemetry.Telemetry
 	proxy  *proxy.Handler
 
 	a2aSrv   *http.Server
@@ -39,9 +42,15 @@ type Server struct {
 	done    chan struct{}
 }
 
-// New wires all components; Start launches them.
-func New(cfg *config.Config, logger *slog.Logger) *Server {
+// New wires all components; Start launches them. Telemetry setup can fail
+// (for example an unusable exporter configuration), so callers must handle
+// the error instead of serving without the promised tracing.
+func New(cfg *config.Config, logger *slog.Logger) (*Server, error) {
 	mtr := metrics.New()
+	tel, err := telemetry.New(context.Background(), cfg.Telemetry, logger, mtr)
+	if err != nil {
+		return nil, fmt.Errorf("telemetry: %w", err)
+	}
 	reg := buildRegistry(cfg)
 	cache := registry.NewCardCache(
 		reg,
@@ -51,7 +60,7 @@ func New(cfg *config.Config, logger *slog.Logger) *Server {
 		cfg.CardCache.MaxCardBytes,
 		logger,
 	)
-	h := proxy.New(cfg, reg, cache, mtr, logger)
+	h := proxy.New(cfg, reg, cache, mtr, tel, logger)
 
 	s := &Server{
 		cfg:    cfg,
@@ -59,6 +68,7 @@ func New(cfg *config.Config, logger *slog.Logger) *Server {
 		reg:    reg,
 		cache:  cache,
 		mtr:    mtr,
+		tel:    tel,
 		proxy:  h,
 		done:   make(chan struct{}),
 	}
@@ -76,7 +86,7 @@ func New(cfg *config.Config, logger *slog.Logger) *Server {
 		ReadHeaderTimeout: headerTimeout(cfg.Limits.Timeouts.ResponseHeader.Std()),
 		IdleTimeout:       120 * time.Second,
 	}
-	return s
+	return s, nil
 }
 
 // headerTimeout converts response-header semantics to request-header
@@ -148,6 +158,8 @@ func writeJSON(w http.ResponseWriter, v any) error {
 // Start binds listeners and runs until Shutdown. It is a blocking call
 // with a full shutdown path: signal → cancel → drain → escalate.
 func (s *Server) Start(ctx context.Context) error {
+	// Every exit path, including bind failures, flushes the export queue.
+	defer s.shutdownTelemetry()
 	s.cache.Start(context.WithoutCancel(ctx)) // refresher keeps warming until close
 
 	a2aLn, err := net.Listen("tcp", s.a2aSrv.Addr)
@@ -167,9 +179,13 @@ func (s *Server) Start(ctx context.Context) error {
 		"a2a_go_sdk_version", version.GoVersion(),
 		"log_format", s.cfg.Logging.Format,
 	)
-	if s.cfg.Telemetry.OTLPEndpoint != "" {
-		s.logger.Warn("telemetry.otlp_endpoint configured but tracing lands in M2; value is validated and ignored for now",
-			"otlp_endpoint", s.cfg.Telemetry.OTLPEndpoint)
+	if s.tel.Exporting() {
+		s.logger.Info("telemetry export enabled",
+			"otlp_endpoint", s.cfg.Telemetry.OTLPEndpoint,
+			"otlp_protocol", s.cfg.Telemetry.OTLPProtocol,
+			"sample_ratio", s.cfg.Telemetry.EffectiveSampleRatio())
+	} else {
+		s.logger.Info("telemetry export disabled; W3C trace context is still propagated")
 	}
 
 	var serveWG sync.WaitGroup
@@ -225,4 +241,15 @@ func (s *Server) Start(ctx context.Context) error {
 	serveWG.Wait()
 	s.logger.Info("shutdown complete")
 	return nil
+}
+
+// shutdownTelemetry drains queued spans. The deadline is independent from
+// the HTTP drain so a slow collector cannot extend process shutdown
+// indefinitely; the processor cancels outstanding exports on expiry.
+func (s *Server) shutdownTelemetry() {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := s.tel.Shutdown(ctx); err != nil {
+		s.logger.Warn("telemetry shutdown incomplete; queued spans were dropped", "err", err)
+	}
 }

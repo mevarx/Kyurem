@@ -1,0 +1,173 @@
+# Kyurem M2 demo stack: gateway -> OTLP collector -> ClickHouse, with
+# Prometheus and Grafana for reading the data back.
+#
+#   docker compose -f deploy/compose/docker-compose.yml up --build
+#
+# The demo-client service sends one chained task (upper -> echo) through the
+# gateway and exits; both handoffs should appear under one trace in Grafana
+# (Explore -> ClickHouse -> Search) and in ClickHouse (see
+# docs/telemetry-conventions.md for the SQL).
+#
+# This stack is a local demo. It publishes only loopback ports and uses a
+# demo password; do not reuse it as a production deployment.
+
+name: kyurem
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.3
+    environment:
+      CLICKHOUSE_DB: otel
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-kyurem-demo}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ports:
+      - "127.0.0.1:8123:8123"
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ../clickhouse/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - clickhouse-client --user default --password "$${CLICKHOUSE_PASSWORD}" --query 'SELECT 1'
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.163.1
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-kyurem-demo}
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+    volumes:
+      - ../otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/gateway.Dockerfile
+    command: ["serve", "--config", "/etc/kyurem/config.yaml"]
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8081:8081"
+    volumes:
+      - ../../config/kyurem.compose.yaml:/etc/kyurem/config.yaml:ro
+    depends_on:
+      otel-collector:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
+  go-echo:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/demo.Dockerfile
+    command: ["--host", "0.0.0.0", "--port", "9010"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9010/.well-known/agent-card.json"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
+  go-upper:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/demo.Dockerfile
+    entrypoint: ["/usr/local/bin/go-upper"]
+    command:
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "9011"
+      - --echo-card-url
+      - http://gateway:8080/a2a/echo/.well-known/agent-card.json
+      - --echo-card-wait
+      - 120s
+    depends_on:
+      gateway:
+        condition: service_healthy
+      go-echo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9011/.well-known/agent-card.json"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+
+  # One chained task per `up`, so a fresh stack immediately has a two-span
+  # trace tree (upper -> gateway -> echo). It exits after printing the result.
+  demo-client:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/demo.Dockerfile
+    entrypoint: ["/usr/local/bin/demo-client"]
+    command:
+      - --gateway-url
+      - http://gateway:8080/a2a/upper
+      - --message
+      - hello kyurem tracing
+      - --stream
+    depends_on:
+      go-upper:
+        condition: service_healthy
+    restart: "no"
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      gateway:
+        condition: service_healthy
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.2.4
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-kyurem-demo}
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  clickhouse-data:
+  prometheus-data:
+  grafana-data:
