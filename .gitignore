@@ -1,0 +1,40 @@
+# Kyurem .gitignore
+
+# Build outputs
+/bin/
+/demo/bin/
+*.exe
+*.out
+*.test
+kyurem
+
+# Logs and runtime artifacts
+*.log
+gateway.log
+gateway.err.log
+
+# Go
+*.coverprofile
+coverage.out
+/vendor/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Node / dashboard (lands in M3)
+node_modules/
+dashboard/dist/
+dashboard/.next/
+dashboard/coverage/
+
+# Temporary / scratch
+*.tmp
+/tmp/
+
+
+# Source documents not committed
+Kyurem Product Requirements Document.md

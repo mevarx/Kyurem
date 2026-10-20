@@ -1,0 +1,74 @@
+# Kyurem gateway example configuration (M1 scope).
+#
+# Run without starting the server:
+#   kyurem validate --config config/kyurem.example.yaml
+#
+# Every scalar option can be overridden from the environment, e.g.:
+#   KYUREM_LISTENERS_A2A_ADDR=":8080"
+# Sections that do not exist yet (trust, policy, failover, telemetry, pricing)
+# are introduced in later milestones; unknown keys fail validation here.
+
+listeners:
+  # The A2A data path. Agents point their clients at this listener.
+  a2a:
+    addr: "127.0.0.1:8080"
+    # URL used when rewriting agent cards so discovery loops back through the
+    # gateway. If empty, the gateway derives it from the request Host header
+    # (fine for local demos; set it explicitly behind a load balancer).
+    public_base_url: ""
+    # Path prefix under which agents are exposed: `{route_prefix}/{agent}`.
+    route_prefix: "/a2a"
+
+  # Health, readiness, metrics and version endpoints. Isolated from the data
+  # path; management API endpoints are added here in M3.
+  admin:
+    addr: "127.0.0.1:8081"
+
+logging:
+  # debug | info | warn | error
+  level: info
+  # text | json (json is structured and trace-id aware; default json)
+  format: json
+
+agents:
+  # `name` and at least one upstream are required. Aliases are extra
+  # (case-insensitive) lookup keys for routing. `path` may override the
+  # default `{route_prefix}/{name}` listen path.
+  - name: echo
+    aliases: [greeter]
+    upstreams:
+      - url: http://127.0.0.1:9010
+        # Optional binding hint used to pick the upstream that best matches
+        # an incoming request (JSONRPC | HTTP+JSON | ...). Agents may declare
+        # several upstreams; matching ones win, otherwise the first is used.
+        binding: JSONRPC
+
+  - name: upper
+    upstreams:
+      - url: http://127.0.0.1:9011
+        binding: JSONRPC
+
+# Agent card fetching and caching (GW-4). Cards are fetched once per TTL,
+# revalidated with ETags, and briefly served stale on upstream errors so a
+# card outage does not take the route down.
+card_cache:
+  ttl: 60s
+  stale_grace: 10m
+
+limits:
+  # Maximum in-flight server-sent-event responses per gateway process.
+  max_concurrent_streams: 1024
+  # Hard cap on proxied request bodies (Content-Length above this is
+  # rejected with 413; bodies without Content-Length are capped while
+  # streaming). This bounds memory regardless of client behavior.
+  max_request_body_bytes: 67108864 # 64 MiB
+  # Deadline for draining in-flight connections on shutdown.
+  shutdown_grace: 30s
+  timeouts:
+    # TCP connect timeout for upstream agents.
+    connect: 5s
+    # Maximum wait for the first response byte from an upstream agent.
+    response_header: 30s
+    # Total request deadline, including streams. 0 = no deadline (long
+    # running A2A tasks rely on response_header + client cancellation).
+    request: 0s
