@@ -27,11 +27,15 @@ type Metrics struct {
 	ProxyBytesTotal *prometheus.CounterVec
 	// ActiveStreams gauges in-flight SSE responses per agent.
 	ActiveStreams *prometheus.GaugeVec
+	// StreamCapRejectionsTotal counts proxied SSE responses the gateway
+	// rejected because limits.max_concurrent_streams was full.
+	StreamCapRejectionsTotal *prometheus.CounterVec
 	// ActiveStreamsLimit exports the configured stream cap (0=unlimited).
 	ActiveStreamsLimit prometheus.Gauge
-	// CardLookupsTotal counts agent card cache outcomes.
-	CardLookupsTotal *prometheus.CounterVec
-	// CardServedTotal counts served agent card responses.
+	// CardServedTotal counts served agent card responses. Its outcome
+	// label carries the lookup result (error, fetched, revalidated,
+	// stale, cache), so the serving path's cache behaviour stays fully
+	// observable with one bounded instrument.
 	CardServedTotal *prometheus.CounterVec
 	// RegistrySize gauges the number of registered agents.
 	RegistrySize prometheus.Gauge
@@ -79,14 +83,14 @@ func New() *Metrics {
 			Name: "kyurem_proxy_active_streams",
 			Help: "Currently open server-sent-event responses.",
 		}, []string{"agent"}),
+		StreamCapRejectionsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "kyurem_proxy_stream_cap_rejections_total",
+			Help: "SSE responses rejected because the agent's stream cap was full.",
+		}, []string{"agent"}),
 		ActiveStreamsLimit: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "kyurem_proxy_active_streams_limit",
 			Help: "Configured maximum concurrent streams (0 = unlimited).",
 		}),
-		CardLookupsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "kyurem_card_lookups_total",
-			Help: "Agent card cache outcomes: hit, fetch, stale, error.",
-		}, []string{"agent", "result"}),
 		CardServedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "kyurem_card_served_total",
 			Help: "Served agent card responses by agent and outcome.",
@@ -135,8 +139,8 @@ func New() *Metrics {
 		m.ProxyRequestDurationSeconds,
 		m.ProxyBytesTotal,
 		m.ActiveStreams,
+		m.StreamCapRejectionsTotal,
 		m.ActiveStreamsLimit,
-		m.CardLookupsTotal,
 		m.CardServedTotal,
 		m.RegistrySize,
 		m.TelemetrySpansEndedTotal,

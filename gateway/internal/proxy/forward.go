@@ -269,31 +269,34 @@ func (h *Handler) modifyResponse(resp *http.Response) error {
 		return nil
 	}
 	agent := agentFromContext(resp.Request.Context())
+	// The cap token is acquired before the gauge: a rejection can touch
+	// neither a semaphore slot it never releases nor an active-stream
+	// gauge entry that never decrements (both leak otherwise).
+	if h.streamCap > 0 {
+		select {
+		case h.streams <- struct{}{}:
+		default:
+			h.mtr.StreamCapRejectionsTotal.WithLabelValues(agent).Inc()
+			return &proxyError{
+				status: http.StatusServiceUnavailable,
+				reason: "stream_cap_exhausted",
+				err:    fmt.Errorf("live SSE responses exceeded limits.max_concurrent_streams (%d)", h.streamCap),
+			}
+		}
+	}
+	// Reached only with the token (when capped) held; release below is the
+	// single owner of both, so the {agent} gauge cannot over-count.
 	h.mtr.ActiveStreams.WithLabelValues(agent).Inc()
-	if h.streamCap <= 0 {
-		resp.Body = &streamTrackedBody{
-			ReadCloser: resp.Body,
-			release:    func() { h.mtr.ActiveStreams.WithLabelValues(agent).Dec() },
-		}
-		return nil
-	}
-	select {
-	case h.streams <- struct{}{}:
-		resp.Body = &streamTrackedBody{
-			ReadCloser: resp.Body,
-			release: func() {
+	resp.Body = &streamTrackedBody{
+		ReadCloser: resp.Body,
+		release: func() {
+			if h.streamCap > 0 {
 				<-h.streams
-				h.mtr.ActiveStreams.WithLabelValues(agent).Dec()
-			},
-		}
-		return nil
-	default:
-		return &proxyError{
-			status: http.StatusServiceUnavailable,
-			reason: "stream_cap_exhausted",
-			err:    fmt.Errorf("live SSE responses exceeded limits.max_concurrent_streams (%d)", h.streamCap),
-		}
+			}
+			h.mtr.ActiveStreams.WithLabelValues(agent).Dec()
+		},
 	}
+	return nil
 }
 
 // streamTrackedBody releases the stream semaphore exactly once when

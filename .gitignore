@@ -56,6 +56,12 @@ __pycache__/
 .pytest_cache/
 .venv/
 
+# Benchmark artifacts (M4)
+demo/bin/bench-results/
+*.prof
+*.pprof
+*.trace
+
 # Temporary / scratch
 *.tmp
 /tmp/

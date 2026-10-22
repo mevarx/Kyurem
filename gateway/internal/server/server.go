@@ -45,7 +45,6 @@ type Server struct {
 
 	ready   atomic.Bool
 	healthy atomic.Bool
-	done    chan struct{}
 	started time.Time
 }
 
@@ -241,7 +240,13 @@ func writeJSON(w http.ResponseWriter, v any) error {
 func (s *Server) Start(ctx context.Context) error {
 	// Every exit path, including bind failures, flushes the export queue.
 	defer s.shutdownTelemetry()
-	s.cache.Start(context.WithoutCancel(ctx)) // refresher keeps warming until close
+	// Card refreshers live on this run-scoped context: they keep warming
+	// through the drain and are stopped when Start returns, so no
+	// refresher goroutine or background card fetch outlives the gateway
+	// (GW-7).
+	cacheCtx, cacheStop := context.WithCancel(context.Background())
+	defer cacheStop()
+	s.cache.Start(cacheCtx)
 
 	a2aLn, err := net.Listen("tcp", s.a2aSrv.Addr)
 	if err != nil {
@@ -347,7 +352,6 @@ func (s *Server) Start(ctx context.Context) error {
 	// Streams may outlive their HTTP servers; ReverseProxy finishes them
 	// against closed listeners only when clients disconnect. Their owner is
 	// the process, so nothing leaks beyond process exit.
-	close(s.done)
 	serveWG.Wait()
 	s.logger.Info("shutdown complete")
 	return nil

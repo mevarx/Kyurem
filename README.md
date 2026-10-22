@@ -22,6 +22,15 @@ root-cause hint, agent graph, costs, agents, settings) and cost accounting
 for the agents that report token usage. Later milestones (per PRD §10) add
 trust and policy, failure handling and production hardening.
 
+**M4 — Hardening and benchmarks (in progress).** Metrics polish (stream-cap
+rejection counter, unified card-serving instrument), graceful-shutdown and
+connection-draining tests, tiered load tests at 100/1k/5k/10k streams, a
+reproducible real-process benchmark script (`demo/scenarios/bench-load.*`)
+and a published methodology/results doc (`docs/benchmarks.md`). Heavy tiers
+and official `a2a-tck`/`a2a-itk` conformance runs are validated on Linux
+CI; this repository's default `go test` runs the smoke tier plus the unit
+and integration suites.
+
 The milestone plan, including what is explicitly out of scope, lives in
 [`docs/milestones.md`](docs/milestones.md).
 
@@ -61,6 +70,15 @@ semantic-convention commit live in
 | Agent graph | Caller-to-callee edges with call counts, error rate, p95 latency and cost |
 | Costs | Token usage read from what the agent reported, priced from a config table, aggregated per agent/task/model/window — unknown stays unknown |
 | Dashboard | React + TypeScript + Vite app (`dashboard/`), dark and light themes, generated API types |
+
+## What M4 delivers
+
+| Piece | What it means |
+|---|---|
+| Metrics polish | `kyurem_proxy_stream_cap_rejections_total` counts SSE responses rejected because `limits.max_concurrent_streams` was full; card cache outcomes collapse into the `kyurem_card_served_total` outcome label (one bounded instrument instead of two) |
+| Load tiers | 100/1k/5k/10k concurrent SSE streams through the real proxy handler, with relay-integrity (exactly 6 events/stream), gauge-drain and proxied-request-counter assertions; opt-in via `KYUREM_LOAD_FULL=1k,5k,10k` |
+| Reproducible benchmark | `demo/scenarios/bench-load.ps1` / `.sh` build the binaries, boot a real gateway + agent, run every tier and emit Markdown + per-tier JSON; see [`docs/benchmarks.md`](docs/benchmarks.md) |
+| Published numbers | ~333 rps flat across tiers (bottleneck is the echo agent's 40 ms inter-chunk sleep, not the gateway); p50 12 ms (100), 119 ms (1k), 320 ms (5k), 597 ms (10k) |
 
 ## Quickstart
 
@@ -191,7 +209,7 @@ kyurem/
 │   │   ├── cost/               # price table, per-span cost, token usage
 │   │   ├── mgmtapi/            # management API handlers (M3)
 │   │   └── metrics/            # Prometheus collectors
-│   └── test/integration/       # in-process gateway + SDK agents
+│   └── test/                   # integration + bench (load) suites
 ├── dashboard/                  # TypeScript app: React + Vite (M3)
 ├── demo/                       # Go module: demo agents and the demo client
 │   ├── agents/go-echo/         # SDK echo agent (reports token usage)
@@ -251,6 +269,7 @@ Docker host to verify the collector/ClickHouse path end to end.
 
 | Document | Contents |
 |---|---|
+| [`docs/benchmarks.md`](docs/benchmarks.md) | load-test methodology, tiers, published numbers, threats to validity |
 | [`docs/milestones.md`](docs/milestones.md) | what each milestone delivers, how it is verified, what is out of scope |
 | [`docs/configuration.md`](docs/configuration.md) | every configuration key, env var and validation rule |
 | [`docs/telemetry-conventions.md`](docs/telemetry-conventions.md) | pinned conventions, span/attribute contract, sampling, export and drop semantics, trace queries |
