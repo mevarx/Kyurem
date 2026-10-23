@@ -28,7 +28,7 @@ Provides a separate authenticated management listener, versioned read API, span 
 
 Adds request and SSE limits, shutdown/draining checks, metrics, race-enabled Go checks, benchmark scripts, and SSE load tiers at 100, 1,000, 5,000, and 10,000 streams. CI runs the 100-stream smoke tier; larger runs remain opt-in and have methodology in `docs/benchmarks.md`.
 
-**Known gap:** the official `a2a-tck` and `a2a-itk` conformance suites are not wired into GitHub Actions. Repository integration tests cover selected protocol behavior but do not claim official conformance.
+**Known gap:** repository tests and the pinned TCK/ACTS profile do not constitute full official conformance across all A2A bindings. The official suites run the JSON-RPC TCK MUST tests and selected supported ACTS behaviors in GitHub Actions.
 
 ## M5 — Trust and policy
 
@@ -44,13 +44,14 @@ Retries are conservative: GET/HEAD/OPTIONS without a body can be retried; a POST
 
 ## M7 — Polish and handoff
 
-Rewrites the README as the full M1–M7 guide, refreshes milestone and configuration docs, keeps local and Compose examples current, and ignores generated test/coverage outputs. Gateway, dashboard, demo, and Compose Dockerfiles remain in the repository for reproducible builds.
+Rewrites the README as the full M1–M7 guide, adds Python demos and a failure/failover walkthrough, refreshes milestone and configuration docs, keeps local and Compose examples current, and ignores generated test/coverage outputs. A tag-triggered workflow builds release binaries and publishes multi-architecture images for the gateway, dashboard, and demo agents.
 
-**Not included:** automatic publication of release images is not configured. Compose files are syntax-validated by CI; running the full local stack is a Docker-dependent manual check.
+**Not included:** the `v0.1.0` tag/release is created after the release changes merge; this workflow does not tag an unmerged branch. Compose files are syntax-validated by CI; running the full local stack is a Docker-dependent manual check.
 
 ## Verification entry points
 
-- `make test`, `make test-demo`, and `make vet` cover the Go gateway and demo modules.
+- `make test`, `make test-demo`, `make test-python`, and `make vet` cover the gateway and demo agents.
 - `make validate` loads the shipped configs; the CI workflows also build, format-check, run race tests, and validate Compose.
 - `make dashboard-check` and `make dashboard-build` run the dashboard checks and production build.
+- `make a2a-conformance` runs the pinned external suites when `A2A_TCK_DIR` and `A2A_ITK_DIR` point to their checkouts.
 - The M3 walkthrough is run in CI. The tracing/ClickHouse Compose stack and higher benchmark tiers are opt-in local workflows.

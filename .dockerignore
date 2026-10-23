@@ -13,6 +13,9 @@
 bin
 demo/bin
 **/node_modules
+**/.venv
+**/__pycache__
+**/.pytest_cache
 **/*.exe
 **/*.test
 **/*.out

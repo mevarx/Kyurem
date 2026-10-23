@@ -6,9 +6,8 @@ package version
 
 import "runtime/debug"
 
-// Version is the Kyurem release version. Suffixed with -mN while
-// milestones land; prefixed documentation lives in docs/.
-const Version = "0.1.0-m1"
+// Version is overridden by tagged release builds; dev builds keep a clear default.
+var Version = "0.1.0-dev"
 
 // SpecVersion is the A2A protocol specification version the gateway is
 // built against. Must be kept in sync with the a2a-go SDK's a2a.Version.

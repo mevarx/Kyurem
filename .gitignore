@@ -55,11 +55,13 @@ dashboard/.eslintcache
 npm-debug.log*
 yarn-error.log*
 
-# Python demo agents (land in a later milestone)
+# Python demo agents
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+build/
+*.egg-info/
 
 # Benchmark artifacts (M4)
 demo/bin/bench-results/
@@ -78,3 +80,6 @@ demo/bin/bench-results/
 
 # Source documents not committed
 Kyurem Product Requirements Document.md
+# Repository-local scratch and external conformance clones
+.tmp/
+demo/bin/conformance-results/

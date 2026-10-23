@@ -44,6 +44,7 @@ jobs:
         run: |
           go run ./cmd/kyurem validate --config ../config/kyurem.example.yaml
           go run ./cmd/kyurem validate --config ../config/kyurem.compose.yaml
+          go run ./cmd/kyurem validate --config ../config/kyurem.conformance.yaml
         working-directory: gateway
       - name: M3 demo (a scripted failure is diagnosable)
         # The M3 exit criterion, executed: a failing task shows up in the

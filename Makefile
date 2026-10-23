@@ -7,7 +7,7 @@ DEMO    := ./demo
 DASH    := ./dashboard
 COMPOSE := docker compose -f deploy/compose/docker-compose.yml
 
-.PHONY: help build build-demo test test-demo vet fmt run-demo demo-m2 demo-m3 \
+.PHONY: help build build-demo test test-demo python-install test-python a2a-conformance vet fmt run-demo demo-m2 demo-m3 demo-m6 demo-m6-check \
         validate compose-up compose-down dashboard-install dashboard-check \
         dashboard-build clean
 
@@ -29,6 +29,15 @@ test: ## Run gateway tests with the race detector
 test-demo: ## Run demo module tests with the race detector
 	$(GO) test -race $(DEMO)/...
 
+python-install: ## Sync the pinned Python A2A demo-agent environment
+	uv sync --project demo/agents/python --frozen
+
+test-python: ## Run Python demo agent tests
+	uv run --project demo/agents/python --frozen python -m unittest discover -s demo/agents/python/tests -v
+
+a2a-conformance: ## Run pinned A2A TCK and ITK ACTS suites (set A2A_TCK_DIR and A2A_ITK_DIR)
+	bash demo/scenarios/a2a-conformance.sh
+
 vet: ## Static analysis
 	$(GO) vet $(GATEWAY)/...
 	$(GO) vet $(DEMO)/...
@@ -40,6 +49,7 @@ fmt: ## Format Go sources
 validate: ## Validate the shipped configuration files
 	$(GO) run $(GATEWAY)/cmd/kyurem validate --config config/kyurem.example.yaml
 	$(GO) run $(GATEWAY)/cmd/kyurem validate --config config/kyurem.compose.yaml
+	$(GO) run $(GATEWAY)/cmd/kyurem validate --config config/kyurem.conformance.yaml
 
 run-demo: ## Start the M1 demo (gateway + two agents) locally
 	bash demo/scenarios/m1-basic.sh
@@ -49,6 +59,12 @@ demo-m2: ## Start the M2 demo (compose stack) and assert one task = one trace tr
 
 demo-m3: ## Run the M3 demo: a scripted failure is diagnosable through the management API
 	bash demo/scenarios/m3-dashboard.sh
+
+demo-m6: ## Run the M6 failover scenario and keep its dashboard page open
+	KYUREM_DEMO_KEEP_RUNNING=1 bash demo/scenarios/m6-failover.sh
+
+demo-m6-check: ## Verify the M6 failure/failover path and span events without leaving services running
+	KYUREM_DEMO_KEEP_RUNNING=0 bash demo/scenarios/m6-failover.sh
 
 compose-up: ## Build and start the M2 compose stack
 	$(COMPOSE) up --build -d

@@ -1,0 +1,58 @@
+name: A2A Conformance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    name: A2A TCK + ITK (ACTS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache-dependency-path: gateway/go.sum
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+      - name: Check out pinned official suites
+        uses: actions/checkout@v4
+        with:
+          repository: a2aproject/a2a-tck
+          ref: d4d6fae7887f88ef607fb461c13e3b0e1802f19b
+          path: .tmp/a2a-tck
+      - uses: actions/checkout@v4
+        with:
+          repository: a2aproject/a2a-itk
+          ref: bcce1a15fdce343e2d816ee7e7119f68147385de
+          path: .tmp/a2a-itk
+      - name: Install pinned Python agent dependencies
+        run: uv sync --project demo/agents/python --frozen
+      - name: Install TCK and ITK environments from their checked-in locks
+        run: |
+          uv sync --project .tmp/a2a-tck --frozen
+          uv sync --project .tmp/a2a-itk --frozen
+      - name: Run official A2A conformance checks
+        env:
+          A2A_TCK_DIR: ${{ github.workspace }}/.tmp/a2a-tck
+          A2A_ITK_DIR: ${{ github.workspace }}/.tmp/a2a-itk
+          A2A_REPORT_DIR: ${{ github.workspace }}/demo/bin/conformance-results
+        run: bash demo/scenarios/a2a-conformance.sh
+      - name: Upload conformance reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a2a-conformance-reports
+          path: |
+            .tmp/a2a-tck/reports/
+            demo/bin/conformance-results/
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,62 +1,97 @@
 # Kyurem
 
-Kyurem is a Go gateway for A2A v1.0 agents, with a React/TypeScript dashboard. It routes agent traffic without owning agent state, while tracing handoffs, accounting for reported token usage, checking configured trust and access rules, and handling upstream failures.
+**An A2A gateway for routing, tracing, policy, and resilient agent calls.** Kyurem transparently proxies A2A agents and provides a management API and dashboard for diagnosing their work.
 
-## Delivered scope
+[![Gateway CI](https://github.com/mevarx/Kyurem/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mevarx/Kyurem/actions/workflows/ci.yml)
+[![A2A conformance](https://github.com/mevarx/Kyurem/actions/workflows/a2a-conformance.yml/badge.svg?branch=main)](https://github.com/mevarx/Kyurem/actions/workflows/a2a-conformance.yml)
+[![Python demos](https://github.com/mevarx/Kyurem/actions/workflows/python-demo.yml/badge.svg?branch=main)](https://github.com/mevarx/Kyurem/actions/workflows/python-demo.yml)
 
-- **M1 — Transparent proxy:** routes by agent name and alias; streams requests and SSE responses; rewrites and caches agent cards; propagates W3C trace context; applies upstream timeouts and graceful shutdown.
-- **M2 — Tracing:** creates an OpenTelemetry span per handoff, links task hops into trace trees, and exports asynchronously through bounded OTLP queues. Telemetry is dropped rather than allowed to block traffic during collector outages.
-- **M3 — Dashboard MVP:** provides an authenticated management API on a separate listener and a read-only dashboard for overview, tasks, task details, agent graphs, agents, costs, and settings. Unknown token usage and cost remain unknown, not zero.
-- **M4 — Hardening and benchmarks:** includes request and stream limits, shutdown/draining tests, race-enabled Go tests, reproducible benchmarks, and SSE load tiers up to 10,000 streams. CI runs the 100-stream smoke tier; larger tiers are opt-in.
-- **M5 — Trust and policy:** supports bearer and optional mTLS caller identity, configured agent-card signature keys, deny-overrides policy, bounded audit records, decision APIs, and dashboard views. Card-signer-provided key URLs are never fetched. Skill filters are warn-only: A2A requests do not carry an authoritative skill selection, so enforce-mode skill rules are rejected at config validation.
-- **M6 — Failure handling:** supports ordered same-binding failover, per-upstream circuit breakers, a bounded per-agent retry budget, and retry/failover events on the handoff trace. Retries are limited to safe methods or POST requests with an `Idempotency-Key`; the upstream must honor that key. Request bodies are replayed only when bounded by `max_retry_body_bytes`; streaming and other non-replayable calls are not retried.
-- **M7 — Polish and handoff:** consolidates the milestone and configuration documentation, keeps example and Compose configs current, and provides deployment Dockerfiles and the local Compose stack. The repository does not publish release images automatically.
+## Dashboard
 
-## Architecture and interfaces
+The task detail view exposes the retry and failover events from the scripted M6 walkthrough.
 
-- The A2A data listener defaults to `127.0.0.1:8080`; health, readiness, metrics, and version endpoints use `127.0.0.1:8081`.
-- The management API uses its own listener (`127.0.0.1:8082` by default) and bearer authentication. The dashboard is in `dashboard/`.
-- Configuration is strict YAML with startup validation and `KYUREM_*` scalar overrides. See [`config/kyurem.example.yaml`](config/kyurem.example.yaml), [`docs/configuration.md`](docs/configuration.md), and [`api/openapi.yaml`](api/openapi.yaml).
-- Deployment assets include the gateway, dashboard, and demo Dockerfiles plus the Compose stack in `deploy/compose/`.
+![Kyurem dashboard task detail showing successful failover and retry events](docs/images/dashboard-failover.png)
 
-The sample configuration is intended for local development: caller authentication, card trust, and policy enforcement are off until explicitly configured. Do not expose a deployment using demo credentials or without setting the security modes and keys appropriate to that deployment.
+## Architecture
 
-## Quickstart
+![Kyurem architecture](docs/images/architecture.svg)
 
-Requirements: Go 1.26+. Build and run the gateway and demo agents:
+## Capabilities
+
+- **A2A proxy:** route by agent name or alias, forward JSON-RPC and HTTP+JSON, stream SSE, rewrite/cache agent cards, propagate W3C trace context, and drain on shutdown.
+- **Tracing and accounting:** create a span per handoff, link task traces, export asynchronously through bounded OTLP queues, and report cost only when token usage is known.
+- **Management and dashboard:** provide a separately bound API and views for tasks, agent graphs, costs, policy decisions, and span events.
+- **Trust and policy:** authenticate bearer or mTLS callers, verify cards against operator-configured keys, apply deny-overrides rules, and retain bounded audit records. Skill filters are warn-only because A2A has no authoritative selected-skill field.
+- **Failure handling:** retry within a bounded budget, fail over between same-binding upstreams, and isolate unhealthy upstreams with circuit breakers. Retries require safe methods or an idempotency-keyed, bounded POST; the upstream must deduplicate the key.
+- **Python demonstrations:** the SDK-based echo and upper agents plus a deterministic fail-once agent show the retry path without side effects.
+
+## Quick start
+
+Requirements: Go 1.26+. Build the gateway and Go demo agents:
 
 ```sh
-go build -o demo/bin/kyurem ./gateway/cmd/kyurem
-go build -o demo/bin/go-echo ./demo/agents/go-echo
-go build -o demo/bin/go-upper ./demo/agents/go-upper
-go build -o demo/bin/demo-client ./demo/scenarios/client
-
-./demo/bin/go-echo --port 9010 &
-./demo/bin/kyurem serve --config config/kyurem.example.yaml &
-./demo/bin/go-upper --port 9011 \
-  --echo-card-url http://127.0.0.1:8080/a2a/echo/.well-known/agent-card.json &
+make build build-demo
+make run-demo
 ```
 
-Run the scripted proxy walkthrough with `make run-demo`. The tracing and dashboard walkthroughs are `make demo-m2` and `make demo-m3`; both require Docker for their local telemetry stack. The M6 retry, failover, and breaker behaviors are covered by backend tests.
-
-## Failure-handling behavior
-
-Retries default to at most two total attempts and ten additional attempts per agent per minute. The circuit breaker opens after five consecutive upstream network/5xx failures, stays open for 30 seconds, and then permits a single probe. Only transient HTTP 502, 503, and 504 responses are retried; other 5xx responses still count toward breaker state.
-
-GET, HEAD, and OPTIONS requests without bodies are retryable. A POST is retryable only when it has an `Idempotency-Key` and its body can be replayed within the configured cap. The key is a contract with the upstream, not proof of idempotency; the upstream must deduplicate repeated requests. SSE response bodies are never replayed after headers have been sent. Configure ordered upstreams with the same binding to enable failover for that binding.
-
-## Development and verification
+For Python agents and the dashboard failover walkthrough, install Python 3.11+ and `uv`; Node 22 is needed for the UI:
 
 ```sh
-make test              # gateway tests with the race detector
-make test-demo         # demo-module tests
+make python-install
+make dashboard-install
+make demo-m6
+```
+
+The walkthrough launches the Python flaky and healthy agents, Kyurem, and the dashboard, posts one keyed task, and prints its task-detail URL. It keeps the services running until Ctrl+C. Use `make demo-m6-check` for the same backend assertions with automatic cleanup.
+
+## Interfaces and configuration
+
+- A2A data listener: `127.0.0.1:8080`
+- Health, readiness, metrics, and version listener: `127.0.0.1:8081`
+- Management API: `127.0.0.1:8082`
+- Dashboard: `dashboard/`; development proxy to management API is configurable with `KYUREM_API_ORIGIN`.
+- Strict YAML configuration rejects unknown keys and validates at startup. See [`config/kyurem.example.yaml`](config/kyurem.example.yaml), [`config/kyurem.compose.yaml`](config/kyurem.compose.yaml), and [`docs/configuration.md`](docs/configuration.md).
+
+The sample configuration is for local development; authentication, trust verification, and policy enforcement are off by default. Configure production credentials, keys, and policy before exposing the gateway.
+
+## A2A conformance in CI
+
+The [A2A Conformance workflow](.github/workflows/a2a-conformance.yml) pins the official [`a2a-tck`](https://github.com/a2aproject/a2a-tck) and [`a2a-itk`](https://github.com/a2aproject/a2a-itk) repositories by commit. It runs the TCK MUST-level JSON-RPC suite against Kyurem with the Python demo upstream, then runs the ITK ACTS smoke profile for the Python demo’s declared task and discovery behaviors. Full ACTS coverage spans capabilities the small demo does not claim; the CI profile is intentionally scoped. Reports are retained as workflow artifacts.
+
+## Benchmarks
+
+Real-process streaming runs were collected on **Linux x86_64 in a Modal sandbox configured for 2 vCPU and 8 GiB RAM**, with **Go 1.26.0**. The virtual CPU model was not exposed. Gateway RSS is the process resident set size before and after each measurement interval; load generation and the Go echo agent ran on the same host. These are measurements of the checked-in harness, not an SLA.
+
+| Configured streams | Completed / failed | p50 / p95 / p99 latency (ms) | Peak active streams | Gateway RSS before → after (Δ MiB) | Throughput (req/s) |
+|---:|---:|---:|---:|---:|---:|
+| 1,000 | 5,015 / 0 | 3,109 / 7,159 / 9,039 | 235 | 54.0 → 231.2 (+177.2) | 245.0 |
+| 5,000 | 5,697 / 0 | 13,289 / 24,702 / 26,048 | 282 | 231.2 → 1,022.9 (+791.7) | 184.6 |
+| 10,000 | 847 / 10,555 | 19,997 / 28,822 / 29,287 | 22 | 1,022.9 → 1,342.4 (+319.6) | 25.6 |
+
+The 10,000-stream tier did **not** sustain its target on this 2-vCPU test host; its latency summarizes completed requests during an overloaded run, not a successful 10k-capacity result. The script saves raw JSON and logs under `demo/bin/bench-results/` (`.gitignore`d). Run it with `bash demo/scenarios/bench-load.sh`; see [`docs/benchmarks.md`](docs/benchmarks.md) for the in-process smoke and measurement details.
+
+## Releases
+
+The tag-triggered release workflow builds Kyurem binaries for Linux, macOS, and Windows (amd64/arm64 where supported), and publishes multi-architecture Linux/amd64 and Linux/arm64 images for the gateway, dashboard, Go demos, and Python demos to GHCR:
+
+- `ghcr.io/mevarx/kyurem-gateway`
+- `ghcr.io/mevarx/kyurem-dashboard`
+- `ghcr.io/mevarx/kyurem-demo`
+- `ghcr.io/mevarx/kyurem-python-demo`
+
+After this change is merged, tagging `v0.1.0` starts the first release build; the tag is not created from an unmerged feature branch.
+
+## Development checks
+
+```sh
+make test            # Gateway Go tests with the race detector
+make test-demo       # Go demo tests
+make test-python     # Python demo agent tests
 make vet
-make validate          # shipped YAML configs
-make dashboard-install # first-time dashboard dependencies
-make dashboard-check   # typecheck, lint, and tests
+make validate
+make dashboard-check
 make dashboard-build
+make demo-m3          # failure diagnosis via management API
 ```
 
-GitHub Actions runs the gateway build/vet/format/race tests, config and Compose validation, the M3 scenario, demo-agent checks, and dashboard typecheck/lint/tests/build on pushes and pull requests. Starting the full Compose stack requires Docker. The official `a2a-tck` / `a2a-itk` conformance suites are not currently wired into CI; the in-repository integration tests are not a substitute for those suites.
-
-More detail: [`docs/milestones.md`](docs/milestones.md), [`docs/benchmarks.md`](docs/benchmarks.md), and [`docs/telemetry-conventions.md`](docs/telemetry-conventions.md).
+Compose syntax is validated in GitHub Actions. Running the full telemetry/ClickHouse stack locally requires Docker. The official TCK/ACTS job and larger benchmark tiers are described above and in [`docs/milestones.md`](docs/milestones.md).

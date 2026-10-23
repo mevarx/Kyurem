@@ -13,7 +13,9 @@ COPY gateway/go.mod gateway/go.sum ./
 RUN go mod download
 
 COPY gateway/ ./
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
+ARG KYUREM_VERSION=0.1.0-dev
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
+    -ldflags="-s -w -X github.com/kyurem-project/kyurem/gateway/internal/version.Version=${KYUREM_VERSION}" \
     -o /out/kyurem ./cmd/kyurem
 
 FROM alpine:3.22
