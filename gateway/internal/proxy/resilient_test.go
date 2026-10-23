@@ -190,10 +190,10 @@ func TestOpenCircuitsReturnServiceUnavailable(t *testing.T) {
 		RetryBudget:    config.RetryBudget{MaxRetries: 1, Window: config.Duration(time.Minute)},
 		CircuitBreaker: config.CircuitBreaker{FailureThreshold: 1, OpenDuration: config.Duration(time.Second)},
 	})
-	if !m.Begin("primary", "echo", false) {
+	if allowed, _ := m.Begin("primary", "echo", false); !allowed {
 		t.Fatal("first attempt was denied")
 	}
-	m.Complete("primary", false)
+	m.Complete("primary", false, false)
 	transport := &failureTransport{manager: m, base: roundTripFunc(func(*http.Request) (*http.Response, error) {
 		t.Fatal("open circuit reached upstream transport")
 		return nil, nil

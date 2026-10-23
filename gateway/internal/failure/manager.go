@@ -45,7 +45,8 @@ func New(settings config.FailureHandling) *Manager {
 func (m *Manager) MaxAttempts() int { return m.settings.MaxAttempts }
 
 // Begin reserves one attempt. Retries consume an agent-scoped fixed-window budget.
-func (m *Manager) Begin(upstream, agent string, retry bool) bool {
+// The second result identifies the exclusive half-open probe permit.
+func (m *Manager) Begin(upstream, agent string, retry bool) (allowed, probe bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -54,10 +55,10 @@ func (m *Manager) Begin(upstream, agent string, retry bool) bool {
 		b = &breaker{}
 		m.breakers[upstream] = b
 	}
-	probe := false
+	probe = false
 	if !b.openUntil.IsZero() {
 		if time.Now().Before(b.openUntil) || b.probeInFlight {
-			return false
+			return false, false
 		}
 		b.probeInFlight = true
 		probe = true
@@ -69,7 +70,7 @@ func (m *Manager) Begin(upstream, agent string, retry bool) bool {
 			if probe {
 				b.probeInFlight = false
 			}
-			return false
+			return false, false
 		}
 		window := m.settings.RetryBudget.Window.Std()
 		now := time.Now()
@@ -82,30 +83,38 @@ func (m *Manager) Begin(upstream, agent string, retry bool) bool {
 			if probe {
 				b.probeInFlight = false
 			}
-			return false
+			return false, false
 		}
 		bgt.used++
 	}
-	return true
+	return true, probe
 }
 
-func (m *Manager) Complete(upstream string, success bool) {
+func (m *Manager) Complete(upstream string, probe, success bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	b := m.breakers[upstream]
 	if b == nil {
 		return
 	}
-	if success {
-		b.failures = 0
-		b.openUntil = time.Time{}
+	if probe {
 		b.probeInFlight = false
+		if success {
+			b.failures = 0
+			b.openUntil = time.Time{}
+		} else {
+			b.failures = 0
+			b.openUntil = time.Now().Add(m.settings.CircuitBreaker.OpenDuration.Std())
+		}
 		return
 	}
-	if b.probeInFlight || !b.openUntil.IsZero() {
+	// Ignore completions from requests admitted before the breaker opened or
+	// from parallel requests while a half-open probe owns the transition.
+	if !b.openUntil.IsZero() {
+		return
+	}
+	if success {
 		b.failures = 0
-		b.openUntil = time.Now().Add(m.settings.CircuitBreaker.OpenDuration.Std())
-		b.probeInFlight = false
 		return
 	}
 	b.failures++
