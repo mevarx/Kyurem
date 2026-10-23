@@ -29,6 +29,16 @@ type SpanRecord struct {
 	// ResourceAttributes holds the resource attributes (service.name, the
 	// pinned semantic-convention commit, ...).
 	ResourceAttributes map[string]string
+	// Events are the span events (trust, policy and authentication
+	// decisions as well as lifecycle events).
+	Events []SpanEvent
+}
+
+// SpanEvent is one normalized span event.
+type SpanEvent struct {
+	Name       string
+	Time       time.Time
+	Attributes map[string]string
 }
 
 // Duration is the wall-clock length of the span.
@@ -65,6 +75,17 @@ func RecordFromSpan(s sdktrace.ReadOnlySpan) SpanRecord {
 	}
 	for _, kv := range s.Attributes() {
 		rec.Attributes[string(kv.Key)] = kv.Value.Emit()
+	}
+	for _, ev := range s.Events() {
+		event := SpanEvent{
+			Name:       ev.Name,
+			Time:       ev.Time,
+			Attributes: make(map[string]string, len(ev.Attributes)),
+		}
+		for _, kv := range ev.Attributes {
+			event.Attributes[string(kv.Key)] = kv.Value.Emit()
+		}
+		rec.Events = append(rec.Events, event)
 	}
 	if res := s.Resource(); res != nil {
 		for _, kv := range res.Attributes() {

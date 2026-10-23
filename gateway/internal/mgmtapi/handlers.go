@@ -22,9 +22,11 @@ import (
 	"time"
 
 	"github.com/kyurem-project/kyurem/gateway/internal/metrics"
+	"github.com/kyurem-project/kyurem/gateway/internal/policy"
 	"github.com/kyurem-project/kyurem/gateway/internal/registry"
 	"github.com/kyurem-project/kyurem/gateway/internal/storage"
 	"github.com/kyurem-project/kyurem/gateway/internal/telemetry"
+	"github.com/kyurem-project/kyurem/gateway/internal/trust"
 	"github.com/kyurem-project/kyurem/gateway/internal/version"
 )
 
@@ -40,6 +42,14 @@ type Deps struct {
 	Metrics  *metrics.Metrics    // may be nil
 	// Telemetry may be nil.
 	Telemetry *telemetry.Telemetry
+	// Policy is the authorization engine (M5). A nil engine reports an
+	// empty, disabled policy.
+	Policy *policy.Engine
+	// Audit is the process-local decision ring (M5). May be nil.
+	Audit *policy.AuditLog
+	// Trust is the card verifier; its per-agent mode is reported even
+	// before the first card snapshot exists. May be nil.
+	Trust *trust.Verifier
 	// StorageDriver is "memory" or "clickhouse" (reported by /settings).
 	StorageDriver   string
 	StorageDatabase string
@@ -82,6 +92,8 @@ func New(deps Deps) http.Handler {
 	mux.Handle("GET /api/v1/graph", s.safe(s.authed(http.HandlerFunc(s.handleGraph))))
 	mux.Handle("GET /api/v1/agents", s.safe(s.authed(http.HandlerFunc(s.handleAgents))))
 	mux.Handle("GET /api/v1/costs", s.safe(s.authed(http.HandlerFunc(s.handleCosts))))
+	mux.Handle("GET /api/v1/policy", s.safe(s.authed(http.HandlerFunc(s.handlePolicy))))
+	mux.Handle("GET /api/v1/decisions", s.safe(s.authed(http.HandlerFunc(s.handleDecisions))))
 	mux.Handle("GET /api/v1/settings", s.safe(s.authed(http.HandlerFunc(s.handleSettings))))
 	// Probes are unauthenticated: orchestrators cannot hold a token.
 	mux.Handle("GET /healthz", s.safe(http.HandlerFunc(s.handleHealthz)))
@@ -419,6 +431,57 @@ func (s *server) handleCosts(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, report)
 }
 
+// handlePolicy serves the configured policy and the caller x callee matrix.
+func (s *server) handlePolicy(w http.ResponseWriter, r *http.Request) {
+	snap := s.deps.Policy.Snapshot()
+	if snap.Rules == nil {
+		snap.Rules = []policy.Rule{}
+	}
+	if snap.Callers == nil {
+		snap.Callers = []string{}
+	}
+	if snap.Callees == nil {
+		snap.Callees = []string{}
+	}
+	if snap.Matrix == nil {
+		snap.Matrix = []policy.MatrixCell{}
+	}
+	writeJSON(w, http.StatusOK, snap)
+}
+
+// decisionsResponse is the /decisions payload.
+type decisionsResponse struct {
+	Items []policy.AuditEntry `json:"items"`
+	// Total is the number of entries currently held by the ring.
+	Total int `json:"total"`
+}
+
+// handleDecisions serves the in-process audit ring, newest first.
+func (s *server) handleDecisions(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	kind := q.Get("kind")
+	if kind != "" && !validDecisionKinds[kind] {
+		writeError(w, http.StatusBadRequest, "invalid_parameter",
+			"invalid kind "+kind+": want policy, trust or auth")
+		return
+	}
+	limit, err := parseInt(q.Get("limit"), DefaultDecisionsLimit)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_parameter", "invalid limit: "+q.Get("limit"))
+		return
+	}
+	limit = min(max(limit, MinLimit), MaxDecisionsLimit)
+	items := s.deps.Audit.Recent(kind, limit)
+	if items == nil {
+		items = []policy.AuditEntry{}
+	}
+	total := 0
+	if s.deps.Audit != nil {
+		total = s.deps.Audit.Len()
+	}
+	writeJSON(w, http.StatusOK, decisionsResponse{Items: items, Total: total})
+}
+
 // ---------------------------------------------------------------- settings
 
 // settingsResponse is the /settings payload (see api/openapi.yaml).
@@ -519,8 +582,19 @@ type AgentInfo struct {
 	CardStatus string `json:"card_status"`
 	// CardFetchedAt is null when no card was ever fetched.
 	CardFetchedAt *time.Time `json:"card_fetched_at"`
-	// Verification is "unchecked" until card signature verification (M5).
+	// CardVersion is the version the upstream card declares.
+	CardVersion string `json:"card_version"`
+	// Skills lists the skill ids the upstream card declares.
+	Skills []string `json:"skills"`
+	// Verification is the card signature status: checked, verified,
+	// unverified, unsigned or unchecked.
 	Verification string `json:"verification"`
+	// VerificationMode is the configured trust mode: off, warn or enforce.
+	VerificationMode string `json:"verification_mode"`
+	// VerificationKey is the kid that verified the signature, when any.
+	VerificationKey string `json:"verification_key,omitempty"`
+	// VerificationReason explains the status in one sentence.
+	VerificationReason string `json:"verification_reason,omitempty"`
 	// BreakerState is "unknown" until the circuit breaker lands (M6).
 	BreakerState string     `json:"breaker_state"`
 	LastSeen     *time.Time `json:"last_seen"`
@@ -536,21 +610,26 @@ type AgentInfo struct {
 // snapshot.
 func (s *server) agentInfo(e *registry.Entry, st storage.AgentStats) AgentInfo {
 	info := AgentInfo{
-		Name:         e.Name,
-		Aliases:      []string{},
-		Tags:         []string{},
-		Path:         e.RoutePath,
-		Upstreams:    []string{},
-		CardStatus:   "unknown",
-		Verification: "unchecked",
-		BreakerState: "unknown",
-		LastSeen:     st.LastSeen,
-		Spans:        st.Spans,
-		Errors:       st.Errors,
-		ErrorRate:    st.ErrorRate,
-		P50MS:        st.P50MS,
-		P95MS:        st.P95MS,
-		CostUSD:      st.CostUSD,
+		Name:             e.Name,
+		Aliases:          []string{},
+		Tags:             []string{},
+		Path:             e.RoutePath,
+		Upstreams:        []string{},
+		CardStatus:       "unknown",
+		Skills:           []string{},
+		Verification:     trust.StatusUnchecked,
+		VerificationMode: string(trust.ModeOff),
+		BreakerState:     "unknown",
+		LastSeen:         st.LastSeen,
+		Spans:            st.Spans,
+		Errors:           st.Errors,
+		ErrorRate:        st.ErrorRate,
+		P50MS:            st.P50MS,
+		P95MS:            st.P95MS,
+		CostUSD:          st.CostUSD,
+	}
+	if s.deps.Trust != nil {
+		info.VerificationMode = string(s.deps.Trust.Mode(e.Name))
 	}
 	for _, alias := range e.AliasPaths {
 		info.Aliases = append(info.Aliases, aliasSegment(alias))
@@ -579,6 +658,23 @@ func (s *server) applyCardSnapshot(info *AgentInfo, e *registry.Entry) {
 	if snap == nil {
 		return
 	}
+	if snap.Card != nil {
+		info.CardVersion = snap.Card.Version
+		for _, skill := range snap.Card.Skills {
+			if skill.ID != "" {
+				info.Skills = append(info.Skills, skill.ID)
+			}
+		}
+	}
+	verification := snap.Verification
+	if verification.Mode != "" {
+		info.VerificationMode = verification.Mode
+	}
+	if verification.Status != "" {
+		info.Verification = verification.Status
+	}
+	info.VerificationKey = verification.KeyID
+	info.VerificationReason = verification.Reason
 	if !snap.FetchedAt.IsZero() {
 		fetched := snap.FetchedAt
 		info.CardFetchedAt = &fetched

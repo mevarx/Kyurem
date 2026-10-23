@@ -6,24 +6,33 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/a2aproject/a2a-go/v2/a2a"
+
+	"github.com/kyurem-project/kyurem/gateway/internal/authn"
 	"github.com/kyurem-project/kyurem/gateway/internal/config"
 	"github.com/kyurem-project/kyurem/gateway/internal/cost"
 	"github.com/kyurem-project/kyurem/gateway/internal/metrics"
 	"github.com/kyurem-project/kyurem/gateway/internal/mgmtapi"
+	"github.com/kyurem-project/kyurem/gateway/internal/policy"
 	"github.com/kyurem-project/kyurem/gateway/internal/proxy"
 	"github.com/kyurem-project/kyurem/gateway/internal/registry"
 	"github.com/kyurem-project/kyurem/gateway/internal/storage"
 	"github.com/kyurem-project/kyurem/gateway/internal/telemetry"
+	"github.com/kyurem-project/kyurem/gateway/internal/trust"
 	"github.com/kyurem-project/kyurem/gateway/internal/version"
 )
 
@@ -38,6 +47,12 @@ type Server struct {
 	proxy   *proxy.Handler
 	store   storage.Store
 	queries storage.Queries
+
+	auth   *authn.Authenticator
+	trust  *trust.Verifier
+	pol    *policy.Engine
+	audit  *policy.AuditLog
+	a2aTLS *tls.Config
 
 	a2aSrv   *http.Server
 	adminSrv *http.Server
@@ -80,7 +95,34 @@ func New(cfg *config.Config, logger *slog.Logger) (*Server, error) {
 		cfg.CardCache.MaxCardBytes,
 		logger,
 	)
-	h := proxy.New(cfg, reg, cache, mtr, tel, logger, proxy.WithPriceTable(buildPriceTable(cfg)))
+
+	// M5 security: caller authentication (TP-5), card verification
+	// (TP-1/TP-2), authorization rules (TP-3) and the audit ring (TP-4).
+	auth, err := authn.New(cfg.Callers)
+	if err != nil {
+		return nil, fmt.Errorf("callers: %w", err)
+	}
+	trustV, err := trust.New(cfg.Trust)
+	if err != nil {
+		return nil, fmt.Errorf("trust: %w", err)
+	}
+	cache.SetVerifier(func(ctx context.Context, agent string, raw []byte, card *a2a.AgentCard) registry.CardVerification {
+		return cardVerification(trustV.Verify(ctx, agent, raw, card))
+	})
+	pol := policy.New(cfg.Policy, policyCallers(auth, cfg), agentNames(reg))
+	audit := policy.NewAuditLog(cfg.Policy.AuditCapacity)
+	tlsCfg, err := buildA2ATLS(cfg.Listeners.A2A.TLS)
+	if err != nil {
+		return nil, fmt.Errorf("listeners.a2a.tls: %w", err)
+	}
+
+	h := proxy.New(cfg, reg, cache, mtr, tel, logger,
+		proxy.WithPriceTable(buildPriceTable(cfg)),
+		proxy.WithAuth(auth),
+		proxy.WithTrust(trustV),
+		proxy.WithPolicy(pol),
+		proxy.WithAudit(audit),
+	)
 
 	s := &Server{
 		cfg:     cfg,
@@ -92,6 +134,11 @@ func New(cfg *config.Config, logger *slog.Logger) (*Server, error) {
 		proxy:   h,
 		store:   store,
 		queries: storage.NewQueries(store),
+		auth:    auth,
+		trust:   trustV,
+		pol:     pol,
+		audit:   audit,
+		a2aTLS:  tlsCfg,
 		started: time.Now(),
 	}
 	s.a2aSrv = &http.Server{
@@ -150,6 +197,92 @@ func buildPriceTable(cfg *config.Config) cost.Table {
 		})
 	}
 	return cost.NewTable(prices)
+}
+
+// cardVerification adapts the trust package's result to the snapshot type
+// the card cache stores (the registry stays free of trust imports).
+func cardVerification(res trust.Result) registry.CardVerification {
+	return registry.CardVerification{
+		Mode:     string(res.Mode),
+		Status:   res.Status(),
+		Signed:   res.Signed,
+		Verified: res.Verified,
+		KeyID:    res.KeyID,
+		Reason:   res.Reason,
+	}
+}
+
+// policyCallers lists the caller identities shown in the policy matrix:
+// the configured bearer-token callers, the anonymous identity when it can
+// still reach the gateway, and any caller named by a rule.
+func policyCallers(auth *authn.Authenticator, cfg *config.Config) []string {
+	names := []string{}
+	if auth != nil {
+		names = append(names, auth.CallerNames()...)
+	}
+	if authn.ParseMode(cfg.Callers.Mode) != authn.ModeRequired {
+		names = append(names, authn.AnonymousCaller)
+	}
+	for _, rule := range cfg.Policy.Rules {
+		if name := strings.TrimSpace(rule.Caller); name != "" && name != "*" {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// agentNames lists the registered agent names that form the matrix columns.
+func agentNames(reg *registry.Registry) []string {
+	if reg == nil {
+		return []string{}
+	}
+	names := make([]string, 0, reg.Len())
+	for _, e := range reg.Entries() {
+		if e != nil && e.Name != "" {
+			names = append(names, e.Name)
+		}
+	}
+	return names
+}
+
+// buildA2ATLS loads the data-path TLS material. It returns nil when TLS is
+// not configured. Client certificates are optional at the handshake: a
+// caller may authenticate with a bearer token instead, and required mode
+// still rejects a request without any credential.
+func buildA2ATLS(c config.TLS) (*tls.Config, error) {
+	certFile := strings.TrimSpace(c.CertFile)
+	keyFile := strings.TrimSpace(c.KeyFile)
+	if certFile == "" && keyFile == "" {
+		return nil, nil
+	}
+	if certFile == "" || keyFile == "" {
+		return nil, errors.New("cert_file and key_file must both be set")
+	}
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("load cert/key pair: %w", err)
+	}
+	minVersion := uint16(tls.VersionTLS12)
+	if c.MinVersion == "1.3" {
+		minVersion = tls.VersionTLS13
+	}
+	cfg := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   minVersion,
+	}
+	if caFile := strings.TrimSpace(c.ClientCAFile); caFile != "" {
+		raw, err := os.ReadFile(caFile)
+		if err != nil {
+			return nil, fmt.Errorf("read client_ca_file: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(raw) {
+			return nil, fmt.Errorf("client_ca_file %q: no certificates found", caFile)
+		}
+		cfg.ClientCAs = pool
+		cfg.ClientAuth = tls.VerifyClientCertIfGiven
+	}
+	return cfg, nil
 }
 
 // headerTimeout converts response-header semantics to request-header
@@ -222,6 +355,9 @@ func (s *Server) mgmtHandler() http.Handler {
 		Cards:           s.cache,
 		Metrics:         s.mtr,
 		Telemetry:       s.tel,
+		Policy:          s.pol,
+		Audit:           s.audit,
+		Trust:           s.trust,
 		StorageDriver:   s.cfg.Management.Storage.Driver,
 		StorageDatabase: s.cfg.Management.Storage.ClickHouse.Database,
 		AuthToken:       s.cfg.Management.AuthToken,
@@ -233,6 +369,29 @@ func (s *Server) mgmtHandler() http.Handler {
 func writeJSON(w http.ResponseWriter, v any) error {
 	w.Header().Set("Content-Type", "application/json")
 	return json.NewEncoder(w).Encode(v)
+}
+
+// logSecurityModes states the effective M5 posture once at startup, so an
+// operator can see whether calls are being authenticated and enforced.
+func (s *Server) logSecurityModes() {
+	authMode := "off"
+	if s.auth != nil {
+		authMode = string(s.auth.Mode())
+	}
+	trustMode := "off"
+	if s.trust != nil {
+		trustMode = string(s.trust.Mode(""))
+	}
+	policyMode := "off"
+	if s.pol != nil {
+		policyMode = string(s.pol.Mode())
+	}
+	s.logger.Info("security modes",
+		"callers", authMode,
+		"trust", trustMode,
+		"policy", policyMode,
+		"a2a_tls", s.a2aTLS != nil,
+	)
 }
 
 // Start binds listeners and runs until Shutdown. It is a blocking call
@@ -251,6 +410,9 @@ func (s *Server) Start(ctx context.Context) error {
 	a2aLn, err := net.Listen("tcp", s.a2aSrv.Addr)
 	if err != nil {
 		return err
+	}
+	if s.a2aTLS != nil {
+		a2aLn = tls.NewListener(a2aLn, s.a2aTLS)
 	}
 	adminLn, err := net.Listen("tcp", s.adminSrv.Addr)
 	if err != nil {
@@ -274,6 +436,7 @@ func (s *Server) Start(ctx context.Context) error {
 		"a2a_go_sdk_version", version.GoVersion(),
 		"log_format", s.cfg.Logging.Format,
 	)
+	s.logSecurityModes()
 	if mgmtLn != nil {
 		s.logger.Info("management API enabled",
 			"mgmt_addr", mgmtLn.Addr().String(),

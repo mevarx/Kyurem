@@ -27,6 +27,31 @@ const BREAKER_TONES: Record<string, BadgeTone> = {
   unknown: "neutral",
 };
 
+const VERIFICATION_TONES: Record<string, BadgeTone> = {
+  verified: "good",
+  unverified: "bad",
+  unsigned: "warn",
+  unchecked: "neutral",
+};
+
+const DECISION_TONES: Record<string, BadgeTone> = {
+  allow: "good",
+  warn: "warn",
+  deny: "bad",
+};
+
+const POLICY_MODE_TONES: Record<string, BadgeTone> = {
+  off: "neutral",
+  warn: "warn",
+  enforce: "good",
+};
+
+const TRUST_MODE_TONES: Record<string, BadgeTone> = {
+  off: "neutral",
+  warn: "warn",
+  enforce: "good",
+};
+
 /** Tone for a task status (`succeeded`, `failed`, `unknown`). */
 export function taskStatusTone(status: string): BadgeTone {
   return TASK_TONES[status] ?? "neutral";
@@ -41,6 +66,39 @@ export function cardStatusTone(status: string): BadgeTone {
 export function breakerStateTone(state: string | undefined): BadgeTone {
   if (!state) return "neutral";
   return BREAKER_TONES[state] ?? "neutral";
+}
+
+/** Tone for a card signature verification status. */
+export function verificationTone(status: string | undefined): BadgeTone {
+  if (!status) return "neutral";
+  return VERIFICATION_TONES[status] ?? "neutral";
+}
+
+/** Tone for an allow/deny/warn decision. */
+export function decisionTone(decision: string | undefined): BadgeTone {
+  if (!decision) return "neutral";
+  return DECISION_TONES[decision] ?? "neutral";
+}
+
+/** Tone for a policy mode (off, warn, enforce). */
+export function policyModeTone(mode: string | undefined): BadgeTone {
+  if (!mode) return "neutral";
+  return POLICY_MODE_TONES[mode] ?? "neutral";
+}
+
+/** Tone for a trust mode (off, warn, enforce). */
+export function trustModeTone(mode: string | undefined): BadgeTone {
+  if (!mode) return "neutral";
+  return TRUST_MODE_TONES[mode] ?? "neutral";
+}
+
+/** True when a span event name is an access decision (trust, policy, auth). */
+export function isAccessDecisionEvent(name: string): boolean {
+  return (
+    name === "kyurem.policy.decision" ||
+    name === "kyurem.trust.decision" ||
+    name === "kyurem.auth.decision"
+  );
 }
 
 /** Tone for an error rate between 0 and 1. */

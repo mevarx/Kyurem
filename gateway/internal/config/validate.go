@@ -1,11 +1,15 @@
 package config
 
 import (
+	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"math"
 	"net"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 )
@@ -47,6 +51,7 @@ func Validate(cfg *Config) error {
 	if base := cfg.Listeners.A2A.PublicBaseURL; base != "" {
 		errs = append(errs, checkPublicBaseURL(base)...)
 	}
+	errs = append(errs, validateTLS(cfg.Listeners.A2A.TLS)...)
 
 	if len(cfg.Agents) == 0 {
 		errs = append(errs, errors.New("agents: at least one agent is required"))
@@ -58,6 +63,7 @@ func Validate(cfg *Config) error {
 	// path and cards served through them are rewritten to it (ADR 0002).
 	pathOwner := map[string]string{}
 	keyOwner := map[string]string{}
+	agentNames := map[string]struct{}{}
 
 	claimPath := func(path, owner string) {
 		if prev, dup := pathOwner[path]; dup {
@@ -89,6 +95,7 @@ func Validate(cfg *Config) error {
 			continue
 		}
 		claimKey(a.Name, label)
+		agentNames[strings.ToLower(a.Name)] = struct{}{}
 		canonical := a.Path
 		if canonical == "" {
 			canonical = prefix + "/" + a.Name
@@ -126,6 +133,10 @@ func Validate(cfg *Config) error {
 			}
 		}
 	}
+
+	errs = append(errs, validateCallers(cfg.Callers, cfg.Listeners.A2A.TLS)...)
+	errs = append(errs, validateTrust(cfg.Trust, agentNames)...)
+	errs = append(errs, validatePolicy(cfg.Policy)...)
 
 	errs = append(errs, checkNonNegative("card_cache.ttl", cfg.CardCache.TTL)...)
 	if cfg.CardCache.TTL > 0 && cfg.CardCache.TTL < Duration(1_000_000_000) /* 1s */ {
@@ -290,6 +301,233 @@ func validateManagement(m Management, mgmtAddr string) []error {
 			"management.auth_token: required when the management listener %s is not loopback", mgmtAddr))
 	}
 	return errs
+}
+
+// validateTLS checks the A2A listener's TLS settings. A half-configured
+// listener is rejected instead of silently serving plaintext.
+func validateTLS(t TLS) []error {
+	var errs []error
+	hasCert := strings.TrimSpace(t.CertFile) != ""
+	hasKey := strings.TrimSpace(t.KeyFile) != ""
+	switch {
+	case hasCert && !hasKey:
+		errs = append(errs, errors.New("listeners.a2a.tls.key_file: required when cert_file is set"))
+	case hasKey && !hasCert:
+		errs = append(errs, errors.New("listeners.a2a.tls.cert_file: required when key_file is set"))
+	case hasCert && hasKey:
+		if _, err := tls.LoadX509KeyPair(t.CertFile, t.KeyFile); err != nil {
+			errs = append(errs, fmt.Errorf("listeners.a2a.tls: load cert/key pair: %v", err))
+		}
+	}
+	if ca := strings.TrimSpace(t.ClientCAFile); ca != "" {
+		if !hasCert || !hasKey {
+			errs = append(errs, errors.New("listeners.a2a.tls.client_ca_file: requires cert_file and key_file"))
+		}
+		raw, err := os.ReadFile(ca)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("listeners.a2a.tls.client_ca_file: %v", err))
+		} else if !x509.NewCertPool().AppendCertsFromPEM(raw) {
+			errs = append(errs, fmt.Errorf("listeners.a2a.tls.client_ca_file %q: no certificates found", ca))
+		}
+	}
+	switch t.MinVersion {
+	case "", "1.2", "1.3":
+	default:
+		errs = append(errs, fmt.Errorf("listeners.a2a.tls.min_version %q: one of 1.2|1.3", t.MinVersion))
+	}
+	return errs
+}
+
+// validateCallers checks caller authentication (TP-5). A required mode
+// without any credential source would lock every caller out, so it is
+// rejected at startup rather than at the first request.
+func validateCallers(c Callers, tlsCfg TLS) []error {
+	var errs []error
+	switch c.Mode {
+	case "", "off", "optional", "required":
+	default:
+		errs = append(errs, fmt.Errorf("callers.mode %q: one of off|optional|required", c.Mode))
+	}
+
+	names := map[string]int{}
+	tokens := map[[32]byte]int{}
+	for i, tok := range c.BearerTokens {
+		label := fmt.Sprintf("callers.bearer_tokens[%d]", i)
+		if tok.Name == "" {
+			errs = append(errs, fmt.Errorf("%s.name: required", label))
+		} else if !validIdentityName(tok.Name) {
+			errs = append(errs, fmt.Errorf("%s.name %q: must be a printable name of at most 128 characters", label, tok.Name))
+		} else if prev, dup := names[strings.ToLower(tok.Name)]; dup {
+			errs = append(errs, fmt.Errorf("%s.name %q: already used by bearer_tokens[%d]", label, tok.Name, prev))
+		} else {
+			names[strings.ToLower(tok.Name)] = i
+		}
+		value, err := tok.ResolveToken()
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: %v", label, err))
+			continue
+		}
+		if strings.TrimSpace(value) != value || value == "" {
+			errs = append(errs, fmt.Errorf("%s: token must be non-empty and contain no surrounding whitespace", label))
+			continue
+		}
+		hash := sha256.Sum256([]byte(value))
+		if prev, dup := tokens[hash]; dup {
+			errs = append(errs, fmt.Errorf("%s: token duplicates bearer_tokens[%d]", label, prev))
+		} else {
+			tokens[hash] = i
+		}
+	}
+
+	if c.Mode == "required" && len(c.BearerTokens) == 0 && strings.TrimSpace(tlsCfg.ClientCAFile) == "" {
+		errs = append(errs, errors.New("callers.mode: required needs bearer_tokens or listeners.a2a.tls.client_ca_file"))
+	}
+	return errs
+}
+
+// validateTrust checks trusted card-signing keys and per-agent overrides
+// (TP-1, TP-2). Key material is parsed here so `kyurem validate` catches a
+// broken key before the gateway starts.
+func validateTrust(t Trust, agents map[string]struct{}) []error {
+	var errs []error
+	switch t.Mode {
+	case "", "off", "warn", "enforce":
+	default:
+		errs = append(errs, fmt.Errorf("trust.mode %q: one of off|warn|enforce", t.Mode))
+	}
+
+	keyIDs := map[string]int{}
+	for i, key := range t.Keys {
+		label := fmt.Sprintf("trust.keys[%d]", i)
+		if key.ID == "" {
+			errs = append(errs, fmt.Errorf("%s.id: required", label))
+			continue
+		}
+		if len(key.ID) > 128 || !validIdentityName(key.ID) {
+			errs = append(errs, fmt.Errorf("%s.id %q: must be a printable id of at most 128 characters", label, key.ID))
+		}
+		if prev, dup := keyIDs[key.ID]; dup {
+			errs = append(errs, fmt.Errorf("%s.id %q: already used by trust.keys[%d]", label, key.ID, prev))
+			continue
+		}
+		keyIDs[key.ID] = i
+		raw, err := key.ResolvePEM()
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: %v", label, err))
+			continue
+		}
+		if _, err := ParsePublicKeyPEM(raw); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %v", label, err))
+		}
+	}
+
+	seenAgents := map[string]int{}
+	for i, a := range t.Agents {
+		label := fmt.Sprintf("trust.agents[%d]", i)
+		if a.Name == "" {
+			errs = append(errs, fmt.Errorf("%s.name: required", label))
+			continue
+		}
+		if _, ok := agents[strings.ToLower(a.Name)]; !ok {
+			errs = append(errs, fmt.Errorf("%s.name %q: no such agent", label, a.Name))
+		}
+		if prev, dup := seenAgents[strings.ToLower(a.Name)]; dup {
+			errs = append(errs, fmt.Errorf("%s.name %q: already configured by trust.agents[%d]", label, a.Name, prev))
+		} else {
+			seenAgents[strings.ToLower(a.Name)] = i
+		}
+		switch a.Mode {
+		case "", "off", "warn", "enforce":
+		default:
+			errs = append(errs, fmt.Errorf("%s.mode %q: one of off|warn|enforce", label, a.Mode))
+		}
+		seenKeys := map[string]struct{}{}
+		for j, id := range a.Keys {
+			if _, ok := keyIDs[id]; !ok {
+				errs = append(errs, fmt.Errorf("%s.keys[%d] %q: no such trust.keys id", label, j, id))
+			}
+			if _, dup := seenKeys[id]; dup {
+				errs = append(errs, fmt.Errorf("%s.keys[%d] %q: duplicate", label, j, id))
+			}
+			seenKeys[id] = struct{}{}
+		}
+	}
+	return errs
+}
+
+// validatePolicy checks the authorization rules (TP-3).
+func validatePolicy(p Policy) []error {
+	var errs []error
+	switch p.Mode {
+	case "", "off", "warn", "enforce":
+	default:
+		errs = append(errs, fmt.Errorf("policy.mode %q: one of off|warn|enforce", p.Mode))
+	}
+	switch p.Default {
+	case "", "allow", "deny":
+	default:
+		errs = append(errs, fmt.Errorf("policy.default %q: one of allow|deny", p.Default))
+	}
+	if p.AuditCapacity <= 0 {
+		errs = append(errs, errors.New("policy.audit_capacity: must be positive"))
+	} else if p.AuditCapacity > 65536 {
+		errs = append(errs, errors.New("policy.audit_capacity: must be at most 65536"))
+	}
+
+	names := map[string]int{}
+	for i, r := range p.Rules {
+		label := fmt.Sprintf("policy.rules[%d]", i)
+		if r.Name == "" {
+			errs = append(errs, fmt.Errorf("%s.name: required", label))
+		} else if prev, dup := names[strings.ToLower(r.Name)]; dup {
+			errs = append(errs, fmt.Errorf("%s.name %q: already used by policy.rules[%d]", label, r.Name, prev))
+		} else {
+			names[strings.ToLower(r.Name)] = i
+		}
+		if !validPolicyToken(r.Caller) {
+			errs = append(errs, fmt.Errorf("%s.caller: required (caller name or \"*\")", label))
+		}
+		if !validPolicyToken(r.Callee) {
+			errs = append(errs, fmt.Errorf("%s.callee: required (agent name or \"*\")", label))
+		}
+		switch r.Effect {
+		case "allow", "deny":
+		default:
+			errs = append(errs, fmt.Errorf("%s.effect %q: one of allow|deny", label, r.Effect))
+		}
+		seenSkills := map[string]struct{}{}
+		for j, skill := range r.Skills {
+			if !validPolicyToken(skill) || skill == "*" {
+				errs = append(errs, fmt.Errorf("%s.skills[%d] %q: must be a non-empty skill id", label, j, skill))
+				continue
+			}
+			key := strings.ToLower(skill)
+			if _, dup := seenSkills[key]; dup {
+				errs = append(errs, fmt.Errorf("%s.skills[%d] %q: duplicate", label, j, skill))
+			}
+			seenSkills[key] = struct{}{}
+		}
+	}
+	return errs
+}
+
+// validIdentityName accepts a bounded printable caller/key name.
+func validIdentityName(v string) bool {
+	if v == "" || strings.TrimSpace(v) != v || len([]rune(v)) > 128 {
+		return false
+	}
+	for _, r := range v {
+		if r < 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
+// validPolicyToken accepts a bounded printable caller, callee or skill
+// token; "*" is only allowed where callers write it explicitly.
+func validPolicyToken(v string) bool {
+	return v == "*" || validIdentityName(v)
 }
 
 // validatePricing checks the price table (CO-2). Negative prices are

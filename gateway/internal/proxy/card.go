@@ -126,9 +126,13 @@ func rewriteCard(res *registry.CardResult, base, routePath string) *a2a.AgentCar
 		Provider:             res.Card.Provider,
 		SecurityRequirements: res.Card.SecurityRequirements,
 		SecuritySchemes:      res.Card.SecuritySchemes,
-		Signatures:           res.Card.Signatures,
-		Skills:               res.Card.Skills,
-		Version:              res.Card.Version,
+		// Rewriting interface URLs changes the signed bytes, so the
+		// upstream signatures are not valid for the served card. The
+		// verification result is exposed through the management API
+		// instead of advertising a signature that would fail.
+		Signatures: nil,
+		Skills:     res.Card.Skills,
+		Version:    res.Card.Version,
 	}
 
 	gatewayURL := strings.TrimSuffix(base, "/") + routePath

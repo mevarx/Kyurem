@@ -66,5 +66,10 @@ demo/bin/bench-results/
 *.tmp
 /tmp/
 
+# Database files (local stores)
+*.db
+*.db-wal
+*.db-shm
+
 # Source documents not committed
 Kyurem Product Requirements Document.md

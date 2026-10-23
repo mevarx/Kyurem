@@ -299,6 +299,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Authorization policy and the caller x callee matrix
+         * @description The matrix evaluates every configured caller against every
+         *     registered callee without a skill. Skill-scoped rules are visible
+         *     in `rules`; the matrix column shows the rule that matches an
+         *     unspecified call.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Policy snapshot */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Policy"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recent trust, policy and authentication decisions
+         * @description The decision log is a bounded, process-local ring: it is not
+         *     persisted and restarts empty. Entries are newest first.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    kind?: "policy" | "trust" | "auth";
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Decisions */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DecisionPage"];
+                    };
+                };
+                400: components["responses"]["BadRequest"];
+                401: components["responses"]["Unauthorized"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings": {
         parameters: {
             query?: never;
@@ -553,21 +641,80 @@ export interface components {
             /** Format: double */
             cost_usd?: number | null;
         };
+        Policy: {
+            /** @enum {string} */
+            mode: "off" | "warn" | "enforce";
+            /** @enum {string} */
+            default: "allow" | "deny";
+            rules: components["schemas"]["PolicyRule"][];
+            callers: string[];
+            callees: string[];
+            matrix: components["schemas"]["PolicyMatrixCell"][];
+        };
+        PolicyRule: {
+            name: string;
+            /** @description Caller identity or *. */
+            caller: string;
+            /** @description Agent name or *. */
+            callee: string;
+            skills?: string[];
+            /** @enum {string} */
+            effect: "allow" | "deny";
+        };
+        PolicyMatrixCell: {
+            caller: string;
+            callee: string;
+            /** @enum {string} */
+            effect: "allow" | "deny";
+            /** @enum {string} */
+            decision: "allow" | "deny" | "warn";
+            rule?: string;
+            reason: string;
+        };
+        Decision: {
+            /** Format: date-time */
+            timestamp: string;
+            /** @enum {string} */
+            kind: "policy" | "trust" | "auth";
+            caller: string;
+            callee: string;
+            skill?: string;
+            /** @enum {string} */
+            decision: "allow" | "deny" | "warn";
+            mode?: string;
+            rule?: string;
+            reason?: string;
+            trace_id?: string;
+            span_id?: string;
+            attributes?: {
+                [key: string]: string;
+            };
+        };
+        DecisionPage: {
+            items: components["schemas"]["Decision"][];
+            total: number;
+        };
         AgentInfo: {
             name: string;
             aliases: string[];
-            tags?: string[];
+            tags: string[];
             path?: string;
             upstreams: string[];
             /** @enum {string} */
             card_status: "ok" | "stale" | "error" | "unknown";
             /** Format: date-time */
             card_fetched_at?: string | null;
+            card_version: string;
+            skills: string[];
             /**
-             * @description Card signature verification lands in M5.
+             * @description Card signature verification status.
              * @enum {string}
              */
-            verification: "unchecked";
+            verification: "verified" | "unverified" | "unsigned" | "unchecked";
+            /** @enum {string} */
+            verification_mode: "off" | "warn" | "enforce";
+            verification_key?: string;
+            verification_reason?: string;
             /**
              * @description Circuit breaker state lands in M6.
              * @enum {string}

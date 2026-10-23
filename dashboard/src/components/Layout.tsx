@@ -13,6 +13,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/graph", label: "Agent graph" },
   { to: "/costs", label: "Costs" },
   { to: "/agents", label: "Agents" },
+  { to: "/policy", label: "Policy & audit" },
   { to: "/settings", label: "Settings" },
 ];
 

@@ -12,7 +12,10 @@
 package config
 
 import (
+	"crypto"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -129,6 +132,103 @@ type A2AListener struct {
 	// RoutePrefix is the path prefix under which agents are exposed,
 	// defaulting to /a2a.
 	RoutePrefix string `yaml:"route_prefix" env:"ROUTE_PREFIX"`
+	// TLS terminates TLS on the data path. Optional client certificates
+	// provide mTLS caller identities (TP-5).
+	TLS TLS `yaml:"tls" env:"TLS"`
+}
+
+// TLS configures transport security on the A2A listener. CertFile and
+// KeyFile are both required to enable TLS. ClientCAFile enables client
+// certificate verification; a certificate is optional at the handshake
+// because callers may authenticate with a bearer token instead.
+type TLS struct {
+	CertFile string `yaml:"cert_file" env:"CERT_FILE"`
+	KeyFile  string `yaml:"key_file" env:"KEY_FILE"`
+	// ClientCAFile is the PEM bundle of certificate authorities trusted for
+	// client certificates.
+	ClientCAFile string `yaml:"client_ca_file" env:"CLIENT_CA_FILE"`
+	// MinVersion is "1.2" (default) or "1.3".
+	MinVersion string `yaml:"min_version" env:"MIN_VERSION" default:"1.2"`
+}
+
+// Callers configures authentication of callers into the gateway (TP-5).
+// Credentials are optional or required depending on Mode; the resolved
+// caller identity is what the policy engine evaluates.
+type Callers struct {
+	// Mode is off, optional or required.
+	Mode string `yaml:"mode" env:"MODE" default:"off"`
+	// BearerTokens maps static bearer tokens to caller names. Tokens may be
+	// written inline or resolved from an environment variable (token_env).
+	BearerTokens []BearerToken `yaml:"bearer_tokens"`
+}
+
+// BearerToken is one caller credential.
+type BearerToken struct {
+	// Name is the caller identity reported to policy and the audit log.
+	Name string `yaml:"name"`
+	// Token is the literal bearer token. Either Token or TokenEnv must be
+	// set, never both.
+	Token string `yaml:"token"`
+	// TokenEnv names the environment variable holding the token.
+	TokenEnv string `yaml:"token_env"`
+}
+
+// Trust configures agent card signature verification (TP-1, TP-2).
+type Trust struct {
+	// Mode is the default mode for every agent: off, warn or enforce.
+	Mode string `yaml:"mode" env:"MODE" default:"off"`
+	// Keys are the public keys the gateway trusts.
+	Keys []TrustedKey `yaml:"keys"`
+	// Agents overrides the mode and/or restricts the allowed keys per agent.
+	Agents []AgentTrust `yaml:"agents"`
+}
+
+// TrustedKey is one verifier-side public key. The signature's kid selects
+// it; a signer-supplied jku is never fetched or trusted.
+type TrustedKey struct {
+	// ID is the JWS key id (kid).
+	ID string `yaml:"id"`
+	// PublicKeyPEM, PublicKeyFile and PublicKeyEnv are three ways to supply
+	// the PEM-encoded public key; exactly one must be set.
+	PublicKeyPEM  string `yaml:"public_key_pem"`
+	PublicKeyFile string `yaml:"public_key_file"`
+	PublicKeyEnv  string `yaml:"public_key_env"`
+}
+
+// AgentTrust overrides trust settings for one agent.
+type AgentTrust struct {
+	Name string `yaml:"name"`
+	// Mode inherits trust.mode when empty.
+	Mode string `yaml:"mode"`
+	// Keys restricts verification to these key ids. Empty means every
+	// configured key is acceptable.
+	Keys []string `yaml:"keys"`
+}
+
+// Policy configures the caller -> callee authorization engine (TP-3).
+type Policy struct {
+	// Mode is off, warn or enforce. Warn records decisions but allows the
+	// request; enforce blocks denied calls.
+	Mode string `yaml:"mode" env:"MODE" default:"off"`
+	// Default is allow or deny when no rule matches.
+	Default string `yaml:"default" env:"DEFAULT" default:"allow"`
+	// Rules are evaluated deny-overrides: any matching deny wins.
+	Rules []PolicyRule `yaml:"rules"`
+	// AuditCapacity bounds the in-process decision log served by the
+	// management API.
+	AuditCapacity int `yaml:"audit_capacity" env:"AUDIT_CAPACITY" default:"1024"`
+}
+
+// PolicyRule authorizes (or forbids) calls from a caller to a callee.
+// Caller and Callee accept "*" as a wildcard. Skills restrict the rule to
+// specific skill ids; empty means any skill.
+type PolicyRule struct {
+	Name   string   `yaml:"name"`
+	Caller string   `yaml:"caller"`
+	Callee string   `yaml:"callee"`
+	Skills []string `yaml:"skills,omitempty"`
+	// Effect is allow or deny.
+	Effect string `yaml:"effect"`
 }
 
 // Admin hosts health/readiness/metrics (and, in M3, the management API).
@@ -311,8 +411,13 @@ type Config struct {
 	Management Management `yaml:"management" env:"MANAGEMENT"`
 	CardCache  CardCache  `yaml:"card_cache" env:"CARD_CACHE"`
 	Limits     Limits     `yaml:"limits" env:"LIMITS"`
-	Pricing    []Price    `yaml:"pricing"`
-	Agents     []AgentReg `yaml:"agents"`
+	// Callers, Trust and Policy implement M5: caller authentication,
+	// signed-card verification and the authorization matrix.
+	Callers Callers    `yaml:"callers" env:"CALLERS"`
+	Trust   Trust      `yaml:"trust" env:"TRUST"`
+	Policy  Policy     `yaml:"policy" env:"POLICY"`
+	Pricing []Price    `yaml:"pricing"`
+	Agents  []AgentReg `yaml:"agents"`
 }
 
 // Load reads, defaults, environment-overrides and validates a config file.
@@ -484,4 +589,107 @@ func setScalar(fv reflect.Value, raw string) error {
 		}
 	}
 	return nil
+}
+
+// ResolvePEM returns the PEM bytes of a trusted key from exactly one of the
+// configured sources: inline PEM, a file, or an environment variable.
+func (k TrustedKey) ResolvePEM() ([]byte, error) {
+	sources := 0
+	if strings.TrimSpace(k.PublicKeyPEM) != "" {
+		sources++
+	}
+	if strings.TrimSpace(k.PublicKeyFile) != "" {
+		sources++
+	}
+	if strings.TrimSpace(k.PublicKeyEnv) != "" {
+		sources++
+	}
+	switch sources {
+	case 0:
+		return nil, fmt.Errorf("trusted key %q: one of public_key_pem, public_key_file or public_key_env is required", k.ID)
+	case 1:
+	default:
+		return nil, fmt.Errorf("trusted key %q: only one of public_key_pem, public_key_file or public_key_env may be set", k.ID)
+	}
+
+	var raw []byte
+	var err error
+	switch {
+	case strings.TrimSpace(k.PublicKeyFile) != "":
+		raw, err = os.ReadFile(k.PublicKeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("trusted key %q: read public_key_file: %w", k.ID, err)
+		}
+	case strings.TrimSpace(k.PublicKeyEnv) != "":
+		value, ok := os.LookupEnv(k.PublicKeyEnv)
+		if !ok || strings.TrimSpace(value) == "" {
+			return nil, fmt.Errorf("trusted key %q: environment variable %s is empty or unset", k.ID, k.PublicKeyEnv)
+		}
+		raw = []byte(value)
+	default:
+		raw = []byte(k.PublicKeyPEM)
+	}
+	if len(strings.TrimSpace(string(raw))) == 0 {
+		return nil, fmt.Errorf("trusted key %q: public key is empty", k.ID)
+	}
+	return raw, nil
+}
+
+// ParsePublicKeyPEM parses a PEM-encoded public key. PKIX ("PUBLIC KEY"),
+// PKCS#1 ("RSA PUBLIC KEY") and the first certificate in a PEM bundle are
+// accepted; the algorithms supported by a2acrypto (ECDSA, RSA, Ed25519)
+// follow from the key type.
+func ParsePublicKeyPEM(data []byte) (crypto.PublicKey, error) {
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return nil, errors.New("no PEM block found")
+	}
+	switch block.Type {
+	case "PUBLIC KEY":
+		key, err := x509.ParsePKIXPublicKey(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("parse PKIX public key: %w", err)
+		}
+		return key, nil
+	case "RSA PUBLIC KEY":
+		key, err := x509.ParsePKCS1PublicKey(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("parse PKCS#1 public key: %w", err)
+		}
+		return key, nil
+	case "CERTIFICATE":
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("parse certificate: %w", err)
+		}
+		return cert.PublicKey, nil
+	default:
+		// Try PKIX anyway: some tools label blocks differently.
+		key, err := x509.ParsePKIXPublicKey(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("unsupported PEM block %q (want PUBLIC KEY, RSA PUBLIC KEY or CERTIFICATE)", block.Type)
+		}
+		return key, nil
+	}
+}
+
+// ResolveToken returns the bearer token literal or the value of the
+// configured environment variable. Exactly one source must be set.
+func (t BearerToken) ResolveToken() (string, error) {
+	hasLiteral := strings.TrimSpace(t.Token) != ""
+	hasEnv := strings.TrimSpace(t.TokenEnv) != ""
+	switch {
+	case hasLiteral && hasEnv:
+		return "", fmt.Errorf("caller %q: token and token_env are mutually exclusive", t.Name)
+	case hasEnv:
+		value, ok := os.LookupEnv(t.TokenEnv)
+		if !ok || value == "" {
+			return "", fmt.Errorf("caller %q: environment variable %s is empty or unset", t.Name, t.TokenEnv)
+		}
+		return value, nil
+	case hasLiteral:
+		return t.Token, nil
+	default:
+		return "", fmt.Errorf("caller %q: token or token_env is required", t.Name)
+	}
 }

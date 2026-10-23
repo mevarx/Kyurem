@@ -25,6 +25,7 @@ tags:
   - name: graph
   - name: agents
   - name: costs
+  - name: policy
   - name: settings
 paths:
   /api/v1/overview:
@@ -147,6 +148,44 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CostReport" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/policy:
+    get:
+      tags: [policy]
+      summary: Authorization policy and the caller x callee matrix
+      description: |
+        The matrix evaluates every configured caller against every
+        registered callee without a skill. Skill-scoped rules are visible
+        in `rules`; the matrix column shows the rule that matches an
+        unspecified call.
+      responses:
+        "200":
+          description: Policy snapshot
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Policy" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/decisions:
+    get:
+      tags: [policy]
+      summary: Recent trust, policy and authentication decisions
+      description: |
+        The decision log is a bounded, process-local ring: it is not
+        persisted and restarts empty. Entries are newest first.
+      parameters:
+        - name: kind
+          in: query
+          schema: { type: string, enum: [policy, trust, auth] }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+      responses:
+        "200":
+          description: Decisions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DecisionPage" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
   /api/v1/settings:
@@ -382,9 +421,75 @@ components:
         p50_ms: { type: number, format: double }
         p95_ms: { type: number, format: double }
         cost_usd: { type: [number, "null"], format: double }
+    Policy:
+      type: object
+      required: [mode, default, rules, callers, callees, matrix]
+      properties:
+        mode: { type: string, enum: [off, warn, enforce] }
+        default: { type: string, enum: [allow, deny] }
+        rules:
+          type: array
+          items: { $ref: "#/components/schemas/PolicyRule" }
+        callers:
+          type: array
+          items: { type: string }
+        callees:
+          type: array
+          items: { type: string }
+        matrix:
+          type: array
+          items: { $ref: "#/components/schemas/PolicyMatrixCell" }
+    PolicyRule:
+      type: object
+      required: [name, caller, callee, effect]
+      properties:
+        name: { type: string }
+        caller: { type: string, description: "Caller identity or *." }
+        callee: { type: string, description: "Agent name or *." }
+        skills:
+          type: array
+          items: { type: string }
+        effect: { type: string, enum: [allow, deny] }
+    PolicyMatrixCell:
+      type: object
+      required: [caller, callee, effect, decision, reason]
+      properties:
+        caller: { type: string }
+        callee: { type: string }
+        effect: { type: string, enum: [allow, deny] }
+        decision: { type: string, enum: [allow, deny, warn] }
+        rule: { type: string }
+        reason: { type: string }
+    Decision:
+      type: object
+      required: [timestamp, kind, caller, callee, decision]
+      properties:
+        timestamp: { type: string, format: date-time }
+        kind: { type: string, enum: [policy, trust, auth] }
+        caller: { type: string }
+        callee: { type: string }
+        skill: { type: string }
+        decision: { type: string, enum: [allow, deny, warn] }
+        mode: { type: string }
+        rule: { type: string }
+        reason: { type: string }
+        trace_id: { type: string }
+        span_id: { type: string }
+        attributes:
+          type: object
+          additionalProperties: { type: string }
+    DecisionPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Decision" }
+        total: { type: integer }
     AgentInfo:
       type: object
-      required: [name, aliases, upstreams, card_status, verification, spans, errors, error_rate]
+      required:
+        [name, aliases, tags, upstreams, card_status, card_version, skills, verification, verification_mode, spans, errors, error_rate]
       properties:
         name: { type: string }
         aliases:
@@ -401,10 +506,19 @@ components:
           type: string
           enum: [ok, stale, error, unknown]
         card_fetched_at: { type: [string, "null"], format: date-time }
+        card_version: { type: string }
+        skills:
+          type: array
+          items: { type: string }
         verification:
           type: string
-          enum: [unchecked]
-          description: Card signature verification lands in M5.
+          enum: [verified, unverified, unsigned, unchecked]
+          description: Card signature verification status.
+        verification_mode:
+          type: string
+          enum: [off, warn, enforce]
+        verification_key: { type: string }
+        verification_reason: { type: string }
         breaker_state:
           type: string
           enum: [closed, open, half_open, unknown]

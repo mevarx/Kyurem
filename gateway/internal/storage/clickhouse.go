@@ -1,11 +1,13 @@
 package storage
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -211,7 +213,7 @@ func (s *ClickHouseStore) errorBody(r io.Reader) string {
 // never terminate the literal and change the statement.
 func buildSpanQuery(q SpanQuery) string {
 	var b strings.Builder
-	b.WriteString("SELECT Timestamp, TraceId, SpanId, ParentSpanId, SpanName, SpanKind, ServiceName, ResourceAttributes, SpanAttributes, Duration, StatusCode, StatusMessage\n")
+	b.WriteString("SELECT Timestamp, TraceId, SpanId, ParentSpanId, SpanName, SpanKind, ServiceName, ResourceAttributes, SpanAttributes, Duration, StatusCode, StatusMessage, Events\n")
 	b.WriteString("FROM " + clickHouseTable + "\n")
 	b.WriteString("WHERE Timestamp >= {from:DateTime64(9)} AND Timestamp < {to:DateTime64(9)}\n")
 	if q.TraceID != "" {
@@ -318,6 +320,23 @@ type clickHouseRow struct {
 	Duration           *json.Number      `json:"Duration"`
 	StatusCode         *string           `json:"StatusCode"`
 	StatusMessage      *string           `json:"StatusMessage"`
+	// The collector's ClickHouse exporter has emitted span events both as
+	// an array of tuples ("Events") and as Nested columns ("Events.Name",
+	// ...). Both shapes are accepted; unknown shapes are ignored rather
+	// than failing the whole query.
+	Events           json.RawMessage   `json:"Events"`
+	EventsName       []string          `json:"Events.Name"`
+	EventsTimestamp  []json.RawMessage `json:"Events.Timestamp"`
+	EventsTime       []json.RawMessage `json:"Events.Time"`
+	EventsAttributes []json.RawMessage `json:"Events.Attributes"`
+}
+
+// clickHouseEvent is one event of the array-of-tuples encoding.
+type clickHouseEvent struct {
+	Name       *string         `json:"Name"`
+	Timestamp  json.RawMessage `json:"Timestamp"`
+	Time       json.RawMessage `json:"Time"`
+	Attributes json.RawMessage `json:"Attributes"`
 }
 
 // record converts a decoded row into the normalized span record.
@@ -336,7 +355,274 @@ func (r clickHouseRow) record() telemetry.SpanRecord {
 		ResourceAttributes: clickHouseMap(r.ResourceAttributes),
 	}
 	rec.EndedAt = rec.StartedAt.Add(r.duration())
+	rec.Events = r.events()
+	for i := range rec.Events {
+		if rec.Events[i].Time.IsZero() {
+			// An event without a usable timestamp still happened inside the
+			// span; anchor it at the start instead of dropping it.
+			rec.Events[i].Time = rec.StartedAt
+		}
+	}
 	return rec
+}
+
+// events decodes the span events of a row. Newer collector versions emit
+// an array of tuples, older ones a set of Nested columns; both are read.
+// A shape that cannot be decoded yields no events instead of failing the
+// whole query: losing an event must not hide the span.
+func (r clickHouseRow) events() []telemetry.SpanEvent {
+	if events := decodeClickHouseEventArray(r.Events); len(events) > 0 {
+		return events
+	}
+	events := make([]telemetry.SpanEvent, 0, len(r.EventsName))
+	for i, name := range r.EventsName {
+		if name == "" {
+			continue
+		}
+		event := telemetry.SpanEvent{
+			Name:       name,
+			Time:       clickHouseEventTime(r.EventsTimestamp, r.EventsTime, i),
+			Attributes: decodeClickHouseAttributes(clickHouseEventAttrs(r.EventsAttributes, i)),
+		}
+		events = append(events, event)
+	}
+	return events
+}
+
+// decodeClickHouseEventArray decodes the "Events" column when it is an
+// array: normally an array of objects, but an array of positional tuples
+// is accepted too.
+func decodeClickHouseEventArray(raw json.RawMessage) []telemetry.SpanEvent {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return nil
+	}
+	if trimmed[0] != '[' {
+		return nil
+	}
+
+	var objects []clickHouseEvent
+	if err := json.Unmarshal(trimmed, &objects); err == nil {
+		events := make([]telemetry.SpanEvent, 0, len(objects))
+		for _, obj := range objects {
+			if obj.Name == nil || *obj.Name == "" {
+				continue
+			}
+			events = append(events, telemetry.SpanEvent{
+				Name:       *obj.Name,
+				Time:       clickHouseEventTime([]json.RawMessage{obj.Timestamp}, []json.RawMessage{obj.Time}, 0),
+				Attributes: decodeClickHouseAttributes(obj.Attributes),
+			})
+		}
+		if len(events) > 0 {
+			return events
+		}
+	}
+
+	// Positional encoding: [["name", "timestamp", {attributes}], ...].
+	var tuples [][]json.RawMessage
+	if err := json.Unmarshal(trimmed, &tuples); err != nil {
+		return nil
+	}
+	events := make([]telemetry.SpanEvent, 0, len(tuples))
+	for _, tuple := range tuples {
+		if len(tuple) == 0 {
+			continue
+		}
+		name := decodeClickHouseEventName(tuple[0])
+		if name == "" {
+			continue
+		}
+		event := telemetry.SpanEvent{Name: name}
+		if len(tuple) > 1 {
+			event.Time = clickHouseEventTime([]json.RawMessage{tuple[1]}, nil, 0)
+		}
+		if len(tuple) > 2 {
+			event.Attributes = decodeClickHouseAttributes(tuple[2])
+		}
+		events = append(events, event)
+	}
+	return events
+}
+
+// decodeClickHouseEventName reads the name of a positional event.
+func decodeClickHouseEventName(raw json.RawMessage) string {
+	var name string
+	if err := json.Unmarshal(raw, &name); err == nil {
+		return name
+	}
+	return ""
+}
+
+// clickHouseEventAttrs returns the attributes entry at an index of a
+// Nested column, if the column is long enough.
+func clickHouseEventAttrs(attrs []json.RawMessage, i int) json.RawMessage {
+	if i < 0 || i >= len(attrs) {
+		return nil
+	}
+	return attrs[i]
+}
+
+// clickHouseEventTime reads the event time at an index: the primary
+// timestamp column first, then the legacy time column.
+func clickHouseEventTime(timestamps, legacy []json.RawMessage, i int) time.Time {
+	if i >= 0 && i < len(timestamps) {
+		if t := parseClickHouseEventTime(timestamps[i]); !t.IsZero() {
+			return t
+		}
+	}
+	if i >= 0 && i < len(legacy) {
+		return parseClickHouseEventTime(legacy[i])
+	}
+	return time.Time{}
+}
+
+// parseClickHouseEventTime parses an event timestamp. Exporter versions
+// emit either an RFC3339 string or a Unix timestamp in seconds,
+// milliseconds, microseconds or nanoseconds.
+func parseClickHouseEventTime(raw json.RawMessage) time.Time {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return time.Time{}
+	}
+	var text string
+	if err := json.Unmarshal(trimmed, &text); err == nil {
+		if t := parseClickHouseTime(text); !t.IsZero() {
+			return t
+		}
+		trimmedText := strings.TrimSpace(text)
+		if i, err := strconv.ParseInt(trimmedText, 10, 64); err == nil {
+			return clickHouseUnixInt(i)
+		}
+		if f, err := strconv.ParseFloat(trimmedText, 64); err == nil {
+			return clickHouseUnixTime(f)
+		}
+		return time.Time{}
+	}
+	var num json.Number
+	if err := json.Unmarshal(trimmed, &num); err == nil {
+		if i, err := num.Int64(); err == nil {
+			return clickHouseUnixInt(i)
+		}
+		if f, err := num.Float64(); err == nil {
+			return clickHouseUnixTime(f)
+		}
+	}
+	return time.Time{}
+}
+
+// clickHouseUnixInt converts an integral Unix timestamp to a time,
+// choosing the unit from its magnitude. The integer path avoids the
+// precision loss of a float64 for nanosecond timestamps.
+func clickHouseUnixInt(v int64) time.Time {
+	abs := v
+	if abs < 0 {
+		abs = -abs
+	}
+	switch {
+	case abs >= 1e17:
+		return time.Unix(0, v).UTC()
+	case abs >= 1e14:
+		return time.Unix(0, v*int64(time.Microsecond)).UTC()
+	case abs >= 1e11:
+		return time.Unix(0, v*int64(time.Millisecond)).UTC()
+	case abs >= 1e8:
+		return time.Unix(v, 0).UTC()
+	default:
+		return time.Time{}
+	}
+}
+
+// clickHouseUnixTime converts a Unix timestamp to a time, choosing the
+// unit from its magnitude (seconds, milliseconds, microseconds or
+// nanoseconds).
+func clickHouseUnixTime(v float64) time.Time {
+	abs := math.Abs(v)
+	switch {
+	case abs >= 1e17:
+		return time.Unix(0, int64(v)).UTC()
+	case abs >= 1e14:
+		return time.Unix(0, int64(v)*int64(time.Microsecond)).UTC()
+	case abs >= 1e11:
+		return time.Unix(0, int64(v)*int64(time.Millisecond)).UTC()
+	case abs >= 1e8:
+		seconds := int64(v)
+		nanos := int64((v - float64(seconds)) * float64(time.Second))
+		return time.Unix(seconds, nanos).UTC()
+	default:
+		return time.Time{}
+	}
+}
+
+// decodeClickHouseAttributes decodes an event attribute map. The exporter
+// emits a plain string map; an array of {key, value} pairs is accepted
+// too. Anything unrecognized yields an empty map, never nil.
+func decodeClickHouseAttributes(raw json.RawMessage) map[string]string {
+	attrs := map[string]string{}
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return attrs
+	}
+	if trimmed[0] == '{' {
+		var values map[string]json.RawMessage
+		if err := json.Unmarshal(trimmed, &values); err != nil {
+			return attrs
+		}
+		for key, value := range values {
+			attrs[key] = clickHouseAttributeValue(value)
+		}
+		return attrs
+	}
+	if trimmed[0] == '[' {
+		var pairs []struct {
+			Key   string          `json:"Key"`
+			Value json.RawMessage `json:"Value"`
+		}
+		if err := json.Unmarshal(trimmed, &pairs); err != nil {
+			return attrs
+		}
+		for _, pair := range pairs {
+			if pair.Key == "" {
+				continue
+			}
+			attrs[pair.Key] = clickHouseAttributeValue(pair.Value)
+		}
+	}
+	return attrs
+}
+
+// clickHouseAttributeValue renders an attribute value as the flattened
+// string the query layer uses.
+func clickHouseAttributeValue(raw json.RawMessage) string {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return ""
+	}
+	var text string
+	if err := json.Unmarshal(trimmed, &text); err == nil {
+		return text
+	}
+	// OTel AnyValue shapes: {"StringValue": ...} or {"stringValue": ...}.
+	var anyValue struct {
+		StringValue *string  `json:"StringValue"`
+		BoolValue   *bool    `json:"BoolValue"`
+		IntValue    *int64   `json:"IntValue"`
+		DoubleValue *float64 `json:"DoubleValue"`
+	}
+	if err := json.Unmarshal(trimmed, &anyValue); err == nil {
+		switch {
+		case anyValue.StringValue != nil:
+			return *anyValue.StringValue
+		case anyValue.BoolValue != nil:
+			return strconv.FormatBool(*anyValue.BoolValue)
+		case anyValue.IntValue != nil:
+			return strconv.FormatInt(*anyValue.IntValue, 10)
+		case anyValue.DoubleValue != nil:
+			return strconv.FormatFloat(*anyValue.DoubleValue, 'f', -1, 64)
+		}
+	}
+	// Numbers, booleans and arrays are flattened as their JSON text.
+	return string(trimmed)
 }
 
 // duration reads the span duration in nanoseconds.

@@ -290,6 +290,58 @@ func TestQueryTaskDetailFailedHop(t *testing.T) {
 	}
 }
 
+// TestQueryTaskDetailMergesSpanEvents checks that recorded span events are
+// served verbatim and that the derived failure event is only a fallback
+// for spans without recorded events.
+func TestQueryTaskDetailMergesSpanEvents(t *testing.T) {
+	spans := queryTwoHopSpans()
+	spans[0].Attributes[telemetry.AttrErrorType] = "upstream_error"
+	spans[0].StatusMessage = "boom"
+	spans[1].Events = []telemetry.SpanEvent{
+		{
+			Name: telemetry.EventPolicyDecision,
+			Time: queryBase.Add(40 * time.Millisecond),
+			Attributes: map[string]string{
+				telemetry.AttrPolicyDecision: "deny",
+				telemetry.AttrPolicyRule:     "deny-echo",
+			},
+		},
+		{
+			Name:       telemetry.EventTrustDecision,
+			Time:       queryBase.Add(30 * time.Millisecond),
+			Attributes: map[string]string{telemetry.AttrTrustStatus: "verified"},
+		},
+	}
+	q := newQueryLayer(spans)
+	detail, err := q.TaskDetail(context.Background(), "task-1")
+	if err != nil {
+		t.Fatalf("TaskDetail: %v", err)
+	}
+	if len(detail.Events) != 3 {
+		t.Fatalf("Events = %d, want 3: %+v", len(detail.Events), detail.Events)
+	}
+	wantNames := []string{"exception", telemetry.EventTrustDecision, telemetry.EventPolicyDecision}
+	for i, want := range wantNames {
+		if detail.Events[i].Name != want {
+			t.Errorf("Events[%d].Name = %q, want %q", i, detail.Events[i].Name, want)
+		}
+	}
+	if detail.Events[0].SpanID != "span-1" {
+		t.Errorf("derived event span = %q, want span-1", detail.Events[0].SpanID)
+	}
+	if detail.Events[2].SpanID != "span-2" {
+		t.Errorf("policy event span = %q, want span-2", detail.Events[2].SpanID)
+	}
+	if got := detail.Events[2].Attributes[telemetry.AttrPolicyRule]; got != "deny-echo" {
+		t.Errorf("policy rule = %q, want deny-echo", got)
+	}
+	for i := 1; i < len(detail.Events); i++ {
+		if detail.Events[i].Time.Before(detail.Events[i-1].Time) {
+			t.Errorf("events are not sorted by time: %+v", detail.Events)
+		}
+	}
+}
+
 // TestQueryTaskDetailUnknownID checks the not-found path.
 func TestQueryTaskDetailUnknownID(t *testing.T) {
 	q := newQueryLayer(queryTwoHopSpans())

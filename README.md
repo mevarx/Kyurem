@@ -33,6 +33,14 @@ conformance is **not** wired into CI yet — a documented M4 gap, tracked in
 [`docs/benchmarks.md`](docs/benchmarks.md#threats-to-validity) and
 [`docs/milestones.md`](docs/milestones.md#m4--hardening-and-benchmarks-complete).
 
+**M5 — Trust and policy (in progress).** Caller authentication (bearer
+tokens, optional mTLS), card-signature verification against a static key
+store (TP-1/TP-2), deny-overrides authorization rules with a caller ×
+callee matrix (TP-3), a bounded in-process audit ring of trust/policy/auth
+decisions (TP-4), per-agent off/warn/enforce modes, and a dashboard
+Policy & audit page plus trust columns on the Agents page (TP-5). The
+gateway now serves `/api/v1/policy` and `/api/v1/decisions`.
+
 The milestone plan, including what is explicitly out of scope, lives in
 [`docs/milestones.md`](docs/milestones.md).
 

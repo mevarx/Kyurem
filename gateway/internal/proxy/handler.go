@@ -17,11 +17,14 @@ import (
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
 
+	"github.com/kyurem-project/kyurem/gateway/internal/authn"
 	"github.com/kyurem-project/kyurem/gateway/internal/config"
 	"github.com/kyurem-project/kyurem/gateway/internal/cost"
 	"github.com/kyurem-project/kyurem/gateway/internal/metrics"
+	"github.com/kyurem-project/kyurem/gateway/internal/policy"
 	"github.com/kyurem-project/kyurem/gateway/internal/registry"
 	"github.com/kyurem-project/kyurem/gateway/internal/telemetry"
+	"github.com/kyurem-project/kyurem/gateway/internal/trust"
 )
 
 // context keys store per-request routing decisions for the shared
@@ -57,7 +60,17 @@ type Handler struct {
 	knownBase string        // configured public_base_url ('' = derive per request)
 	routes    []route       // ordered: longer prefixes first
 	prices    cost.Table    // price table for the per-span cost (CO-2)
+
+	auth   *authn.Authenticator
+	trustV *trust.Verifier
+	pol    *policy.Engine
+	audit  *policy.AuditLog
 }
+
+// SkillHeader optionally names the A2A skill a call targets. The standard
+// SendMessage request has no skill field, so policy rules that constrain
+// skills rely on this gateway header (TP-3).
+const SkillHeader = "X-Kyurem-Skill"
 
 // Option customizes the handler.
 type Option func(*Handler)
@@ -67,6 +80,26 @@ type Option func(*Handler)
 // unknown, which is reported as such.
 func WithPriceTable(prices cost.Table) Option {
 	return func(h *Handler) { h.prices = prices }
+}
+
+// WithAuth installs caller authentication (TP-5).
+func WithAuth(a *authn.Authenticator) Option {
+	return func(h *Handler) { h.auth = a }
+}
+
+// WithTrust installs signed-card verification (TP-1, TP-2).
+func WithTrust(v *trust.Verifier) Option {
+	return func(h *Handler) { h.trustV = v }
+}
+
+// WithPolicy installs the authorization engine (TP-3).
+func WithPolicy(p *policy.Engine) Option {
+	return func(h *Handler) { h.pol = p }
+}
+
+// WithAudit installs the decision audit ring (TP-4).
+func WithAudit(a *policy.AuditLog) Option {
+	return func(h *Handler) { h.audit = a }
 }
 
 // route binds a listen-path prefix to its registry entry.

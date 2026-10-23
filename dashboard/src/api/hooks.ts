@@ -10,8 +10,11 @@ import type {
   AgentsResponse,
   CostGroupBy,
   CostReport,
+  DecisionKind,
+  DecisionPage,
   Graph,
   Overview,
+  Policy,
   Settings,
   TaskDetail,
   TaskPage,
@@ -122,4 +125,26 @@ export function useCosts(
 /** Gateway status, versions, telemetry counters and storage driver. */
 export function useSettings(options: QueryOptions = {}): UseQueryResult<Settings, Error> {
   return useApiQuery<Settings>(["settings"], "/api/v1/settings", undefined, options);
+}
+
+/** Authorization policy and the caller x callee matrix. */
+export function usePolicy(options: QueryOptions = {}): UseQueryResult<Policy, Error> {
+  return useApiQuery<Policy>(["policy"], "/api/v1/policy", undefined, {
+    staleTime: 10_000,
+    ...options,
+  });
+}
+
+/** Recent policy, trust and authentication decisions. */
+export function useDecisions(
+  kind: DecisionKind | "",
+  limit = 100,
+  options: QueryOptions = {},
+): UseQueryResult<DecisionPage, Error> {
+  return useApiQuery<DecisionPage>(
+    ["decisions", kind, limit],
+    "/api/v1/decisions",
+    { kind, limit },
+    options,
+  );
 }

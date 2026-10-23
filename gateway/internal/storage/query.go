@@ -375,6 +375,20 @@ func (q *queries) TaskDetail(ctx context.Context, taskID string) (*TaskDetail, e
 		detail.Spans = append(detail.Spans, toSpan(s))
 	}
 	for _, s := range target.spans {
+		// A span that recorded its own events (trust, policy and auth
+		// decisions, lifecycle events) reports them verbatim. The derived
+		// failure event is only a fallback for spans that carry none.
+		if len(s.Events) > 0 {
+			for _, ev := range s.Events {
+				detail.Events = append(detail.Events, Event{
+					SpanID:     s.SpanID,
+					Time:       ev.Time,
+					Name:       ev.Name,
+					Attributes: copyAttrs(ev.Attributes),
+				})
+			}
+			continue
+		}
 		errType := s.Attributes[telemetry.AttrErrorType]
 		if errType == "" && s.StatusMessage == "" {
 			continue
@@ -390,6 +404,9 @@ func (q *queries) TaskDetail(ctx context.Context, taskID string) (*TaskDetail, e
 			Attributes: copyAttrs(s.Attributes),
 		})
 	}
+	sort.SliceStable(detail.Events, func(i, j int) bool {
+		return detail.Events[i].Time.Before(detail.Events[j].Time)
+	})
 	return detail, nil
 }
 

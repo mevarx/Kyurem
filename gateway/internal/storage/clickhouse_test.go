@@ -2,10 +2,12 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -498,5 +500,127 @@ func TestClickHouseStoreSpansTolerantRow(t *testing.T) {
 	}
 	if rec.ResourceAttributes == nil || len(rec.ResourceAttributes) != 0 {
 		t.Errorf("ResourceAttributes = %v, want an empty map", rec.ResourceAttributes)
+	}
+}
+
+func TestClickHouseStoreDecodesArrayEvents(t *testing.T) {
+	wantTime := time.Date(2026, 10, 20, 12, 0, 1, 250000000, time.UTC)
+	body := `{"Timestamp":"2026-10-20T12:00:00Z","TraceId":"t1","SpanId":"s1",` +
+		`"Events":[` +
+		`{"Name":"kyurem.policy.decision","Timestamp":"` + wantTime.Format(time.RFC3339Nano) + `",` +
+		`"Attributes":{"kyurem.policy.decision":"deny","attempts":3,"ok":true}},` +
+		`{"Name":"kyurem.trust.decision","Timestamp":` + strconv.FormatInt(wantTime.UnixNano(), 10) + `,` +
+		`"Attributes":{"kyurem.trust.status":"verified"}}` +
+		`]}`
+
+	records, err := decodeClickHouseSpans(strings.NewReader(body), 0)
+	if err != nil {
+		t.Fatalf("decodeClickHouseSpans: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("got %d records, want 1", len(records))
+	}
+	events := records[0].Events
+	if len(events) != 2 {
+		t.Fatalf("got %d events, want 2", len(events))
+	}
+	if events[0].Name != "kyurem.policy.decision" {
+		t.Errorf("event name = %q", events[0].Name)
+	}
+	if !events[0].Time.Equal(wantTime) {
+		t.Errorf("event time = %s, want %s", events[0].Time, wantTime)
+	}
+	if got := events[0].Attributes["kyurem.policy.decision"]; got != "deny" {
+		t.Errorf("decision = %q, want deny", got)
+	}
+	if got := events[0].Attributes["attempts"]; got != "3" {
+		t.Errorf("attempts = %q, want 3", got)
+	}
+	if got := events[0].Attributes["ok"]; got != "true" {
+		t.Errorf("ok = %q, want true", got)
+	}
+	if !events[1].Time.Equal(wantTime) {
+		t.Errorf("numeric event time = %s, want %s", events[1].Time, wantTime)
+	}
+	if got := events[1].Attributes["kyurem.trust.status"]; got != "verified" {
+		t.Errorf("trust status = %q, want verified", got)
+	}
+}
+
+func TestClickHouseStoreDecodesNestedEvents(t *testing.T) {
+	start := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
+	body := `{"Timestamp":"2026-10-20T12:00:00Z","TraceId":"t1","SpanId":"s1",` +
+		`"Events.Name":["kyurem.auth.decision","kyurem.policy.decision"],` +
+		`"Events.Timestamp":["2026-10-20T12:00:00.100Z","2026-10-20T12:00:00.200Z"],` +
+		`"Events.Attributes":[{"kyurem.auth.method":"bearer","kyurem.auth.caller":"upper"},{"kyurem.policy.rule":"deny-echo"}]}`
+
+	records, err := decodeClickHouseSpans(strings.NewReader(body), 0)
+	if err != nil {
+		t.Fatalf("decodeClickHouseSpans: %v", err)
+	}
+	events := records[0].Events
+	if len(events) != 2 {
+		t.Fatalf("got %d events, want 2", len(events))
+	}
+	if !events[0].Time.Equal(start.Add(100 * time.Millisecond)) {
+		t.Errorf("first event time = %s", events[0].Time)
+	}
+	if events[0].Attributes["kyurem.auth.caller"] != "upper" {
+		t.Errorf("auth caller = %q", events[0].Attributes["kyurem.auth.caller"])
+	}
+	if events[1].Name != "kyurem.policy.decision" || events[1].Attributes["kyurem.policy.rule"] != "deny-echo" {
+		t.Errorf("second event = %+v", events[1])
+	}
+}
+
+func TestClickHouseStoreDecodesTupleEvents(t *testing.T) {
+	body := `{"Timestamp":"2026-10-20T12:00:00Z","TraceId":"t1","SpanId":"s1",` +
+		`"Events":[["kyurem.policy.decision","2026-10-20T12:00:00.500Z",{"kyurem.policy.decision":"deny"}]]}`
+
+	records, err := decodeClickHouseSpans(strings.NewReader(body), 0)
+	if err != nil {
+		t.Fatalf("decodeClickHouseSpans: %v", err)
+	}
+	events := records[0].Events
+	if len(events) != 1 {
+		t.Fatalf("got %d events, want 1", len(events))
+	}
+	if events[0].Name != "kyurem.policy.decision" || events[0].Attributes["kyurem.policy.decision"] != "deny" {
+		t.Errorf("tuple event = %+v", events[0])
+	}
+}
+
+func TestClickHouseStoreIgnoresUnusableEvents(t *testing.T) {
+	// A malformed Events value must never hide the span.
+	body := `{"Timestamp":"2026-10-20T12:00:00Z","TraceId":"t1","SpanId":"s1","Events":"not-an-array"}`
+	records, err := decodeClickHouseSpans(strings.NewReader(body), 0)
+	if err != nil {
+		t.Fatalf("decodeClickHouseSpans: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("got %d records, want 1", len(records))
+	}
+	if len(records[0].Events) != 0 {
+		t.Errorf("events = %v, want none", records[0].Events)
+	}
+}
+
+func TestParseClickHouseEventTimeUnits(t *testing.T) {
+	want := time.Date(2023, 11, 14, 22, 13, 20, 500000000, time.UTC)
+	cases := []string{
+		strconv.FormatInt(want.UnixNano(), 10),
+		strconv.FormatInt(want.UnixNano()/1000, 10),
+		strconv.FormatInt(want.UnixNano()/1000000, 10),
+		`"` + strconv.FormatInt(want.Unix(), 10) + `.5"`,
+		`"` + want.Format(time.RFC3339Nano) + `"`,
+	}
+	for _, raw := range cases {
+		got := parseClickHouseEventTime(json.RawMessage(raw))
+		if !got.Equal(want) {
+			t.Errorf("parseClickHouseEventTime(%s) = %s, want %s", raw, got, want)
+		}
+	}
+	if got := parseClickHouseEventTime(json.RawMessage(`"garbage"`)); !got.IsZero() {
+		t.Errorf("garbage time = %s, want the zero time", got)
 	}
 }

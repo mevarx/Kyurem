@@ -21,7 +21,18 @@ const (
 	MaxLimit = 500
 	// DefaultGroupBy is the default cost roll-up grouping.
 	DefaultGroupBy = "agent"
+	// DefaultDecisionsLimit is the audit page size when "limit" is absent.
+	DefaultDecisionsLimit = 100
+	// MaxDecisionsLimit bounds the audit page size.
+	MaxDecisionsLimit = 500
 )
+
+// validDecisionKinds are the audit kinds the API accepts.
+var validDecisionKinds = map[string]bool{
+	"policy": true,
+	"trust":  true,
+	"auth":   true,
+}
 
 // validStatuses are the task statuses the API accepts.
 var validStatuses = map[string]bool{

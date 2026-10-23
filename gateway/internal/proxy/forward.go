@@ -54,6 +54,10 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, match *routeMa
 	agent := match.entry.Name
 	start := time.Now()
 
+	// Caller authentication runs before anything is forwarded. Policy uses
+	// this identity, never the untrusted X-Kyurem-Caller hint (TP-5).
+	identity, authErr := h.identify(r)
+
 	// Extract the caller's W3C context before starting the hop span. A
 	// missing or invalid header yields an empty context, so StartSpan mints
 	// a fresh gateway root exactly like M1 (ADR 0003).
@@ -67,6 +71,8 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, match *routeMa
 		attribute.String(telemetry.AttrCalleeAgent, agent),
 		attribute.Int(telemetry.AttrHopIndex, caller.Hop),
 		attribute.String(telemetry.AttrCardVerified, telemetry.CardVerifiedUnchecked),
+		attribute.String(telemetry.AttrAuthMethod, identity.Method),
+		attribute.String(telemetry.AttrAuthCaller, identity.Caller),
 		attribute.Bool(telemetry.AttrTokensKnown, false),
 		attribute.String(telemetry.AttrHTTPRequestMeth, r.Method),
 		attribute.String(telemetry.AttrURLPath, r.URL.Path),
@@ -80,6 +86,18 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, match *routeMa
 	defer h.finishHandoff(st)
 
 	ctx = withAgent(ctx, agent)
+	if authErr != nil {
+		h.rejectAuth(r, w, st, agent, authErr)
+		return
+	}
+	if rej := h.checkTrust(ctx, match, st); rej != nil {
+		h.reject(w, st, rej)
+		return
+	}
+	if rej := h.checkPolicy(r, match, st, identity); rej != nil {
+		h.reject(w, st, rej)
+		return
+	}
 	if h.requestTO > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, h.requestTO)
@@ -117,6 +135,7 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, match *routeMa
 	out.Host = outURL.Host
 	out.Header.Del("traceparent")
 	out.Header.Del("tracestate")
+	out.Header.Del(SkillHeader)
 	h.tel.Inject(ctx, propagation.HeaderCarrier(out.Header))
 
 	pw := newProxyWriter(w)

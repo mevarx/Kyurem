@@ -39,6 +39,15 @@ type Metrics struct {
 	CardServedTotal *prometheus.CounterVec
 	// RegistrySize gauges the number of registered agents.
 	RegistrySize prometheus.Gauge
+	// AuthFailuresTotal counts rejected caller credentials by reason
+	// (missing, invalid).
+	AuthFailuresTotal *prometheus.CounterVec
+	// TrustVerificationsTotal counts card verification outcomes by status
+	// (verified, unverified, unsigned, unchecked, error).
+	TrustVerificationsTotal *prometheus.CounterVec
+	// PolicyDecisionsTotal counts policy decisions by outcome
+	// (allow, warn, deny).
+	PolicyDecisionsTotal *prometheus.CounterVec
 
 	// TelemetrySpansEndedTotal counts spans handed to the exporter
 	// pipeline, including ones later dropped.
@@ -99,6 +108,18 @@ func New() *Metrics {
 			Name: "kyurem_registry_agents",
 			Help: "Registered agent count.",
 		}),
+		AuthFailuresTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "kyurem_auth_failures_total",
+			Help: "Rejected caller credentials by reason.",
+		}, []string{"reason"}),
+		TrustVerificationsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "kyurem_trust_verifications_total",
+			Help: "Agent card verification outcomes by status.",
+		}, []string{"status"}),
+		PolicyDecisionsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "kyurem_policy_decisions_total",
+			Help: "Authorization decisions by outcome.",
+		}, []string{"decision"}),
 		TelemetrySpansEndedTotal: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "kyurem_telemetry_spans_ended_total",
 			Help: "Handoff spans ended and handed to the export pipeline.",
@@ -143,6 +164,9 @@ func New() *Metrics {
 		m.ActiveStreamsLimit,
 		m.CardServedTotal,
 		m.RegistrySize,
+		m.AuthFailuresTotal,
+		m.TrustVerificationsTotal,
+		m.PolicyDecisionsTotal,
 		m.TelemetrySpansEndedTotal,
 		m.TelemetrySpansExportedTotal,
 		m.TelemetrySpansDroppedTotal,
@@ -173,6 +197,30 @@ func (m *Metrics) ObserveBytes(agent, direction string, n int64) {
 		return
 	}
 	m.ProxyBytesTotal.WithLabelValues(agent, direction).Add(float64(n))
+}
+
+// ObserveAuthFailure records a rejected caller credential.
+func (m *Metrics) ObserveAuthFailure(reason string) {
+	if m == nil {
+		return
+	}
+	m.AuthFailuresTotal.WithLabelValues(reason).Inc()
+}
+
+// ObserveTrust records one card verification outcome.
+func (m *Metrics) ObserveTrust(status string) {
+	if m == nil {
+		return
+	}
+	m.TrustVerificationsTotal.WithLabelValues(status).Inc()
+}
+
+// ObservePolicyDecision records one authorization decision.
+func (m *Metrics) ObservePolicyDecision(decision string) {
+	if m == nil {
+		return
+	}
+	m.PolicyDecisionsTotal.WithLabelValues(decision).Inc()
 }
 
 // SpanEnded records one ended handoff span entering the export pipeline.

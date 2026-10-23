@@ -4,6 +4,7 @@ import { AgentGraph } from "./pages/AgentGraph";
 import { Agents } from "./pages/Agents";
 import { Costs } from "./pages/Costs";
 import { Overview } from "./pages/Overview";
+import { Policy } from "./pages/Policy";
 import { Settings } from "./pages/Settings";
 import { TaskDetail } from "./pages/TaskDetail";
 import { Tasks } from "./pages/Tasks";
@@ -18,6 +19,7 @@ export function App() {
         <Route path="tasks/:taskId" element={<TaskDetail />} />
         <Route path="graph" element={<AgentGraph />} />
         <Route path="costs" element={<Costs />} />
+      <Route path="policy" element={<Policy />} />
         <Route path="agents" element={<Agents />} />
         <Route path="settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />

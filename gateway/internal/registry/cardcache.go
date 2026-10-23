@@ -15,6 +15,22 @@ import (
 	"github.com/a2aproject/a2a-go/v2/a2a"
 )
 
+// CardVerification is the signature-verification outcome cached with a
+// card snapshot (M5, TP-1). The registry package keeps it backend-agnostic;
+// the trust package produces it through CardVerifier.
+type CardVerification struct {
+	Mode     string
+	Status   string
+	Signed   bool
+	Verified bool
+	KeyID    string
+	Reason   string
+}
+
+// CardVerifier verifies the raw upstream card bytes. It runs once per
+// fetched/revalidated snapshot, never on the hot path.
+type CardVerifier func(ctx context.Context, agent string, raw []byte, card *a2a.AgentCard) CardVerification
+
 // CardResult is a cached upstream agent card snapshot (GW-4).
 type CardResult struct {
 	Agent *Entry
@@ -27,6 +43,8 @@ type CardResult struct {
 	ETag string
 	// FetchedAt is the last successful response time (200 or 304).
 	FetchedAt time.Time
+	// Verification is the signature verification outcome for this snapshot.
+	Verification CardVerification
 	// Source records how this snapshot was produced: "fetched" (fresh
 	// download), "revalidated" (upstream 304), "stale" (served after a
 	// failed refresh within the grace) or "" (untouched cache read). The
@@ -78,6 +96,7 @@ type CardCache struct {
 	mu      sync.Mutex
 	cards   map[string]*CardResult
 	fetches map[string]*fetchTicket // per-agent request singleflight
+	verify  CardVerifier
 	now     func() time.Time
 }
 
@@ -116,6 +135,26 @@ func (c *CardCache) Peek(e *Entry) *CardResult {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.cards[e.Name]
+}
+
+// SetVerifier installs the signature verifier. It must be called before
+// Start; snapshots already cached are re-verified lazily on revalidation.
+func (c *CardCache) SetVerifier(v CardVerifier) {
+	c.mu.Lock()
+	c.verify = v
+	c.mu.Unlock()
+}
+
+// verifyCard runs the configured verifier, returning an explicit unchecked
+// status when trust is not configured.
+func (c *CardCache) verifyCard(ctx context.Context, name string, raw []byte, card *a2a.AgentCard) CardVerification {
+	c.mu.Lock()
+	verifier := c.verify
+	c.mu.Unlock()
+	if verifier == nil {
+		return CardVerification{Mode: "off", Status: "unchecked", Reason: "card verification is not configured"}
+	}
+	return verifier(ctx, name, raw, card)
 }
 
 // Get returns the current card snapshot for the agent, refreshing it when
@@ -209,6 +248,7 @@ func (c *CardCache) fetchUncached(ctx context.Context, e *Entry) (*CardResult, e
 			FetchedAt: c.now(),
 			Source:    "fetched",
 		}
+		out.Verification = c.verifyCard(ctx, e.Name, raw, card)
 		if len(card.SupportedInterfaces) == 0 {
 			c.logger.Warn("upstream card has no supported interfaces; A2A clients will fail transport selection",
 				"agent", e.Name, "url", url)
@@ -225,6 +265,7 @@ func (c *CardCache) fetchUncached(ctx context.Context, e *Entry) (*CardResult, e
 		next.Source = "revalidated"
 		next.FailedRefresh = false
 		next.LastErr = nil
+		next.Verification = c.verifyCard(ctx, e.Name, next.Raw, next.Card)
 		c.store(&next)
 		return &next, nil
 

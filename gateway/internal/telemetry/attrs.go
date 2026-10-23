@@ -48,6 +48,28 @@ const (
 	AttrCostUSD = "kyurem.cost.usd"
 )
 
+// Trust and policy attributes (M5, TP-3, TP-4).
+const (
+	AttrAuthMethod     = "kyurem.auth.method"
+	AttrAuthCaller     = "kyurem.auth.caller"
+	AttrSkillID        = "kyurem.skill.id"
+	AttrPolicyMode     = "kyurem.policy.mode"
+	AttrPolicyDecision = "kyurem.policy.decision"
+	AttrPolicyRule     = "kyurem.policy.rule"
+	AttrPolicyReason   = "kyurem.policy.reason"
+	AttrTrustMode      = "kyurem.trust.mode"
+	AttrTrustStatus    = "kyurem.trust.status"
+	AttrTrustKey       = "kyurem.trust.key"
+	AttrTrustReason    = "kyurem.trust.reason"
+)
+
+// Span event names for trust, policy and authentication decisions.
+const (
+	EventAuthDecision   = "kyurem.auth.decision"
+	EventPolicyDecision = "kyurem.policy.decision"
+	EventTrustDecision  = "kyurem.trust.decision"
+)
+
 // GenAI usage and model attributes (CO-1). They are only set when the
 // agent reported them.
 const (
@@ -69,9 +91,12 @@ const (
 	CallerHeader = "X-Kyurem-Caller"
 	// CallerUnknown is the fallback caller label.
 	CallerUnknown = "unknown"
-	// CardVerifiedUnchecked is the M2 value: cards are fetched but not
-	// cryptographically verified until M5.
+	// CardVerifiedUnchecked means card verification was not performed
+	// (trust.mode off or no card snapshot yet).
 	CardVerifiedUnchecked = "unchecked"
+	// CardVerifiedTrue/False are the trust decision values.
+	CardVerifiedTrue  = "true"
+	CardVerifiedFalse = "false"
 )
 
 // InvokeAgentSpanName follows the GenAI convention `invoke_agent {name}`.
