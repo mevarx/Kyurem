@@ -212,6 +212,33 @@ func TestOpenCircuitsReturnServiceUnavailable(t *testing.T) {
 	}
 }
 
+func TestClientCancellationDoesNotRetryOrOpenCircuit(t *testing.T) {
+	m := resilience.New(config.FailureHandling{
+		MaxAttempts:    2,
+		RetryBudget:    config.RetryBudget{MaxRetries: 4, Window: config.Duration(time.Minute)},
+		CircuitBreaker: config.CircuitBreaker{FailureThreshold: 1, OpenDuration: config.Duration(time.Second)},
+	})
+	calls := 0
+	req := requestWithPlan(t, http.MethodGet, "", attemptPlan{
+		agent: "echo", retryable: true,
+		targets: []attemptTarget{{key: "primary", url: mustURL(t, "http://primary")}, {key: "backup", url: mustURL(t, "http://backup")}},
+	})
+	ctx, cancel := context.WithCancel(req.Context())
+	transport := &failureTransport{manager: m, base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		calls++
+		cancel()
+		return nil, req.Context().Err()
+	})}
+	req = req.WithContext(ctx)
+	_, err := transport.RoundTrip(req)
+	if err != context.Canceled || calls != 1 {
+		t.Fatalf("error=%v calls=%d, want one canceled upstream attempt", err, calls)
+	}
+	if allowed, _ := m.Begin("primary", "echo", false); !allowed {
+		t.Fatal("client cancellation incorrectly opened the upstream circuit")
+	}
+}
+
 func TestPrepareRetryRequiresKeyAndBoundsBody(t *testing.T) {
 	req := requestWithPlan(t, http.MethodPost, "body", attemptPlan{})
 	req.GetBody = nil
