@@ -60,6 +60,15 @@ func TestLoadDefaults(t *testing.T) {
 	if got := cfg.Limits.Timeouts.ResponseHeader.Std(); got != 30*time.Second {
 		t.Errorf("timeouts.response_header default = %s, want 30s", got)
 	}
+	if got := cfg.FailureHandling.MaxAttempts; got != 2 {
+		t.Errorf("failure_handling.max_attempts default = %d, want 2", got)
+	}
+	if got := cfg.FailureHandling.RetryBudget.MaxRetries; got != 10 {
+		t.Errorf("failure_handling.retry_budget.max_retries default = %d, want 10", got)
+	}
+	if got := cfg.FailureHandling.CircuitBreaker.FailureThreshold; got != 5 {
+		t.Errorf("failure_handling.circuit_breaker.failure_threshold default = %d, want 5", got)
+	}
 
 	path, aliases := cfg.AgentRoutes(0)
 	if path != "/a2a/echo" {
@@ -67,6 +76,27 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if len(aliases) != 1 || aliases[0] != "/a2a/greeter" {
 		t.Errorf("agent alias paths = %v, want [/a2a/greeter]", aliases)
+	}
+}
+
+func TestEnforcedSkillRulesRequireTrustedOperationData(t *testing.T) {
+	rule := PolicyRule{Name: "skill-rule", Caller: "*", Callee: "echo", Skills: []string{"payments"}, Effect: "deny"}
+	base := Policy{Default: "allow", AuditCapacity: 8, Rules: []PolicyRule{rule}}
+	base.Mode = "enforce"
+	if errs := validatePolicy(base); len(errs) == 0 || !strings.Contains(errs[0].Error(), "X-Kyurem-Skill") {
+		t.Fatalf("enforced skill rule should be rejected: %v", errs)
+	}
+	base.Mode = "warn"
+	if errs := validatePolicy(base); len(errs) != 0 {
+		t.Fatalf("warn-mode skill rule should remain available for audit: %v", errs)
+	}
+}
+
+func TestFailureHandlingBounds(t *testing.T) {
+	cfg := load(t, validYAML())
+	cfg.FailureHandling.MaxAttempts = 6
+	if err := Validate(cfg); err == nil || !strings.Contains(err.Error(), "failure_handling.max_attempts") {
+		t.Fatalf("expected retry attempt limit error, got %v", err)
 	}
 }
 

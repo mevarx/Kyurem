@@ -220,8 +220,8 @@ type Policy struct {
 }
 
 // PolicyRule authorizes (or forbids) calls from a caller to a callee.
-// Caller and Callee accept "*" as a wildcard. Skills restrict the rule to
-// specific skill ids; empty means any skill.
+// Caller and Callee accept "*" as a wildcard. Skill filters use an
+// untrusted caller hint and are therefore rejected in enforce mode.
 type PolicyRule struct {
 	Name   string   `yaml:"name"`
 	Caller string   `yaml:"caller"`
@@ -301,6 +301,24 @@ type Limits struct {
 	// ShutdownGrace is the drain deadline on SIGTERM/SIGINT.
 	ShutdownGrace Duration `yaml:"shutdown_grace" env:"SHUTDOWN_GRACE" default:"30s"`
 	Timeouts      Timeouts `yaml:"timeouts" env:"TIMEOUTS"`
+}
+
+// FailureHandling bounds safe retries and per-upstream circuit breakers.
+type FailureHandling struct {
+	MaxAttempts       int            `yaml:"max_attempts" env:"MAX_ATTEMPTS" default:"2"`
+	RetryBudget       RetryBudget    `yaml:"retry_budget" env:"RETRY_BUDGET"`
+	CircuitBreaker    CircuitBreaker `yaml:"circuit_breaker" env:"CIRCUIT_BREAKER"`
+	MaxRetryBodyBytes int64          `yaml:"max_retry_body_bytes" env:"MAX_RETRY_BODY_BYTES" default:"65536"`
+}
+
+type RetryBudget struct {
+	MaxRetries int      `yaml:"max_retries" env:"MAX_RETRIES" default:"10"`
+	Window     Duration `yaml:"window" env:"WINDOW" default:"1m"`
+}
+
+type CircuitBreaker struct {
+	FailureThreshold int      `yaml:"failure_threshold" env:"FAILURE_THRESHOLD" default:"5"`
+	OpenDuration     Duration `yaml:"open_duration" env:"OPEN_DURATION" default:"30s"`
 }
 
 // Telemetry configures OTLP trace export (M2). Trace-context propagation
@@ -405,12 +423,13 @@ type Price struct {
 
 // Config is the root configuration document.
 type Config struct {
-	Listeners  Listeners  `yaml:"listeners" env:"LISTENERS"`
-	Logging    LogConfig  `yaml:"logging" env:"LOGGING"`
-	Telemetry  Telemetry  `yaml:"telemetry" env:"TELEMETRY"`
-	Management Management `yaml:"management" env:"MANAGEMENT"`
-	CardCache  CardCache  `yaml:"card_cache" env:"CARD_CACHE"`
-	Limits     Limits     `yaml:"limits" env:"LIMITS"`
+	Listeners       Listeners       `yaml:"listeners" env:"LISTENERS"`
+	Logging         LogConfig       `yaml:"logging" env:"LOGGING"`
+	Telemetry       Telemetry       `yaml:"telemetry" env:"TELEMETRY"`
+	Management      Management      `yaml:"management" env:"MANAGEMENT"`
+	CardCache       CardCache       `yaml:"card_cache" env:"CARD_CACHE"`
+	Limits          Limits          `yaml:"limits" env:"LIMITS"`
+	FailureHandling FailureHandling `yaml:"failure_handling" env:"FAILURE_HANDLING"`
 	// Callers, Trust and Policy implement M5: caller authentication,
 	// signed-card verification and the authorization matrix.
 	Callers Callers    `yaml:"callers" env:"CALLERS"`
