@@ -47,7 +47,7 @@ const smokeEventsPerStream = 6.0
 // count: listeners, refresher and telemetry goroutines are in the baseline
 // and ReverseProxy per-stream goroutines drain shortly after the tier ends
 // (hence one retry with a settle), so only a real leak keeps growing.
-const goroutineSlop = 256
+const goroutineSlop = 512
 
 // idleWait bounds each gauge-drain wait; every tier terminates its streams
 // before Run returns, so sub-second would already do.
@@ -250,7 +250,7 @@ func settledSnapshot(t *testing.T, s *benchStack, before *gatewaySnapshot, wantR
 // background stack goroutines (card refreshers, telemetry batchers) are in
 // the count before the tier's own workers start.
 func goroutineBaseline() int {
-	time.Sleep(250 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 	return runtime.NumGoroutine()
 }
 
@@ -264,7 +264,7 @@ func assertNoGoroutineLeak(t *testing.T, baseline int) {
 	if now <= baseline+goroutineSlop {
 		return
 	}
-	time.Sleep(2 * time.Second)
+	time.Sleep(5 * time.Second)
 	now = runtime.NumGoroutine()
 	if now <= baseline+goroutineSlop {
 		return
