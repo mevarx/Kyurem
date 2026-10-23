@@ -472,11 +472,18 @@ func Run(ctx context.Context, spec *Spec) (*Result, error) {
 	start := time.Now()
 
 	// Resource observation: the active-streams gauge is instantaneous, so
-	// poll while the run lasts and keep the maximum.
+	// poll while the run lasts and keep the maximum. Background work is
+	// joined before Run returns: callers read Result.Gateway immediately,
+	// and a poll (or progress write) landing after the return would race
+	// with those reads.
+	var bg sync.WaitGroup
+	var stopPeak context.CancelFunc
 	if spec.AdminURL != "" {
 		peakCtx, stop := context.WithCancel(ctx)
-		defer stop()
+		stopPeak = stop
+		bg.Add(1)
 		go func() {
+			defer bg.Done()
 			t := time.NewTicker(500 * time.Millisecond)
 			defer t.Stop()
 			for {
@@ -494,14 +501,19 @@ func Run(ctx context.Context, spec *Spec) (*Result, error) {
 	}
 
 	// Progress line once per second.
+	var stopProgress context.CancelFunc
 	if spec.Progress != nil {
 		pw := spec.Progress
+		progressCtx, stop := context.WithCancel(runCtx)
+		stopProgress = stop
+		bg.Add(1)
 		go func() {
+			defer bg.Done()
 			t := time.NewTicker(time.Second)
 			defer t.Stop()
 			for {
 				select {
-				case <-ctx.Done():
+				case <-progressCtx.Done():
 					return
 				case <-t.C:
 					done, fail, attn := completed.Load(), failed.Load(), attempted.Load()
@@ -563,6 +575,15 @@ func Run(ctx context.Context, spec *Spec) (*Result, error) {
 		}(i)
 	}
 	wg.Wait()
+
+	// Stop and join the observers before publishing the result (see above).
+	if stopPeak != nil {
+		stopPeak()
+	}
+	if stopProgress != nil {
+		stopProgress()
+	}
+	bg.Wait()
 
 	res.WallSeconds = time.Since(start).Seconds()
 	res.Completed = int(completed.Load())

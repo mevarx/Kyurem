@@ -8,7 +8,7 @@ echo agent.
 
 ## Reproducing
 
-### In-process tiers (CI, `go test`)
+### In-process tiers (smoke tier in CI, `go test`)
 
 ```sh
 cd gateway
@@ -18,6 +18,9 @@ KYUREM_LOAD_FULL=1k,5k,10k go test ./test/bench -count=1 -v
 
 - No build step, no ports, no Docker. The fake agent is an in-process
   `httptest.Server` speaking the A2A v1.0 wire exactly as `a2a-go` does.
+- CI runs the default `go test -race ./...`, which includes the 100-stream
+  smoke tier. The 1k/5k/10k tiers are opt-in via `KYUREM_LOAD_FULL` and are
+  not part of the CI pipeline.
 - The smoke tier runs under `-race`; the heavy tiers are functional only.
 - Assertions: every request reaches a terminal state, every stream carries
   exactly 6 relayed SSE events (submitted, working, 3 artifacts, completed),
@@ -91,8 +94,9 @@ bottleneck is the echo agent's 40 ms inter-chunk sleep, not the gateway.
 
 - **Windows accept queue.** `httptest`/`net.Listen` default backlogs on
   Windows shed bursts; the ramp and `retries=20` exist to absorb this.
-  Published CI numbers come from Linux, where the default backlog is
-  large enough that the ramp is not load-bearing.
+  The published real-process table was taken on Windows 11, where the
+  listener backlog, not the gateway, is the load-bearing constraint. The
+  Linux CI smoke tier is not a comparable throughput measurement.
 - **Cumulative counters.** `kyurem_proxy_requests_total` and the byte
   counters are process-lifetime; tiers run back-to-back on one gateway
   process, so deltas must be taken between scrapes (the driver does
@@ -103,8 +107,8 @@ bottleneck is the echo agent's 40 ms inter-chunk sleep, not the gateway.
 - **No latency/throughput gates.** The load tests assert correctness
   (completion, relay integrity, gauge drain, counter tolerance), not
   performance. Published numbers are observations, not SLAs.
-- **Conformance.** Official `a2a-tck` / `a2a-itk` runs are not yet wired
-  into CI (see M4 exit criteria); the in-process bench stack covers the
-  wire shape but not the full TCK suite.
-path">
-D:/CODING/kyurem/docs/benchmarks.md
+- **Conformance.** Official `a2a-tck` / `a2a-itk` runs are not wired into
+  CI; the in-process bench stack covers the wire shape but not the full
+  TCK suite. This is a documented M4 gap (see
+  [`milestones.md`](milestones.md#m4--hardening-and-benchmarks-complete)),
+  not a claim made by the published numbers.

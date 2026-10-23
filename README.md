@@ -16,20 +16,22 @@ caller/callee, task/context identity, status, latency and byte counters the
 dashboard will need. Export is asynchronous and bounded: a collector outage
 costs spans, never traffic.
 
-**M3 — Dashboard MVP (in progress).** A read-only management API on its own
+**M3 — Dashboard MVP (complete).** A read-only management API on its own
 listener, a React dashboard (overview, tasks, task detail with a
 root-cause hint, agent graph, costs, agents, settings) and cost accounting
 for the agents that report token usage. Later milestones (per PRD §10) add
 trust and policy, failure handling and production hardening.
 
-**M4 — Hardening and benchmarks (in progress).** Metrics polish (stream-cap
+**M4 — Hardening and benchmarks (complete).** Metrics polish (stream-cap
 rejection counter, unified card-serving instrument), graceful-shutdown and
 connection-draining tests, tiered load tests at 100/1k/5k/10k streams, a
 reproducible real-process benchmark script (`demo/scenarios/bench-load.*`)
-and a published methodology/results doc (`docs/benchmarks.md`). Heavy tiers
-and official `a2a-tck`/`a2a-itk` conformance runs are validated on Linux
-CI; this repository's default `go test` runs the smoke tier plus the unit
-and integration suites.
+and a published methodology/results doc (`docs/benchmarks.md`). CI runs the
+100-stream smoke tier with the unit and integration suites; the 1k/5k/10k
+tiers are opt-in (`KYUREM_LOAD_FULL`). Official `a2a-tck`/`a2a-itk`
+conformance is **not** wired into CI yet — a documented M4 gap, tracked in
+[`docs/benchmarks.md`](docs/benchmarks.md#threats-to-validity) and
+[`docs/milestones.md`](docs/milestones.md#m4--hardening-and-benchmarks-complete).
 
 The milestone plan, including what is explicitly out of scope, lives in
 [`docs/milestones.md`](docs/milestones.md).

@@ -23,7 +23,7 @@ Exit criteria met: one task renders as one trace tree (in-process
 integration tests; the compose stack ships as `deploy/` and is validated
 statically in CI).
 
-## M3 — Dashboard MVP (in progress)
+## M3 — Dashboard MVP (complete)
 
 **Scope.** The management API, the Overview / Task list / Task detail /
 Agent graph / Costs pages, and cost accounting (CO-1 to CO-3).
@@ -65,11 +65,24 @@ breaker and failover (M6), payload capture (TR-4), budget alerts (CO-4) and
 in-UI policy editing (P2). The dashboard shows those states as "not
 available yet" instead of pretending they exist.
 
-## M4 — Hardening and benchmarks
+## M4 — Hardening and benchmarks (complete)
 
-Metrics polish, graceful-shutdown tests, load tests at 1k/5k/10k streams,
-conformance runs (`a2a-tck`, `a2a-itk`) in CI, and a published benchmark
-document with reproducible scripts.
+Metrics polish (stream-cap rejection counter, one bounded card-serving
+instrument), graceful-shutdown and connection-draining tests, tiered load
+tests at 100/1k/5k/10k concurrent SSE streams, and a published benchmark
+document with reproducible scripts (`docs/benchmarks.md`,
+`demo/scenarios/bench-load.*`).
+
+**Verification.** `go test -race ./...` in CI runs the 100-stream smoke
+tier plus the unit and integration suites; the 1k/5k/10k tiers are opt-in
+via `KYUREM_LOAD_FULL=1k,5k,10k`. The real-process table in
+`docs/benchmarks.md` was produced by the benchmark script on Windows 11.
+
+**Known gap.** Official `a2a-tck` / `a2a-itk` conformance runs are not
+wired into CI. The in-process suites exercise the A2A wire shape (JSON-RPC,
+streaming, cards) but are not a substitute for the official TCK. This gap
+is documented rather than claimed as passing; adding a conformance workflow
+is follow-up work.
 
 ## M5 — Trust and policy
 
