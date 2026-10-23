@@ -190,10 +190,10 @@ func TestOpenCircuitsReturnServiceUnavailable(t *testing.T) {
 		RetryBudget:    config.RetryBudget{MaxRetries: 1, Window: config.Duration(time.Minute)},
 		CircuitBreaker: config.CircuitBreaker{FailureThreshold: 1, OpenDuration: config.Duration(time.Second)},
 	})
-	if !m.Begin("primary", "echo", false) {
+	if allowed, _ := m.Begin("primary", "echo", false); !allowed {
 		t.Fatal("first attempt was denied")
 	}
-	m.Complete("primary", false)
+	m.Complete("primary", false, false)
 	transport := &failureTransport{manager: m, base: roundTripFunc(func(*http.Request) (*http.Response, error) {
 		t.Fatal("open circuit reached upstream transport")
 		return nil, nil
@@ -209,6 +209,33 @@ func TestOpenCircuitsReturnServiceUnavailable(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("status=%d, want 503", resp.StatusCode)
+	}
+}
+
+func TestClientCancellationDoesNotRetryOrOpenCircuit(t *testing.T) {
+	m := resilience.New(config.FailureHandling{
+		MaxAttempts:    2,
+		RetryBudget:    config.RetryBudget{MaxRetries: 4, Window: config.Duration(time.Minute)},
+		CircuitBreaker: config.CircuitBreaker{FailureThreshold: 1, OpenDuration: config.Duration(time.Second)},
+	})
+	calls := 0
+	req := requestWithPlan(t, http.MethodGet, "", attemptPlan{
+		agent: "echo", retryable: true,
+		targets: []attemptTarget{{key: "primary", url: mustURL(t, "http://primary")}, {key: "backup", url: mustURL(t, "http://backup")}},
+	})
+	ctx, cancel := context.WithCancel(req.Context())
+	transport := &failureTransport{manager: m, base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		calls++
+		cancel()
+		return nil, req.Context().Err()
+	})}
+	req = req.WithContext(ctx)
+	_, err := transport.RoundTrip(req)
+	if err != context.Canceled || calls != 1 {
+		t.Fatalf("error=%v calls=%d, want one canceled upstream attempt", err, calls)
+	}
+	if allowed, _ := m.Begin("primary", "echo", false); !allowed {
+		t.Fatal("client cancellation incorrectly opened the upstream circuit")
 	}
 }
 

@@ -57,7 +57,8 @@ func (t *failureTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		if retrying && hasRequestBody(req) && req.GetBody == nil {
 			break
 		}
-		if !t.manager.Begin(target.key, plan.agent, retrying) {
+		allowed, probe := t.manager.Begin(target.key, plan.agent, retrying)
+		if !allowed {
 			continue
 		}
 
@@ -67,7 +68,6 @@ func (t *failureTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		if retrying && hasRequestBody(req) {
 			body, err := req.GetBody()
 			if err != nil {
-				t.manager.Complete(target.key, false)
 				lastError = err
 				break
 			}
@@ -94,14 +94,17 @@ func (t *failureTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		response, err := t.base.RoundTrip(attemptReq)
 		lastError = err
 		if err == nil {
-			t.manager.Complete(target.key, response.StatusCode < http.StatusInternalServerError)
+			t.manager.Complete(target.key, probe, response.StatusCode < http.StatusInternalServerError)
 			if !retryableStatus(response.StatusCode) || !plan.retryable || attempts >= maxAttempts {
 				return response, nil
 			}
 			lastResponse = response
 			continue
 		}
-		t.manager.Complete(target.key, false)
+		if req.Context().Err() != nil {
+			return nil, err
+		}
+		t.manager.Complete(target.key, probe, false)
 		if !plan.retryable || attempts >= maxAttempts {
 			return nil, err
 		}
