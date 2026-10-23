@@ -132,6 +132,27 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  python-echo:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/python-demo.Dockerfile
+    command: ["echo", "--host", "0.0.0.0", "--port", "9012"]
+    restart: unless-stopped
+
+  python-upper:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/python-demo.Dockerfile
+    command: ["upper", "--host", "0.0.0.0", "--port", "9013"]
+    restart: unless-stopped
+
+  python-flaky:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/python-demo.Dockerfile
+    command: ["flaky", "--host", "0.0.0.0", "--port", "9014", "--failures", "1"]
+    restart: "no"
+
   # One chained task per `up`, so a fresh stack immediately has a two-span
   # trace tree (upper -> gateway -> echo). It exits after printing the result.
   demo-client:

@@ -1,0 +1,6 @@
+acts_version: "1.0"
+behaviors:
+  - prefix: tck-complete-task
+    description: Complete a task with a text response.
+  - prefix: tck-message-response
+    description: Return a direct message for the message-response demo behavior.

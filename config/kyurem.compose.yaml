@@ -75,6 +75,23 @@ agents:
     upstreams:
       - url: http://go-upper:9011
         binding: JSONRPC
+  - name: python-echo
+    tags: [python, demo]
+    upstreams:
+      - url: http://python-echo:9012
+        binding: JSONRPC
+  - name: python-upper
+    tags: [python, demo]
+    upstreams:
+      - url: http://python-upper:9013
+        binding: JSONRPC
+  - name: failover-demo
+    tags: [python, failure-demo]
+    upstreams:
+      - url: http://python-flaky:9014
+        binding: JSONRPC
+      - url: http://python-echo:9012
+        binding: JSONRPC
 
 card_cache:
   ttl: 60s

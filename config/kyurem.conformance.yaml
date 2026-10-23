@@ -1,0 +1,12 @@
+listeners:
+  a2a:
+    addr: "127.0.0.1:8080"
+  admin:
+    addr: "127.0.0.1:8081"
+
+agents:
+  - name: python-echo
+    aliases: [echo]
+    upstreams:
+      - url: http://127.0.0.1:9012
+        binding: JSONRPC
