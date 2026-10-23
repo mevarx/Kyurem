@@ -99,6 +99,22 @@ func TestPickUpstreamBindingMatching(t *testing.T) {
 	}
 }
 
+func TestPickUpstreamsReturnsSameBindingFailoverOrder(t *testing.T) {
+	entry := &Entry{Upstreams: []Upstream{
+		{URL: "http://rpc-primary", Binding: "JSONRPC"},
+		{URL: "http://rest", Binding: "HTTP+JSON"},
+		{URL: "http://rpc-backup", Binding: "JSONRPC"},
+	}}
+	got := entry.PickUpstreams("JSONRPC")
+	if len(got) != 2 || got[0].URL != "http://rpc-primary" || got[1].URL != "http://rpc-backup" {
+		t.Fatalf("JSONRPC upstream order=%v, want primary then backup", got)
+	}
+	got = entry.PickUpstreams("GRPC")
+	if len(got) != 1 || got[0].URL != "http://rpc-primary" {
+		t.Fatalf("unknown binding fallback=%v, want only first upstream", got)
+	}
+}
+
 func TestCardFetchURL(t *testing.T) {
 	_, reg := loadRegistry(t, "http://127.0.0.1:9010/invoke")
 	echo := reg.LookupKey("echo")

@@ -105,20 +105,25 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, match *routeMa
 	}
 
 	binding := bindingOf(match.suffix)
-	upstream := match.entry.PickUpstream(binding)
-	if upstream == nil {
+	upstreams := match.entry.PickUpstreams(binding)
+	if len(upstreams) == 0 {
 		st.fail(http.StatusBadGateway, "no_upstream", nil)
 		h.writeJSONError(w, http.StatusBadGateway, "no_upstream",
 			"agent has no upstream endpoint configured")
 		return
 	}
-
-	outURL, err := buildUpstreamURL(upstream.URL, match.suffix)
-	if err != nil {
-		st.fail(http.StatusBadGateway, "bad_upstream_url", err)
-		h.writeJSONError(w, http.StatusBadGateway, "bad_upstream_url", err.Error())
-		return
+	targets := make([]attemptTarget, 0, len(upstreams))
+	for _, upstream := range upstreams {
+		outURL, err := buildUpstreamURL(upstream.URL, match.suffix)
+		if err != nil {
+			st.fail(http.StatusBadGateway, "bad_upstream_url", err)
+			h.writeJSONError(w, http.StatusBadGateway, "bad_upstream_url", err.Error())
+			return
+		}
+		targets = append(targets, attemptTarget{key: upstream.URL, url: outURL})
 	}
+	outURL := targets[0].url
+	retryable := prepareRetry(r, h.retryBodyBytes)
 
 	// Byte-in accounting with a bounded prefix tap: streaming is unchanged,
 	// and only the first 64 KiB are retained for task/context extraction.
@@ -133,6 +138,10 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, match *routeMa
 	out := r.Clone(ctx)
 	out.URL = outURL
 	out.Host = outURL.Host
+	if h.failureMgr != nil {
+		plan := attemptPlan{agent: agent, targets: targets, retryable: retryable}
+		out = out.WithContext(context.WithValue(out.Context(), ctxFailurePlan, plan))
+	}
 	out.Header.Del("traceparent")
 	out.Header.Del("tracestate")
 	out.Header.Del(SkillHeader)

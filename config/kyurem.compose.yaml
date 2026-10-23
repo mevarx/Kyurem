@@ -88,3 +88,15 @@ limits:
     connect: 5s
     response_header: 30s
     request: 0s
+
+# Safe retries require an idempotent method or a caller-provided
+# Idempotency-Key on a bounded-size POST body.
+failure_handling:
+  max_attempts: 2
+  retry_budget:
+    max_retries: 10
+    window: 1m
+  circuit_breaker:
+    failure_threshold: 5
+    open_duration: 30s
+  max_retry_body_bytes: 65536

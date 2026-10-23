@@ -1,100 +1,56 @@
 # Kyurem milestones
 
-The PRD (§10) defines the milestone order. This file records what each
-milestone delivers, how it is verified, and what is explicitly *not* in
-scope. Milestones are done in order; a later milestone never starts before
-the earlier exit criteria pass.
+Milestones M1–M7 are implemented in the repository. The checks listed here describe the maintained verification paths; they do not imply that an external A2A conformance suite or a remote GitHub Actions run has been performed for every change.
 
-## M1 — Transparent proxy (complete)
-
-Routing, streaming, card rewriting and caching, trace-context derivation,
-timeouts, graceful shutdown, Prometheus metrics.
-
-Exit criteria met: two demo agents communicate through the gateway, the
-M1 demo script asserts every guarantee.
-
-## M2 — Tracing (complete)
-
-One span per handoff, parent/child trace tree, the TR-3 attribute set,
-bounded asynchronous OTLP export with retry and drop counters, pinned GenAI
-conventions, and the OTel collector plus ClickHouse in the compose stack.
-
-Exit criteria met: one task renders as one trace tree (in-process
-integration tests; the compose stack ships as `deploy/` and is validated
-statically in CI).
-
-## M3 — Dashboard MVP (complete)
-
-**Scope.** The management API, the Overview / Task list / Task detail /
-Agent graph / Costs pages, and cost accounting (CO-1 to CO-3).
-
-**Design.**
-
-| Piece | Where | Note |
+| Milestone | Status | Delivered scope |
 |---|---|---|
-| API contract | `api/openapi.yaml` | the single source of truth; the dashboard types are generated from it |
-| Management API | `gateway/internal/mgmtapi` | own listener, bearer auth, versioned under `/api/v1` |
-| Span store | `gateway/internal/storage` | `memory` (in-process ring) and `clickhouse` drivers |
-| Query layer | `gateway/internal/storage/query.go` | one aggregation implementation over any store |
-| Cost model | `gateway/internal/cost` | price table, per-span cost, unknown-vs-zero rules |
-| Dashboard | `dashboard/` | React + TypeScript + Vite (PRD §5.4) |
-| Deployment | `deploy/` | dashboard image, nginx proxy, compose service |
+| M1 — Transparent proxy | Complete | A2A routing, aliases, streaming, card handling, timeouts, and graceful shutdown |
+| M2 — Tracing | Complete | Handoff spans, task trace trees, bounded asynchronous OTLP export |
+| M3 — Dashboard MVP | Complete | Management API, span queries, dashboard diagnostics, and token/cost accounting |
+| M4 — Hardening and benchmarks | Complete | Metrics, limits, shutdown tests, reproducible benchmarks, SSE load tiers |
+| M5 — Trust and policy | Complete | Caller identity, signed-card verification, authorization, audit, dashboard views |
+| M6 — Failure handling | Complete | Bounded retries, per-upstream breakers, ordered failover, trace events |
+| M7 — Polish and handoff | Complete | Updated README, milestone/config docs, current examples, deployment definitions |
 
-**Exit criteria (PRD §10).** *A scripted failure is diagnosable in under
-60 seconds.* Concretely: the demo seeds a failing task, the dashboard shows
-it in the task list, the task detail shows the failing span and the
-root-cause hint, and the operator can name the failing agent without
-opening a trace backend.
+## M1 — Transparent proxy
 
-**Verification.**
+Routes A2A traffic by agent name or alias, preserves streaming (including SSE), rewrites and caches agent cards, propagates W3C trace context, applies configured upstream timeouts, and drains connections on shutdown. In-process integration tests exercise the proxy, and the M1 demo verifies calls between demo agents.
 
-- Go: unit tests for the query layer, both store drivers, the cost model
-  and the API handlers; integration tests that drive real A2A traffic
-  through the gateway and read it back through the management API.
-- Demo: `demo/scenarios/m3-dashboard.sh` (and its PowerShell twin) boots the
-  gateway, provokes a failure and asserts that the management API names the
-  failing span and offers a root-cause hint. CI runs it: the exit criterion
-  is executed, not just described.
-- Dashboard: `typecheck`, `lint`, component tests and a production build in
-  CI (`.github/workflows/dashboard.yml`).
-- Deploy: the compose file is validated in CI; the full stack (collector →
-  ClickHouse → dashboard) needs Docker and is a manual step.
+## M2 — Tracing
 
-**Not in M3.** Card signatures and the policy engine (M5), the circuit
-breaker and failover (M6), payload capture (TR-4), budget alerts (CO-4) and
-in-UI policy editing (P2). The dashboard shows those states as "not
-available yet" instead of pretending they exist.
+Creates an OpenTelemetry span per handoff and links task hops into trace trees. OTLP export is asynchronous and bounded so collector outages drop telemetry rather than block proxy traffic. The Compose deployment includes the collector and ClickHouse stack; telemetry conventions and configuration are documented under `docs/` and `deploy/`.
 
-## M4 — Hardening and benchmarks (complete)
+## M3 — Dashboard MVP
 
-Metrics polish (stream-cap rejection counter, one bounded card-serving
-instrument), graceful-shutdown and connection-draining tests, tiered load
-tests at 100/1k/5k/10k concurrent SSE streams, and a published benchmark
-document with reproducible scripts (`docs/benchmarks.md`,
-`demo/scenarios/bench-load.*`).
+Provides a separate authenticated management listener, versioned read API, span storage/query layer, and dashboard views for overview, tasks, task details, agent graphs, agents, costs, and settings. Cost accounting uses reported token usage; absent usage stays unknown. The scripted failure walkthrough exercises the diagnosis path.
 
-**Verification.** `go test -race ./...` in CI runs the 100-stream smoke
-tier plus the unit and integration suites; the 1k/5k/10k tiers are opt-in
-via `KYUREM_LOAD_FULL=1k,5k,10k`. The real-process table in
-`docs/benchmarks.md` was produced by the benchmark script on Windows 11.
+## M4 — Hardening and benchmarks
 
-**Known gap.** Official `a2a-tck` / `a2a-itk` conformance runs are not
-wired into CI. The in-process suites exercise the A2A wire shape (JSON-RPC,
-streaming, cards) but are not a substitute for the official TCK. This gap
-is documented rather than claimed as passing; adding a conformance workflow
-is follow-up work.
+Adds request and SSE limits, shutdown/draining checks, metrics, race-enabled Go checks, benchmark scripts, and SSE load tiers at 100, 1,000, 5,000, and 10,000 streams. CI runs the 100-stream smoke tier; larger runs remain opt-in and have methodology in `docs/benchmarks.md`.
+
+**Known gap:** the official `a2a-tck` and `a2a-itk` conformance suites are not wired into GitHub Actions. Repository integration tests cover selected protocol behavior but do not claim official conformance.
 
 ## M5 — Trust and policy
 
-Card signature verification (TP-1 to TP-5), the policy engine, the Agents
-and Policy/audit pages, and enforce mode.
+Supports bearer-token and optional mTLS caller identity, agent-card signature verification against operator-configured public keys, per-agent trust modes, deny-overrides authorization, a bounded audit ring, decision endpoints, telemetry events, and dashboard policy/audit views. The gateway never fetches a signer-provided key URL. Tests cover credential rejection/acceptance, signed and unsigned cards, policy enforcement, and configuration safety.
+
+**Skill-policy boundary:** the A2A request does not contain an authoritative skill selection. `X-Kyurem-Skill` is a caller-provided hint, so skill-scoped rules are available in `warn` mode for audit only; config validation rejects them in `enforce` mode rather than treating a spoofable header as an authorization fact.
 
 ## M6 — Failure handling
 
-Retries with a budget, per-upstream circuit breakers, failover routing, and
-the retry/failover spans (FO-1 to FO-4).
+Uses the configured upstream order within the selected transport binding. Each upstream has independent consecutive-failure circuit state with a single half-open probe. A per-agent fixed-window retry budget and a maximum-attempt setting bound amplification. Network failures and transient 502/503/504 responses can advance to another upstream or retry on the next eligible attempt; other 5xx responses affect breaker state but are returned directly.
 
-## M7 — Polish
+Retries are conservative: GET/HEAD/OPTIONS without a body can be retried; a POST requires an `Idempotency-Key` and a body within `max_retry_body_bytes`. The upstream must implement deduplication for that key. Unkeyed or oversized/streaming request bodies are not replayed. Retries and failovers are recorded as events on the existing handoff span. Unit and end-to-end gateway tests cover failover, keyed-body replay, retry budgets, open circuits, and half-open recovery.
 
-Documentation, the demo walkthrough, release images, and the remaining P2
-items.
+## M7 — Polish and handoff
+
+Rewrites the README as the full M1–M7 guide, refreshes milestone and configuration docs, keeps local and Compose examples current, and ignores generated test/coverage outputs. Gateway, dashboard, demo, and Compose Dockerfiles remain in the repository for reproducible builds.
+
+**Not included:** automatic publication of release images is not configured. Compose files are syntax-validated by CI; running the full local stack is a Docker-dependent manual check.
+
+## Verification entry points
+
+- `make test`, `make test-demo`, and `make vet` cover the Go gateway and demo modules.
+- `make validate` loads the shipped configs; the CI workflows also build, format-check, run race tests, and validate Compose.
+- `make dashboard-check` and `make dashboard-build` run the dashboard checks and production build.
+- The M3 walkthrough is run in CI. The tracing/ClickHouse Compose stack and higher benchmark tiers are opt-in local workflows.

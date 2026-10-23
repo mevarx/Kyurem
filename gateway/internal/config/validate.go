@@ -137,6 +137,7 @@ func Validate(cfg *Config) error {
 	errs = append(errs, validateCallers(cfg.Callers, cfg.Listeners.A2A.TLS)...)
 	errs = append(errs, validateTrust(cfg.Trust, agentNames)...)
 	errs = append(errs, validatePolicy(cfg.Policy)...)
+	errs = append(errs, validateFailureHandling(cfg.FailureHandling, cfg.Limits.MaxRequestBodyBytes)...)
 
 	errs = append(errs, checkNonNegative("card_cache.ttl", cfg.CardCache.TTL)...)
 	if cfg.CardCache.TTL > 0 && cfg.CardCache.TTL < Duration(1_000_000_000) /* 1s */ {
@@ -477,6 +478,9 @@ func validatePolicy(p Policy) []error {
 	names := map[string]int{}
 	for i, r := range p.Rules {
 		label := fmt.Sprintf("policy.rules[%d]", i)
+		if strings.EqualFold(p.Mode, "enforce") && len(r.Skills) > 0 {
+			errs = append(errs, fmt.Errorf("%s.skills: enforce mode cannot trust caller-supplied %s; skill-scoped rules are supported only in warn mode", label, "X-Kyurem-Skill"))
+		}
 		if r.Name == "" {
 			errs = append(errs, fmt.Errorf("%s.name: required", label))
 		} else if prev, dup := names[strings.ToLower(r.Name)]; dup {
@@ -507,6 +511,29 @@ func validatePolicy(p Policy) []error {
 			}
 			seenSkills[key] = struct{}{}
 		}
+	}
+	return errs
+}
+
+func validateFailureHandling(f FailureHandling, maxRequestBody int64) []error {
+	var errs []error
+	if f.MaxAttempts < 1 || f.MaxAttempts > 5 {
+		errs = append(errs, errors.New("failure_handling.max_attempts: must be between 1 and 5"))
+	}
+	if f.RetryBudget.MaxRetries < 0 || f.RetryBudget.MaxRetries > 1000 {
+		errs = append(errs, errors.New("failure_handling.retry_budget.max_retries: must be between 0 and 1000"))
+	}
+	if f.RetryBudget.Window.Std() <= 0 {
+		errs = append(errs, errors.New("failure_handling.retry_budget.window: must be positive"))
+	}
+	if f.CircuitBreaker.FailureThreshold < 1 || f.CircuitBreaker.FailureThreshold > 100 {
+		errs = append(errs, errors.New("failure_handling.circuit_breaker.failure_threshold: must be between 1 and 100"))
+	}
+	if f.CircuitBreaker.OpenDuration.Std() <= 0 {
+		errs = append(errs, errors.New("failure_handling.circuit_breaker.open_duration: must be positive"))
+	}
+	if f.MaxRetryBodyBytes < 0 || f.MaxRetryBodyBytes > maxRequestBody {
+		errs = append(errs, errors.New("failure_handling.max_retry_body_bytes: must be between 0 and limits.max_request_body_bytes"))
 	}
 	return errs
 }

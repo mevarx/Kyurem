@@ -31,7 +31,7 @@ type Upstream struct {
 }
 
 // Entry is a registered agent: canonical name, listen paths (canonical and
-// aliases), and the ordered upstream list (order will drive failover in M6).
+// aliases), tags, and the ordered upstream list used for failover.
 type Entry struct {
 	Name string
 	// RoutePath is the canonical listen path ({prefix}/{name} unless
@@ -43,21 +43,33 @@ type Entry struct {
 	Upstreams  []Upstream
 }
 
-// PickUpstream selects the upstream for a request with the given binding.
-// Matching bindings win in declaration order; otherwise the first upstream
-// is used (ordering becomes failover priority in M6).
-func (e *Entry) PickUpstream(binding a2a.TransportProtocol) *Upstream {
+// PickUpstreams returns the primary and its same-binding failover targets.
+// If no binding matches, it preserves the legacy first-upstream fallback.
+func (e *Entry) PickUpstreams(binding a2a.TransportProtocol) []*Upstream {
 	if len(e.Upstreams) == 0 {
 		return nil
 	}
 	if binding != "" {
+		var matches []*Upstream
 		for i := range e.Upstreams {
 			if e.Upstreams[i].Binding != "" && e.Upstreams[i].Binding == binding {
-				return &e.Upstreams[i]
+				matches = append(matches, &e.Upstreams[i])
 			}
 		}
+		if len(matches) > 0 {
+			return matches
+		}
 	}
-	return &e.Upstreams[0]
+	return []*Upstream{&e.Upstreams[0]}
+}
+
+// PickUpstream selects the primary upstream for a request with the given binding.
+func (e *Entry) PickUpstream(binding a2a.TransportProtocol) *Upstream {
+	upstreams := e.PickUpstreams(binding)
+	if len(upstreams) == 0 {
+		return nil
+	}
+	return upstreams[0]
 }
 
 // CardFetchURL resolves where to GET /.well-known/agent-card.json from:

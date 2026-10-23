@@ -122,6 +122,7 @@ func New(cfg *config.Config, logger *slog.Logger) (*Server, error) {
 		proxy.WithTrust(trustV),
 		proxy.WithPolicy(pol),
 		proxy.WithAudit(audit),
+		proxy.WithFailureHandling(cfg.FailureHandling),
 	)
 
 	s := &Server{

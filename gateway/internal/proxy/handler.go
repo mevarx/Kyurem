@@ -20,6 +20,7 @@ import (
 	"github.com/kyurem-project/kyurem/gateway/internal/authn"
 	"github.com/kyurem-project/kyurem/gateway/internal/config"
 	"github.com/kyurem-project/kyurem/gateway/internal/cost"
+	resilience "github.com/kyurem-project/kyurem/gateway/internal/failure"
 	"github.com/kyurem-project/kyurem/gateway/internal/metrics"
 	"github.com/kyurem-project/kyurem/gateway/internal/policy"
 	"github.com/kyurem-project/kyurem/gateway/internal/registry"
@@ -34,6 +35,7 @@ type ctxKey int
 const (
 	ctxOutboundURL ctxKey = iota
 	ctxHandoff
+	ctxFailurePlan
 )
 
 // Handler is the A2A data-path HTTP handler:
@@ -61,15 +63,16 @@ type Handler struct {
 	routes    []route       // ordered: longer prefixes first
 	prices    cost.Table    // price table for the per-span cost (CO-2)
 
-	auth   *authn.Authenticator
-	trustV *trust.Verifier
-	pol    *policy.Engine
-	audit  *policy.AuditLog
+	auth           *authn.Authenticator
+	trustV         *trust.Verifier
+	pol            *policy.Engine
+	audit          *policy.AuditLog
+	failureMgr     *resilience.Manager
+	retryBodyBytes int64
 }
 
-// SkillHeader optionally names the A2A skill a call targets. The standard
-// SendMessage request has no skill field, so policy rules that constrain
-// skills rely on this gateway header (TP-3).
+// SkillHeader is an untrusted caller hint. Since standard A2A requests do not
+// identify a skill authoritatively, skill-scoped rules are warn-only.
 const SkillHeader = "X-Kyurem-Skill"
 
 // Option customizes the handler.
@@ -100,6 +103,14 @@ func WithPolicy(p *policy.Engine) Option {
 // WithAudit installs the decision audit ring (TP-4).
 func WithAudit(a *policy.AuditLog) Option {
 	return func(h *Handler) { h.audit = a }
+}
+
+// WithFailureHandling installs bounded retries and per-upstream breakers.
+func WithFailureHandling(settings config.FailureHandling) Option {
+	return func(h *Handler) {
+		h.failureMgr = resilience.New(settings)
+		h.retryBodyBytes = settings.MaxRetryBodyBytes
+	}
 }
 
 // route binds a listen-path prefix to its registry entry.
@@ -150,9 +161,13 @@ func New(cfg *config.Config, reg *registry.Registry, cache *registry.CardCache, 
 	if h.streamCap > 0 {
 		h.streams = make(chan struct{}, h.streamCap)
 	}
+	upstreamTransport := h.transport
+	if h.failureMgr != nil {
+		upstreamTransport = &failureTransport{base: h.transport, manager: h.failureMgr}
+	}
 	h.rp = &httputil.ReverseProxy{
 		Rewrite:        h.rewrite,
-		Transport:      h.transport,
+		Transport:      upstreamTransport,
 		FlushInterval:  -1, // stream-friendly: flush on every write (GW-2)
 		BufferPool:     &h.pool,
 		ModifyResponse: h.modifyResponse,

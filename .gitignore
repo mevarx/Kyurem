@@ -33,6 +33,11 @@ secrets/
 coverage.out
 /vendor/
 
+# Test reports and coverage artifacts from local or CI runs
+coverage/
+test-results/
+*.junit.xml
+
 # OS / editor
 .DS_Store
 Thumbs.db
@@ -44,9 +49,9 @@ Thumbs.db
 node_modules/
 dashboard/dist/
 dashboard/.next/
-dashboard/coverage/
 dashboard/.vite/
 dashboard/*.tsbuildinfo
+dashboard/.eslintcache
 npm-debug.log*
 yarn-error.log*
 

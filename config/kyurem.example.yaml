@@ -1,12 +1,12 @@
-# Kyurem gateway example configuration (M1+M2 scope).
+# Kyurem gateway example configuration (M1–M7).
 #
 # Run without starting the server:
 #   kyurem validate --config config/kyurem.example.yaml
 #
 # Every scalar option can be overridden from the environment, e.g.:
 #   KYUREM_LISTENERS_A2A_ADDR=":8080"
-# Sections that do not exist yet (trust, policy, failover, pricing) are
-# introduced in later milestones; unknown keys fail validation here.
+# Security enforcement is opt-in for this local-demo profile. Enable caller
+# authentication, trust verification, and policy before exposing the gateway.
 
 listeners:
   # The A2A data path. Agents point their clients at this listener.
@@ -131,3 +131,28 @@ limits:
     # Total request deadline, including streams. 0 = no deadline (long
     # running A2A tasks rely on response_header + client cancellation).
     request: 0s
+
+# M5: caller authentication, card trust, and policy modes. These defaults are
+# intentionally demo-friendly; configure production credentials and keys.
+callers:
+  mode: off # off | optional | required
+trust:
+  mode: off # off | warn | enforce
+policy:
+  mode: off # off | warn | enforce
+  default: allow
+  audit_capacity: 1024
+
+# M6: ordered same-binding upstreams fail over on transient failures. Retries
+# are limited to safe methods or POSTs carrying an Idempotency-Key; the
+# upstream must honor that key. Large and streaming request bodies are not
+# replayed.
+failure_handling:
+  max_attempts: 2
+  retry_budget:
+    max_retries: 10
+    window: 1m
+  circuit_breaker:
+    failure_threshold: 5
+    open_duration: 30s
+  max_retry_body_bytes: 65536

@@ -11,7 +11,7 @@ strings; bare numbers mean seconds (both in YAML and env).
 Structures that are lists — `agents` — are file-only: they cannot be
 overridden by environment variables.
 
-## Reference (M1 + M2 + M3)
+## Reference (M1–M7)
 
 | YAML path | Meaning | Default |
 |---|---|---|
@@ -56,6 +56,12 @@ overridden by environment variables.
 | `limits.timeouts.connect` | Upstream TCP dial timeout | `5s` |
 | `limits.timeouts.response_header` | Wait for the upstream's first response byte | `30s` |
 | `limits.timeouts.request` | Total per-request deadline incl. streams; `0s` = none | `0s` |
+| `failure_handling.max_attempts` | Total requests per eligible call (including the first) | `2` |
+| `failure_handling.retry_budget.max_retries` | Additional attempts per agent and fixed window | `10` |
+| `failure_handling.retry_budget.window` | Fixed retry-budget window | `1m` |
+| `failure_handling.circuit_breaker.failure_threshold` | Consecutive upstream failures before opening | `5` |
+| `failure_handling.circuit_breaker.open_duration` | Time before one half-open probe | `30s` |
+| `failure_handling.max_retry_body_bytes` | Maximum keyed POST body buffered for replay | `65536` |
 
 ## Telemetry (M2)
 
@@ -190,6 +196,42 @@ Rules enforced at startup (see `gateway/internal/config/validate.go`):
 - `name` is unique and path-valid; `path`, when set, is unique and can
   collide with no generated route (aliases included);
 - `upstreams[].url` must be an absolute `http(s)` URL **without
-  credentials** (secrets never ride config URLs — use headers/env in later
-  trust milestones);
+  credentials** (secrets never ride config URLs);
 - URLs normalize without trailing slashes; duplicate aliases are rejected.
+
+## Trust and policy (M5)
+
+Caller authentication uses `callers.mode` (`off`, `optional`, `required`) and
+maps bearer tokens to caller identities; TLS client certificates may also
+identify callers. Store bearer values in environment variables rather than
+committing them. Agent-card trust modes (`trust.mode`, optionally overridden
+per agent) are `off`, `warn`, or `enforce`; trusted public keys must come from
+operator configuration. The gateway does not resolve a signer-provided key
+URL.
+
+Policy supports `off`, `warn`, and `enforce`, a default `allow`/`deny`, and
+deny-overrides caller/callee rules. Standard A2A requests do not expose an
+authoritative selected skill. `X-Kyurem-Skill` is a caller hint, so rules with
+`skills` are accepted only in `warn` mode and rejected at startup in
+`enforce` mode. The sample profile leaves caller auth, trust, and policy off
+for local development; configure these explicitly before exposing the
+gateway.
+
+## Failure handling (M6)
+
+Upstreams are ordered by priority within the selected binding. When no
+upstream has a matching binding, routing preserves the first-upstream
+fallback. `max_attempts` is 1–5 and includes the original request;
+`retry_budget.max_retries` is 0–1000 per agent per fixed window. The circuit
+breaker is maintained per configured upstream, opens after its configured
+consecutive-failure threshold, and admits one probe after `open_duration`.
+All durations must be positive and retry-body buffering cannot exceed
+`limits.max_request_body_bytes`.
+
+Only bodyless GET/HEAD/OPTIONS and keyed POST requests are replayable. A keyed
+POST is buffered only when its known body length is within
+`max_retry_body_bytes`; the receiving upstream must honor the
+`Idempotency-Key` and deduplicate side effects. Unknown-length, oversized,
+unkeyed, and other non-replayable requests are sent once. The gateway retries
+network errors and HTTP 502/503/504; other 5xx responses still count toward
+breaker state. Retry and failover events are attached to the handoff span.
