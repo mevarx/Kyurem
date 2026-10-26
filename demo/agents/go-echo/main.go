@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	_ "net/http/pprof"
 	"strconv"
 	"strings"
 	"time"
@@ -36,14 +37,18 @@ import (
 var (
 	port = flag.Int("port", 9010, "port to listen on")
 	host = flag.String("host", "127.0.0.1", "interface to listen on (0.0.0.0 inside containers)")
+
+	synthetic  = flag.Bool("synthetic-stream", false, "serve SendStreamingMessage from a minimal SSE writer instead of the A2A SDK (capacity benchmarks)")
+	pprofAddr  = flag.String("pprof-addr", "", "serve net/http/pprof on this address (benchmarking; empty disables)")
+	chunkDelay = flag.Duration("chunk-delay", defaultChunkDelay, "pause between streamed word artifacts (benchmarks raise it to hold streams open)")
 )
 
 const (
 	// replyPrefix marks every reply so gateway tests (and the chained
 	// go-upper demo agent) can prove text went through this agent.
 	replyPrefix = "echo: "
-	// chunkDelay spaces streamed artifacts so SSE flushing is observable.
-	chunkDelay = 40 * time.Millisecond
+	// defaultChunkDelay spaces streamed artifacts so SSE flushing is observable.
+	defaultChunkDelay = 40 * time.Millisecond
 )
 
 func main() {
@@ -69,6 +74,15 @@ func main() {
 		},
 	}
 
+	if *pprofAddr != "" {
+		go func() {
+			// DefaultServeMux carries the pprof routes; the agent uses its own mux.
+			if err := http.ListenAndServe(*pprofAddr, nil); err != nil {
+				log.Printf("pprof server stopped: %v", err)
+			}
+		}()
+	}
+
 	handler := a2asrv.NewHandler(echoExecutor())
 
 	listener, err := net.Listen("tcp", net.JoinHostPort(*host, strconv.Itoa(*port)))
@@ -77,7 +91,11 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/", a2asrv.NewJSONRPCHandler(handler))
+	var rpc http.Handler = a2asrv.NewJSONRPCHandler(handler)
+	if *synthetic {
+		rpc = syntheticStream(rpc, *chunkDelay)
+	}
+	mux.Handle("/", rpc)
 	mux.Handle(a2asrv.WellKnownAgentCardPath, a2asrv.NewStaticAgentCardHandler(card))
 
 	slog.Info("go-echo listening", "addr", listener.Addr().String())
@@ -153,7 +171,7 @@ func streamEcho(ec *a2asrv.ExecutorContext, input string, yield func(a2a.Event, 
 	var artifactID a2a.ArtifactID
 	for i, word := range words {
 		if i > 0 {
-			time.Sleep(chunkDelay)
+			time.Sleep(*chunkDelay)
 		}
 		// The first artifact carries the marker; the rest append words so
 		// the joined text equals the non-streaming reply.

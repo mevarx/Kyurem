@@ -61,6 +61,10 @@ func main() {
 	flag.StringVar(&opts.Output, "output", "text", "output format: `text` or `json`")
 	flag.BoolVar(&opts.KeepAlive, "keepalive", true,
 		"keep the client transport's connection pooling (off = TCP handshake per request)")
+	flag.DurationVar(&opts.DrainTimeout, "drain-timeout", 30*time.Second,
+		"after the run, wait this long for the gateway's active streams to reach zero")
+	flag.BoolVar(&opts.RequirePeak, "require-peak", false,
+		"fail unless the gateway's active-streams peak reached --streams (proves the concurrency was held)")
 	flag.IntVar(&opts.AllocatePorts, "allocate-ports", 0,
 		"bind N loopback ports (to hand to gateway/agents), print them one per line, and exit")
 	flag.Parse()
@@ -84,6 +88,8 @@ type loadSpec struct {
 	Output        string
 	KeepAlive     bool
 	AllocatePorts int
+	DrainTimeout  time.Duration
+	RequirePeak   bool
 }
 
 // run is main's body returning the process exit code.
@@ -120,6 +126,7 @@ func (l *loadSpec) run() int {
 		Ramp:              l.Ramp,
 		Timeout:           l.Timeout,
 		Retries:           l.Retries,
+		DrainTimeout:      l.DrainTimeout,
 		Progress:          os.Stderr,
 		DisableKeepAlives: !l.KeepAlive,
 	}
@@ -148,6 +155,18 @@ func (l *loadSpec) run() int {
 	if res.Failed > 0 {
 		note(fmt.Sprintf("FAILED: %d request(s) failed to reach a terminal state", res.Failed))
 		return 1
+	}
+	if g := res.Gateway; g != nil && l.AdminURL != "" {
+		if !g.Drained {
+			note(fmt.Sprintf("FAILED: gateway still reports %.0f active stream(s) %.0fs after the run",
+				g.After.ActiveStreams, g.DrainSeconds))
+			return 1
+		}
+		if l.RequirePeak && g.ActiveStreamsPeak < float64(l.Streams) {
+			note(fmt.Sprintf("FAILED: gateway active-streams peak %.0f never reached the %d requested streams",
+				g.ActiveStreamsPeak, l.Streams))
+			return 1
+		}
 	}
 	return 0
 }

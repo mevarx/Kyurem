@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"strings"
 	"sync"
@@ -329,6 +330,12 @@ func (s *Server) adminHandler() http.Handler {
 		}
 	})
 	mux.Handle("GET /metrics", prometheusHandler(s.mtr))
+	// Opt-in profiling for benchmarking; never enabled by config.
+	if os.Getenv("KYUREM_PPROF") == "1" {
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	}
 	mux.HandleFunc("GET /version", func(w http.ResponseWriter, r *http.Request) {
 		payload := map[string]any{
 			"kyurem_version":     version.Version,

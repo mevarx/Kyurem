@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -26,7 +27,15 @@ type sinkProcessor struct {
 	once   sync.Once
 	closed bool
 	mu     sync.RWMutex
+
+	// dropped counts spans lost to a full queue; dropLogged is the unix-nano
+	// time of the last warning. Logging every drop serialized the data path
+	// on the logger's mutex under load, so warnings are rate limited.
+	dropped    atomic.Int64
+	dropLogged atomic.Int64
 }
+
+const dropLogInterval = time.Second
 
 var _ sdktrace.SpanProcessor = (*sinkProcessor)(nil)
 
@@ -63,8 +72,21 @@ func (p *sinkProcessor) OnEnd(span sdktrace.ReadOnlySpan) {
 	select {
 	case p.queue <- span:
 	default:
-		p.logger.Warn("telemetry sink queue full; span not published to the management store")
+		p.noteDrop()
 	}
+}
+
+// noteDrop counts a dropped span and emits at most one warning per
+// dropLogInterval carrying the number dropped since the previous warning.
+func (p *sinkProcessor) noteDrop() {
+	p.dropped.Add(1)
+	now := time.Now().UnixNano()
+	last := p.dropLogged.Load()
+	if now-last < int64(dropLogInterval) || !p.dropLogged.CompareAndSwap(last, now) {
+		return
+	}
+	p.logger.Warn("telemetry sink queue full; spans not published to the management store",
+		"dropped", p.dropped.Swap(0))
 }
 
 // Shutdown stops accepting spans and drains what is queued.
