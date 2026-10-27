@@ -143,7 +143,7 @@ func New(cfg *config.Config, reg *registry.Registry, cache *registry.CardCache, 
 	}
 	h.knownBase = strings.TrimSuffix(cfg.Listeners.A2A.PublicBaseURL, "/")
 	h.pool = bufferPool{p: sync.Pool{New: func() any {
-		buf := make([]byte, 32*1024)
+		buf := make([]byte, copyBufferSize)
 		return &buf
 	}}}
 	for _, entry := range reg.Entries() {
@@ -193,18 +193,24 @@ func newTransport(cfg *config.Config) *http.Transport {
 	}
 }
 
+// copyBufferSize is the per-response copy buffer. ReverseProxy holds one for
+// the whole life of a response, so for SSE it is a per-open-stream cost: at
+// 10k streams the former 32 KiB made it the largest heap consumer (heap
+// profile, docs/benchmarks.md). SSE events are far smaller than this.
+const copyBufferSize = 8 * 1024
+
 type bufferPool struct{ p sync.Pool }
 
 func (b *bufferPool) Get() []byte {
 	bp, _ := b.p.Get().(*[]byte)
 	if bp == nil {
-		return make([]byte, 32*1024)
+		return make([]byte, copyBufferSize)
 	}
 	return *bp
 }
 
 func (b *bufferPool) Put(x []byte) {
-	if len(x) == 32*1024 {
+	if len(x) == copyBufferSize {
 		bp := &x
 		b.p.Put(bp)
 	}

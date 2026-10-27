@@ -102,6 +102,9 @@ type Spec struct {
 	// Retries never mask protocol errors or timeouts; every failed
 	// attempt is still counted in Result.Errors.
 	Retries int
+	// DrainTimeout bounds how long Run waits, after the last worker stops,
+	// for the gateway's active-streams gauge to return to zero (0 = 30s).
+	DrainTimeout time.Duration
 	// Progress, when set, receives one summary line per second (the CLI
 	// wires os.Stderr).
 	Progress io.Writer
@@ -287,8 +290,15 @@ type GatewayObservation struct {
 	Before            gatewaySnapshot `json:"before"`
 	After             gatewaySnapshot `json:"after"`
 	ActiveStreamsPeak float64         `json:"active_streams_peak"`
-	Versions          *VersionInfo    `json:"versions,omitempty"`
-	ScrapeFailed      string          `json:"scrape_failed,omitempty"`
+	// Drained reports whether the active-streams gauge returned to zero
+	// within the drain window after the last worker stopped; DrainSeconds
+	// is how long that took. After is the snapshot taken once drained (or
+	// when the window closed), AfterRun the one taken the moment the run ended.
+	Drained      bool            `json:"drained"`
+	DrainSeconds float64         `json:"drain_seconds"`
+	AfterRun     gatewaySnapshot `json:"after_run"`
+	Versions     *VersionInfo    `json:"versions,omitempty"`
+	ScrapeFailed string          `json:"scrape_failed,omitempty"`
 }
 
 // Delta accessors used by the scripts / text renderer.
@@ -606,14 +616,55 @@ func Run(ctx context.Context, spec *Spec) (*Result, error) {
 	sort.Slice(lat, func(i, j int) bool { return lat[i] < lat[j] })
 	res.Latency = pctSummary(lat)
 
+	// Idle keep-alive connections are the client's, not the gateway's, to
+	// release; closing them keeps them out of the gateway's post-run state.
+	client.CloseIdleConnections()
 	if spec.AdminURL != "" {
-		if snap, err := scrapeAdmin(ctx, spec.AdminURL); err == nil {
-			obs.After = snap
-		} else if obs.ScrapeFailed == "" {
-			obs.ScrapeFailed = "after: " + err.Error()
-		}
+		awaitDrain(ctx, spec, obs)
 	}
 	return res, nil
+}
+
+// awaitDrain snapshots the gateway right after the run, then polls until
+// no stream is active (or DrainTimeout passes) and records the final state.
+// Scrapes are retried: a gateway still tearing down thousands of
+// connections can answer /metrics slowly, and a missed scrape must not be
+// mistaken for a leak or hide one.
+func awaitDrain(ctx context.Context, spec *Spec, obs *GatewayObservation) {
+	window := spec.DrainTimeout
+	if window <= 0 {
+		window = 30 * time.Second
+	}
+	begin := time.Now()
+	deadline := begin.Add(window)
+	first := true
+	var last gatewaySnapshot
+	var lastErr error
+	for {
+		snap, err := scrapeAdmin(ctx, spec.AdminURL)
+		if err == nil {
+			last, lastErr = snap, nil
+			if first {
+				obs.AfterRun = snap
+				first = false
+			}
+			if snap.ActiveStreams == 0 {
+				obs.Drained = true
+				break
+			}
+		} else {
+			lastErr = err
+		}
+		if time.Now().After(deadline) || ctx.Err() != nil {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	obs.DrainSeconds = time.Since(begin).Seconds()
+	obs.After = last
+	if lastErr != nil && obs.ScrapeFailed == "" {
+		obs.ScrapeFailed = "after: " + lastErr.Error()
+	}
 }
 
 // pctSummary computes the published percentile block (nearest-rank).

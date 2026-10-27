@@ -15,6 +15,14 @@
 #   KYUREM_BENCH_MODE=send ./demo/scenarios/bench-load.sh       # no SSE
 #   KYUREM_BENCH_OUT=/tmp/bench ./demo/scenarios/bench-load.sh  # results dir
 #
+# Holding streams open (the "10k concurrent" test; see docs/benchmarks.md):
+#   KYUREM_BENCH_HOLD=1 KYUREM_BENCH_SYNTHETIC=1 KYUREM_BENCH_WORDS=20 \
+#   KYUREM_BENCH_CHUNK_DELAY=3s KYUREM_BENCH_TIMEOUT=120s \
+#   KYUREM_BENCH_DURATION=150s KYUREM_BENCH_SETTLE=15 \
+#   KYUREM_BENCH_TIERS=1k,2k,5k,7.5k,10k ./demo/scenarios/bench-load.sh
+# Other knobs: KYUREM_BENCH_RAMP, KYUREM_BENCH_LOG_LEVEL, KYUREM_PPROF=1
+# (gateway /debug/pprof on the admin port), ECHO_PPROF=addr (agent pprof).
+#
 # Raw per-tier JSON lands in $KYUREM_BENCH_OUT (default
 # demo/bin/bench-results); it is the published raw data behind
 # docs/benchmarks.md. Requires: bash, go, curl. No Docker.
@@ -26,6 +34,24 @@ cd "$ROOT"
 TIERS="${KYUREM_BENCH_TIERS:-1k,5k,10k}"
 MODE="${KYUREM_BENCH_MODE:-stream}"
 OUT="${KYUREM_BENCH_OUT:-demo/bin/bench-results}"
+# Stream shape: words * chunk delay is roughly how long each stream stays
+# open. Defaults keep the historical short stream; raise both to hold
+# streams concurrently rather than churning through them.
+CHUNK_DELAY="${KYUREM_BENCH_CHUNK_DELAY:-40ms}"
+WORDS="${KYUREM_BENCH_WORDS:-3}"
+# KYUREM_BENCH_SYNTHETIC=1 swaps the SDK-backed echo stream for a minimal SSE
+# writer so the gateway, not the demo agent, is what the tier measures.
+SYNTHETIC="${KYUREM_BENCH_SYNTHETIC:-}"
+# KYUREM_BENCH_HOLD=1: every worker opens exactly one stream, so the run ends
+# when all streams finish and the gateway must have peaked at the full tier.
+HOLD_ARGS=()
+HOLD="${KYUREM_BENCH_HOLD:-}"
+# Seconds to idle after each tier before sampling gateway recovery (0 = skip).
+SETTLE="${KYUREM_BENCH_SETTLE:-0}"
+# Per-request deadline; must exceed the stream length (words * chunk delay).
+TIMEOUT="${KYUREM_BENCH_TIMEOUT:-60s}"
+MESSAGE="w"
+for ((i = 1; i < WORDS; i++)); do MESSAGE+=" w"; done
 BIN="demo/bin"
 
 EXE=""
@@ -45,9 +71,11 @@ tier_streams() {
     case "$1" in
         100) echo 100 ;;
         1k | 1000) echo 1000 ;;
+        2k) echo 2000 ;;
         5k) echo 5000 ;;
+        7.5k | 7500) echo 7500 ;;
         10k) echo 10000 ;;
-        *) fail "unknown tier '$1' (want 100, 1k, 5k or 10k)" ;;
+        *) fail "unknown tier '$1' (want 100, 1k, 2k, 5k, 7.5k or 10k)" ;;
     esac
 }
 
@@ -58,7 +86,9 @@ tier_shape() {
     case "$1" in
         100) echo "5s 200ms" ;;
         1k) echo "20s 2s" ;;
+        2k) echo "20s 3s" ;;
         5k) echo "30s 5s" ;;
+        7.5k | 7500) echo "30s 8s" ;;
         10k) echo "30s 10s" ;;
     esac
 }
@@ -110,7 +140,7 @@ listeners:
   mgmt:
     addr: "127.0.0.1:$MGMT_PORT"
 logging:
-  level: warn
+  level: ${KYUREM_BENCH_LOG_LEVEL:-warn}
   format: text
 telemetry:
   otlp_endpoint: ""
@@ -163,7 +193,7 @@ wait_http() {
 }
 
 note "booting go-echo (:$ECHO_PORT) and the gateway (:$A2A_PORT, admin :$ADMIN_PORT)"
-"$BIN/go-echo$EXE" --port "$ECHO_PORT" >"$OUT/go-echo.log" 2>&1 &
+"$BIN/go-echo$EXE" --port "$ECHO_PORT" --chunk-delay "$CHUNK_DELAY" ${SYNTHETIC:+--synthetic-stream} ${ECHO_PPROF:+--pprof-addr "$ECHO_PPROF"} >"$OUT/go-echo.log" 2>&1 &
 ECHO_PID=$!
 "$BIN/kyurem$EXE" serve --config "$CFG" >"$OUT/gateway.log" 2>&1 &
 GW_PID=$!
@@ -175,14 +205,23 @@ wait_http "http://127.0.0.1:$ADMIN_PORT/readyz" "gateway readiness"
 wait_http "http://127.0.0.1:$A2A_PORT/a2a/echo/.well-known/agent-card.json" "agent card via gateway"
 
 # ---------------------------------------------------------------- tiers ----
-HEADER="| tier | mode | streams | completed | failed | p50 ms | p95 ms | p99 ms | req/s | goroutines Δ | RSS Δ MiB |"
-SEP="|---|---|---|---|---|---|---|---|---|---|---|"
+HEADER="| tier | mode | streams | completed | failed | p50 ms | p95 ms | p99 ms | req/s | peak active | drain s | gw CPU s | goroutines Δ | RSS Δ MiB |"
+SEP="|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"
 echo "$HEADER"
 echo "$SEP"
 
 for tier in ${TIERS//,/ }; do
     streams="$(tier_streams "$tier")"
     read -r duration ramp <<<"$(tier_shape "$tier")"
+    duration="${KYUREM_BENCH_DURATION:-$duration}"
+    ramp="${KYUREM_BENCH_RAMP:-$ramp}"
+    HOLD_ARGS=()
+    if [[ -n "$HOLD" ]]; then
+        HOLD_ARGS=(--requests "$streams" --require-peak)
+        # Open at most ~330 new streams/s: faster ramps overran the 5s upstream
+        # dial timeout on this 2-vCPU host (see docs/benchmarks.md).
+        [[ -z "${KYUREM_BENCH_RAMP:-}" ]] && ramp="$(((streams + 329) / 330))s"
+    fi
     label="$tier-$MODE"
     json="$OUT/$label.json"
 
@@ -195,6 +234,9 @@ for tier in ${TIERS//,/ }; do
         --duration "$duration" \
         --ramp "$ramp" \
         --label "$label" \
+        --timeout "$TIMEOUT" \
+        ${HOLD_ARGS[@]+"${HOLD_ARGS[@]}"} \
+        --message "$MESSAGE" \
         --output json >"$json"; then
         fail "tier $label failed; raw output kept at $json"
     fi
@@ -213,7 +255,10 @@ goroutines = after.get("go_goroutines", 0) - before.get("go_goroutines", 0)
 rss = (after.get("resident_memory_bytes", 0) - before.get("resident_memory_bytes", 0)) / (1024 * 1024)
 print(
     "| {label} | {mode} | {streams} | {completed} | {failed} | {p50:.1f} | {p95:.1f} | "
-    "{p99:.1f} | {rps:.0f} | {goroutines:+d} | {rss:+.1f} |".format(
+    "{p99:.1f} | {rps:.0f} | {peak:.0f} | {drain:.1f} | {cpu:.1f} | {goroutines:+d} | {rss:+.1f} |".format(
+        peak=g.get("active_streams_peak", 0),
+        drain=g.get("drain_seconds", 0),
+        cpu=after.get("cpu_seconds_total", 0) - before.get("cpu_seconds_total", 0),
         p50=lat.get("p50_ms", 0),
         p95=lat.get("p95_ms", 0),
         p99=lat.get("p99_ms", 0),
@@ -224,6 +269,14 @@ print(
     )
 )
 PY
+
+    # Recovery check: with the load gone, goroutines, memory and the active
+    # gauge should settle back near the pre-run baseline.
+    if ((SETTLE > 0)); then
+        sleep "$SETTLE"
+        note "$label settled after ${SETTLE}s idle: $(curl -fsS "http://127.0.0.1:$ADMIN_PORT/metrics" |
+            awk '/^go_goroutines /{g=$2} /^process_resident_memory_bytes /{r=$2} /^go_memstats_heap_inuse_bytes /{h=$2} /^kyurem_proxy_active_streams[{ ]/{a+=$2} END{printf "goroutines=%d rss_mib=%.0f heap_inuse_mib=%.0f active_streams=%d", g, r/1048576, h/1048576, a}')"
+    fi
 done
 
 echo
