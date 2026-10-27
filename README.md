@@ -112,15 +112,19 @@ The [A2A Conformance workflow](.github/workflows/a2a-conformance.yml) pins the o
 
 ## Benchmarks
 
-Measured on Linux x86_64 in a Modal sandbox (2 vCPU, 8 GiB RAM, Go 1.26.0). Load generation and the Go echo agent shared the host. These are measurements of the checked-in harness, not an SLA.
+Measured on Linux x86_64 in a Modal sandbox (2 vCPU, 8 GiB RAM, Go 1.26.0, gVisor). The load generator, gateway and upstream shared the host. These are measurements of the checked-in harness, not an SLA.
 
-| Configured streams | Completed / failed | p50 / p95 / p99 (ms) | Peak active | Gateway RSS, before → after (Δ MiB) | Req/s |
-|---:|---:|---:|---:|---:|---:|
-| 1,000 | 5,015 / 0 | 3,109 / 7,159 / 9,039 | 235 | 54.0 → 231.2 (+177.2) | 245.0 |
-| 5,000 | 5,697 / 0 | 13,289 / 24,702 / 26,048 | 282 | 231.2 → 1,022.9 (+791.7) | 184.6 |
-| 10,000 | 847 / 10,555 | 19,997 / 28,822 / 29,287 | 22 | 1,022.9 → 1,342.4 (+319.6) | 25.6 |
+Held-open SSE streams (20 events, ~57 s per stream) against a synthetic upstream, ramped at up to ~330 new streams/s:
 
-The 10,000-stream tier did **not** sustain its target on this host; its latency covers completed requests during an overloaded run. Reproduce with `bash demo/scenarios/bench-load.sh` (raw output goes to `demo/bin/bench-results/`). Methodology: [`docs/benchmarks.md`](docs/benchmarks.md).
+| Streams | Completed / failed | p50 / p99 (ms) | Peak active | Settled RSS (MiB) |
+|---:|---:|---:|---:|---:|
+| 1,000 | 1,000 / 0 | 57,017 / 57,281 | 1,000 | 193 |
+| 2,000 | 2,000 / 0 | 57,014 / 57,183 | 2,000 | 319 |
+| 5,000 | 5,000 / 0 | 57,016 / 57,271 | 5,000 | 714 |
+| 7,500 | 7,500 / 0 | 57,034 / 57,417 | 7,500 | 1,038 |
+| 10,000 | 10,000 / 0 | 57,088 / 57,588 | 10,000 | 1,376 |
+
+Every tier drained to zero active streams. The 10k tier passed 9 of 9 runs at this ramp. Limits: a ~1,000 streams/s arrival burst failed in about 2 of 15 runs (upstream dial timeouts), and 10k concurrent streams against the real SDK-based `go-echo` agent does not pass on this host because the demo agent saturates the CPUs first. Reproduce, with the exact settings and caveats, in [`docs/benchmarks.md`](docs/benchmarks.md) (raw output goes to `demo/bin/bench-results/`).
 
 ## Releases
 
@@ -158,7 +162,7 @@ gateway/             Go gateway (cmd/kyurem and internal packages)
 
 ## Status and limitations
 
-Milestones M1 to M7 are delivered; see [`docs/milestones.md`](docs/milestones.md). Open items: sustaining the 10,000-stream benchmark tier, broader ACTS coverage beyond the smoke profile, dashboard policy editing (policy currently lives in configuration files), and the first tagged release.
+Milestones M1 to M7 are delivered; see [`docs/milestones.md`](docs/milestones.md). Open items: broader ACTS coverage beyond the smoke profile, dashboard policy editing (policy currently lives in configuration files), and the first tagged release.
 
 More documentation: [`docs/telemetry-conventions.md`](docs/telemetry-conventions.md).
 
