@@ -6,7 +6,15 @@ import "@xyflow/react/dist/style.css";
 import "./styles.css";
 import { App } from "./App";
 import { ThemeProvider } from "./lib/ThemeProvider";
+import { TooltipProvider } from "./components/ui/tooltip";
 import { applyTheme, getInitialTheme } from "./lib/theme";
+import { installMockApi } from "./lib/mockData";
+
+// Dev-only mock data mode: `VITE_MOCK_DATA=1` serves canned API responses
+// so every screen renders populated without a running gateway.
+if (import.meta.env.VITE_MOCK_DATA === "1") {
+  installMockApi();
+}
 
 // Apply the theme before the first paint so that the page never flashes.
 applyTheme(getInitialTheme());
@@ -30,9 +38,11 @@ createRoot(container).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
+        <TooltipProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
   </StrictMode>,

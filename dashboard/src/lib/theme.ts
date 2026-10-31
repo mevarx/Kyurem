@@ -37,7 +37,9 @@ export function storeTheme(theme: Theme): void {
   }
 }
 
-/** Apply the theme to the document element. */
+/** Apply the theme to the document element. The `dark` class mirrors the
+ * shadcn `.dark` selectors used by the block's token stylesheet. */
 export function applyTheme(theme: Theme): void {
   document.documentElement.setAttribute("data-theme", theme);
+  document.documentElement.classList.toggle("dark", theme === "dark");
 }

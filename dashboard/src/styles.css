@@ -2455,3 +2455,36 @@ select:focus {
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 }
+
+/* ----------------- Capitalio token rebrand (Kyurem ice) --------------- *
+ * The block's own tokens win over Kyurem's base layer, so these overrides
+ * use doubled specificity and stay scoped to .capitalio-dashboard.
+ * Accent: icy cyan #7DD3FC, glow #38BDF8. No hardcoded colors elsewhere. */
+
+.capitalio-dashboard.capitalio-dashboard {
+  --primary: #0284c7;
+  --primary-foreground: #ffffff;
+  --ring: var(--primary);
+  --chart-1: #0284c7;
+  --chart-2: #7466f6;
+  --chart-3: #f59e0b;
+  --chart-4: #16a34a;
+  --chart-5: #dc2626;
+  --sidebar-primary: #0284c7;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-ring: var(--primary);
+}
+
+.dark .capitalio-dashboard.capitalio-dashboard {
+  --primary: #7dd3fc;
+  --primary-foreground: #06202e;
+  --ring: var(--primary);
+  --chart-1: #7dd3fc;
+  --chart-2: #a78bfa;
+  --chart-3: #f59e0b;
+  --chart-4: #22c55e;
+  --chart-5: #ef4444;
+  --sidebar-primary: #7dd3fc;
+  --sidebar-primary-foreground: #06202e;
+  --sidebar-ring: var(--primary);
+}

@@ -17,3 +17,18 @@ if (typeof globalThis.ResizeObserver === "undefined") {
     disconnect(): void {}
   };
 }
+
+// jsdom does not implement matchMedia, which the sidebar's mobile hook
+// relies on. The stub is enough for rendering.
+if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {
+  window.matchMedia = (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  });
+}

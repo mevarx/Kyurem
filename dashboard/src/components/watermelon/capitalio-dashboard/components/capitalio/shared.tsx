@@ -1,6 +1,4 @@
-import { dashboardPeriods, defaultDashboardPeriod } from '../../data'
 import { cn } from '@/lib/utils'
-import { useDashboardNavigation } from './navigation'
 
 type DashboardTooltipPayload = {
   name?: string
@@ -20,14 +18,6 @@ type DashboardChartTooltipProps = {
   names?: Record<string, string>
   colors?: Record<string, string>
   valueFormatter?: (value: number | string, dataKey: string) => React.ReactNode
-}
-
-export function useDashboardPeriod() {
-  const { period } = useDashboardNavigation()
-
-  return dashboardPeriods.some((periodOption) => periodOption.value === period)
-    ? period
-    : defaultDashboardPeriod
 }
 
 export function toneColor(tone: 'positive' | 'negative' | 'neutral') {

@@ -1,11 +1,17 @@
 import { Collapsible } from '@base-ui/react/collapsible'
 import {
-  SidebarChevronIcon,
-  SidebarLogoutIcon,
-} from './icons'
-import { CapitalioLogo } from './logo'
-import { DashboardLink, useDashboardNavigation } from './navigation'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+  Activity,
+  Bot,
+  ChevronDown,
+  Coins,
+  List,
+  Network,
+  Settings as SettingsIcon,
+  ShieldCheck,
+} from 'lucide-react'
+import { NavLink, useLocation } from 'react-router-dom'
+import { useSettings } from '@/api/hooks'
+import { formatUptime } from '@/lib/format'
 import {
   Sidebar,
   SidebarContent,
@@ -19,32 +25,67 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { Button } from '@/components/ui/button'
-import { currentUser, sidebarSections, type NavigationItem, type NavigationSection } from '../../data'
 import { cn } from '@/lib/utils'
+
+type NavItem = {
+  name: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+}
+
+type NavSection = {
+  label: string
+  collapsible?: boolean
+  defaultOpen?: boolean
+  items: NavItem[]
+}
+
+const operateSection: NavSection = {
+  label: 'Operate',
+  items: [
+    { name: 'Overview', href: '/', icon: Activity },
+    { name: 'Tasks', href: '/tasks', icon: List },
+    { name: 'Agent graph', href: '/graph', icon: Network },
+  ],
+}
+
+const manageSection: NavSection = {
+  label: 'Manage',
+  collapsible: true,
+  defaultOpen: true,
+  items: [
+    { name: 'Costs', href: '/costs', icon: Coins },
+    { name: 'Agents', href: '/agents', icon: Bot },
+    { name: 'Policy & audit', href: '/policy', icon: ShieldCheck },
+    { name: 'Settings', href: '/settings', icon: SettingsIcon },
+  ],
+}
 
 function Brand() {
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-3">
-      <div className="size-10 flex shrink-0 items-center justify-center rounded-lg border border-primary bg-linear-to-t from-[color-mix(in_oklab,var(--primary)_80%,black)] to-primary">
-        <CapitalioLogo className="size-6 shrink-0 text-white" />
+    <NavLink to="/" className="flex min-w-0 flex-1 items-center gap-3">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-linear-to-t from-[color-mix(in_oklab,var(--primary)_80%,black)] to-primary text-lg font-bold text-white shadow-none">
+        K
       </div>
-      <span className="truncate text-lg font-medium text-sidebar-accent-foreground">
-        Capitalio
+      <span className="flex min-w-0 flex-col leading-tight">
+        <span className="truncate text-lg font-medium text-sidebar-accent-foreground">
+          Kyurem
+        </span>
+        <span className="font-mono text-[11px] text-muted-foreground">a2a gateway</span>
       </span>
-    </div>
+    </NavLink>
   )
 }
 
-function NavLinkButton({
-  item,
-}: {
-  item: NavigationItem
-}) {
-  const { pathname } = useDashboardNavigation()
+function isItemActive(pathname: string, href: string): boolean {
+  if (href === '/') return pathname === '/'
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
+
+function NavLinkButton({ item }: { item: NavItem }) {
+  const { pathname } = useLocation()
   const { isMobile, setOpenMobile } = useSidebar()
-  const isActive =
-    item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
+  const isActive = isItemActive(pathname, item.href)
   const Icon = item.icon
 
   function handleClick() {
@@ -57,27 +98,21 @@ function NavLinkButton({
         asChild
         tooltip={item.name}
         isActive={isActive}
-        className={cn(
-          'h-auto gap-2 rounded-lg px-3 py-3 text-base leading-5 text-muted-foreground transition-colors',
-          'bg-transparent hover:bg-transparent active:bg-transparent data-active:bg-transparent!',
-          'data-active:text-sidebar-accent-foreground',
-          '[&_img]:size-5!',
-          isActive && 'active-sidebar-item',
-        )}
+        className={cn('active-sidebar-item')}
       >
-        <DashboardLink href={item.href} onClick={handleClick} aria-current={isActive ? 'page' : undefined}>
-          <Icon />
+        <NavLink to={item.href} end={item.href === '/'} onClick={handleClick}>
+          <Icon className="size-4 shrink-0" />
           <span className="truncate">{item.name}</span>
-        </DashboardLink>
+        </NavLink>
       </SidebarMenuButton>
     </SidebarMenuItem>
   )
 }
 
-function SidebarSectionMenu({ items }: { items: NavigationItem[] }) {
+function SidebarSectionMenu({ items }: { items: NavItem[] }) {
   return (
     <SidebarGroupContent>
-      <SidebarMenu className="gap-2">
+      <SidebarMenu>
         {items.map((item) => (
           <NavLinkButton key={item.name} item={item} />
         ))}
@@ -86,17 +121,15 @@ function SidebarSectionMenu({ items }: { items: NavigationItem[] }) {
   )
 }
 
-function SidebarNavSection({ section }: { section: NavigationSection }) {
+function SidebarNavSection({ section }: { section: NavSection }) {
   if (section.collapsible) {
     return (
       <Collapsible.Root defaultOpen={section.defaultOpen ?? true}>
-        <SidebarGroup className="gap-2 p-0">
+        <SidebarGroup>
           {section.label ? (
-            <Collapsible.Trigger
-              className="flex w-full cursor-pointer items-center justify-between px-2 py-3 font-section text-base font-normal tracking-tight text-muted-foreground/70 transition-colors hover:text-muted-foreground [&>svg]:size-2.5! [&>svg]:transition-transform [&>svg]:duration-200 [&>svg]:ease-out data-panel-open:[&>svg]:rotate-180"
-            >
+            <Collapsible.Trigger className="flex w-full cursor-pointer items-center justify-between px-2 py-2 text-xs font-semibold tracking-wider text-muted-foreground/70 uppercase transition-colors hover:text-muted-foreground [&>svg]:size-3.5! [&>svg]:transition-transform [&>svg]:duration-200 [&>svg]:ease-out data-panel-open:[&>svg]:rotate-180">
               {section.label}
-              <SidebarChevronIcon className="shrink-0" />
+              <ChevronDown className="shrink-0" />
             </Collapsible.Trigger>
           ) : null}
           <Collapsible.Panel>
@@ -108,9 +141,9 @@ function SidebarNavSection({ section }: { section: NavigationSection }) {
   }
 
   return (
-    <SidebarGroup className="gap-2 p-0">
+    <SidebarGroup>
       {section.label ? (
-        <SidebarGroupLabel className="px-2 py-3 font-section text-base font-normal tracking-tight text-muted-foreground/70">
+        <SidebarGroupLabel className="px-2 py-2 text-xs font-semibold tracking-wider uppercase">
           {section.label}
         </SidebarGroupLabel>
       ) : null}
@@ -119,53 +152,53 @@ function SidebarNavSection({ section }: { section: NavigationSection }) {
   )
 }
 
+function GatewayStatusCard() {
+  const settingsQuery = useSettings({ refetchInterval: 30_000 })
+  const reachable = !settingsQuery.isError
+  const version = settingsQuery.data?.version
+  const uptime = settingsQuery.data?.uptime_seconds
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-3">
+      <div className="flex items-center gap-2 text-xs font-semibold">
+        <span
+          className="size-2 shrink-0 rounded-full"
+          style={{
+            backgroundColor: reachable ? 'var(--chart-4)' : 'var(--destructive)',
+            boxShadow: reachable ? '0 0 8px var(--chart-4)' : undefined,
+          }}
+          aria-hidden="true"
+        />
+        {settingsQuery.isPending ? 'Connecting…' : reachable ? 'Gateway live' : 'Unreachable'}
+      </div>
+      <dl className="mt-2 space-y-1 font-mono text-[11px] text-muted-foreground">
+        <div className="flex justify-between gap-2">
+          <dt>Version</dt>
+          <dd className="truncate">{version ?? '—'}</dd>
+        </div>
+        <div className="flex justify-between gap-2">
+          <dt>Uptime</dt>
+          <dd>{uptime === undefined ? '—' : formatUptime(uptime)}</dd>
+        </div>
+      </dl>
+    </div>
+  )
+}
+
 export function DashboardSidebar() {
   return (
-    <Sidebar
-      className="border-none! p-0.5 capitalio-dashboard"
-    >
-      <SidebarHeader className="mb-6 flex-row items-start gap-2 px-4 pt-6 pb-0">
+    <Sidebar className="border-none! p-0.5 capitalio-dashboard">
+      <SidebarHeader className="mb-4 flex-row items-start gap-2 px-4 pt-6 pb-0">
         <Brand />
       </SidebarHeader>
 
-      <SidebarContent className="gap-3 px-4 pb-4">
-        {sidebarSections.main.map((section) => (
-          <SidebarNavSection key={section.label} section={section} />
-        ))}
+      <SidebarContent className="gap-2 px-4 pb-4">
+        <SidebarNavSection section={operateSection} />
+        <SidebarNavSection section={manageSection} />
       </SidebarContent>
 
       <SidebarFooter className="gap-3 px-4 pt-0 pb-5">
-        <SidebarMenu className="gap-2">
-          {sidebarSections.footer.items.map((item) => (
-            <NavLinkButton key={item.name} item={item} />
-          ))}
-        </SidebarMenu>
-        <div className="border-t" />
-        <div className="flex min-w-0 items-center gap-3">
-          <Avatar className="size-10 rounded-lg after:rounded-lg">
-            <AvatarImage
-              src={currentUser.avatar}
-              className="rounded-lg"
-            />
-            <AvatarFallback className="rounded-lg">
-              {currentUser.initials}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="truncate text-base leading-none font-medium text-sidebar-accent-foreground">
-              {currentUser.name}
-            </span>
-            <span className="premium-badge">Premium</span>
-          </div>
-
-          <Button
-            size="icon"
-            variant="destructive"
-            className="bg-transparent! group"
-          >
-            <SidebarLogoutIcon className="size-4 opacity-70 group-hover:opacity-100 transition-colors" />
-          </Button>
-        </div>
+        <GatewayStatusCard />
       </SidebarFooter>
     </Sidebar>
   )
