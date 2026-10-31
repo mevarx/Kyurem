@@ -3,13 +3,17 @@ import { useTaskDetail } from "../api/hooks";
 import type { Event } from "../api/types";
 import { CostTable } from "../components/CostTable";
 import { DataTable, type DataTableColumn } from "../components/DataTable";
+import {
+  DashboardCard,
+  DetailHeader,
+} from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
-import { LoadingState } from "../components/LoadingState";
 import { RootCausePanel } from "../components/RootCausePanel";
 import { SpanTree } from "../components/SpanTree";
 import { SpanWaterfall } from "../components/SpanWaterfall";
 import { StatusBadge } from "../components/StatusBadge";
+import { TableSkeleton } from "../components/Skeleton";
 import { formatCost, formatDateTime, formatDuration, formatNumber } from "../lib/format";
 import { taskStatusTone } from "../lib/status";
 
@@ -22,7 +26,9 @@ export function TaskDetail() {
     return (
       <div className="page">
         <BackLink />
-        <LoadingState label="Loading task…" />
+        <DashboardCard aria-label="Task loading">
+          <TableSkeleton rows={8} />
+        </DashboardCard>
       </div>
     );
   }
@@ -112,35 +118,35 @@ export function TaskDetail() {
       </section>
 
       {task.error_message ? (
-        <section className="panel panel-error">
-          <h2>Error</h2>
+        <DashboardCard aria-label="Task error">
+          <DetailHeader title="Error" />
           <p>
             <strong>{task.error_type ?? "unknown"}</strong>: {task.error_message}
           </p>
-        </section>
+        </DashboardCard>
       ) : null}
 
       <RootCausePanel rootCause={root_cause} spans={spans} />
 
       <div className="panel-row">
-        <section className="panel" aria-labelledby="span-tree">
-          <h2 id="span-tree">Span tree</h2>
+        <DashboardCard aria-label="Span tree">
+          <DetailHeader title="Span tree" />
           <SpanTree spans={spans} highlightSpanIds={affectedSpanIds} />
-        </section>
+        </DashboardCard>
 
-        <section className="panel" aria-labelledby="span-waterfall">
-          <h2 id="span-waterfall">Timeline</h2>
+        <DashboardCard aria-label="Timeline">
+          <DetailHeader title="Timeline" />
           <SpanWaterfall spans={spans} />
-        </section>
+        </DashboardCard>
       </div>
 
-      <section className="panel" aria-labelledby="task-cost">
-        <h2 id="task-cost">Cost breakdown</h2>
+      <DashboardCard aria-label="Cost breakdown">
+        <DetailHeader title="Cost breakdown" />
         <CostTable report={cost} caption="Cost breakdown of this task" />
-      </section>
+      </DashboardCard>
 
-      <section className="panel" aria-labelledby="task-events">
-        <h2 id="task-events">Span events</h2>
+      <DashboardCard aria-label="Span events">
+        <DetailHeader title="Span events" />
         <DataTable
           caption="Events recorded for this task"
           columns={eventColumns}
@@ -149,7 +155,7 @@ export function TaskDetail() {
           emptyTitle="No events recorded"
           emptyDescription="The gateway recorded no policy or lifecycle events for this task."
         />
-      </section>
+      </DashboardCard>
     </div>
   );
 }

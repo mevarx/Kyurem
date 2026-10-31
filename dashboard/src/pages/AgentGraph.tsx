@@ -5,7 +5,11 @@ import type { AgentInfo, GraphNode } from "../api/types";
 import { AgentGraphCanvas } from "../components/AgentGraphCanvas";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
-import { LoadingState } from "../components/LoadingState";
+import { TableSkeleton } from "../components/Skeleton";
+import {
+  DashboardCard,
+  DetailHeader,
+} from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
 import { StatusBadge } from "../components/StatusBadge";
 import { TimeRangePicker } from "../components/TimeRangePicker";
 import { formatCost, formatDuration, formatNumber, formatPercent, formatRelativeTime } from "../lib/format";
@@ -40,7 +44,8 @@ export function AgentGraph() {
   return (
     <div className="page">
       <header className="page-header">
-        <div>
+        <div className="page-title-pair">
+          <span className="page-kicker">Operate</span>
           <h1>Agent graph</h1>
           <p className="page-subtitle">Who called whom, how often, and where it went wrong.</p>
         </div>
@@ -48,7 +53,9 @@ export function AgentGraph() {
       </header>
 
       {graphQuery.isPending ? (
-        <LoadingState label="Loading call graph…" />
+        <DashboardCard aria-label="Call graph loading">
+          <TableSkeleton rows={6} />
+        </DashboardCard>
       ) : graphQuery.isError ? (
         <ErrorState error={graphQuery.error} onRetry={() => void graphQuery.refetch()} />
       ) : (graphQuery.data?.nodes.length ?? 0) === 0 && (graphQuery.data?.edges.length ?? 0) === 0 ? (
@@ -58,7 +65,7 @@ export function AgentGraph() {
         />
       ) : (
         <div className="graph-layout">
-          <section className="panel graph-panel" aria-labelledby="graph-heading">
+          <DashboardCard aria-label="Call graph" className="p-2">
             <h2 id="graph-heading" className="sr-only">
               Call graph
             </h2>
@@ -69,13 +76,22 @@ export function AgentGraph() {
               selectedAgent={selected}
               onSelectAgent={(name) => setSelected(name)}
             />
-            <p className="muted graph-legend">
-              Edge label: call count · Edge colour: error rate · Hover an edge for p95 latency and cost.
+            <p className="graph-legend">
+              <span className="graph-legend-item">
+                <span className="graph-legend-line" aria-hidden="true" /> calls
+              </span>
+              <span className="graph-legend-item">
+                <span className="graph-legend-line graph-legend-line-warn" aria-hidden="true" /> errors &gt; 0
+              </span>
+              <span className="graph-legend-item">
+                <span className="graph-legend-line graph-legend-line-bad" aria-hidden="true" /> error rate ≥ 25%
+              </span>
+              <span>Hover an edge for p95 latency and cost.</span>
             </p>
-          </section>
+          </DashboardCard>
 
-          <aside className="panel graph-side-panel" aria-labelledby="agent-detail-heading">
-            <h2 id="agent-detail-heading">Agent</h2>
+          <DashboardCard aria-label="Agent details" className="graph-side-panel">
+            <DetailHeader title="Agent" subtitle="Select a node to inspect" />
             {selected === null ? (
               <EmptyState title="No agent selected" description="Click a node to inspect the agent." />
             ) : (
@@ -87,7 +103,7 @@ export function AgentGraph() {
                 errorsPending={errorsQuery.isPending}
               />
             )}
-          </aside>
+          </DashboardCard>
         </div>
       )}
     </div>

@@ -49,11 +49,11 @@ type AgentFlowEdge = Edge<AgentEdgeData, "agent">;
 const NODE_WIDTH = 220;
 const NODE_HEIGHT = 96;
 
-function AgentNode({ data }: NodeProps<AgentFlowNode>) {
+function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
   const cardStatus = data.cardStatus ?? "unknown";
   const verification = data.verification ?? "unknown";
   return (
-    <div className="graph-node">
+    <div className={`graph-node${selected ? " graph-node-selected" : ""}`}>
       <Handle type="target" position={Position.Left} />
       <div className="graph-node-head">
         <span className="graph-node-name">{data.name}</span>
@@ -89,9 +89,9 @@ function AgentNode({ data }: NodeProps<AgentFlowNode>) {
 }
 
 function edgeColor(errorRate: number): string {
-  if (errorRate >= 0.25) return "#d64545";
-  if (errorRate > 0) return "#d99b28";
-  return "#5b8c5a";
+  if (errorRate >= 0.25) return "var(--bad)";
+  if (errorRate > 0) return "var(--warn)";
+  return "#38BDF8";
 }
 
 function AgentEdge({
@@ -127,9 +127,10 @@ function AgentEdge({
         id={id}
         path={path}
         markerEnd={markerEnd}
+        className="graph-edge"
         style={{
           stroke: edgeColor(errorRate),
-          strokeWidth: Math.min(6, 1 + calls / 10),
+          strokeWidth: Math.min(6, 1.5 + calls / 10),
         }}
       >
         {tooltip ? <title>{tooltip}</title> : null}
@@ -255,8 +256,10 @@ export function AgentGraphCanvas({
         fitView
         minZoom={0.2}
         maxZoom={2}
+        colorMode="dark"
+        proOptions={{ hideAttribution: true }}
       >
-        <Background />
+        <Background gap={22} size={1.2} />
         <Controls />
         <MiniMap pannable zoomable />
       </ReactFlow>

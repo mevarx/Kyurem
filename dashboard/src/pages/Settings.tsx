@@ -3,7 +3,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "../api/hooks";
 import { getApiBaseUrl, getStoredToken, setStoredToken } from "../api/client";
 import { ErrorState } from "../components/ErrorState";
-import { LoadingState } from "../components/LoadingState";
+import { TableSkeleton } from "../components/Skeleton";
+import {
+  DashboardCard,
+  DetailHeader,
+} from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
 import { StatusBadge } from "../components/StatusBadge";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { formatNumber, formatUptime } from "../lib/format";
@@ -35,7 +39,8 @@ export function Settings() {
   return (
     <div className="page">
       <header className="page-header">
-        <div>
+        <div className="page-title-pair">
+          <span className="page-kicker">Manage</span>
           <h1>Settings</h1>
           <p className="page-subtitle">Gateway status and dashboard preferences.</p>
         </div>
@@ -46,15 +51,19 @@ export function Settings() {
       </header>
 
       {query.isPending ? (
-        <LoadingState label="Loading gateway status…" />
+        <DashboardCard aria-label="Gateway status loading">
+          <TableSkeleton rows={5} />
+        </DashboardCard>
       ) : query.isError ? (
         <ErrorState error={query.error} onRetry={() => void query.refetch()} title="Could not reach the gateway" />
       ) : !settings ? (
-        <LoadingState />
+        <DashboardCard aria-label="Gateway status loading">
+          <TableSkeleton rows={5} />
+        </DashboardCard>
       ) : (
         <>
-          <section className="panel" aria-labelledby="gateway-info">
-            <h2 id="gateway-info">Gateway</h2>
+          <DashboardCard aria-label="Gateway">
+            <DetailHeader title="Gateway" />
             <dl className="detail-grid">
               <div>
                 <dt>Service</dt>
@@ -85,10 +94,10 @@ export function Settings() {
                 <dd>{formatNumber(settings.agents)}</dd>
               </div>
             </dl>
-          </section>
+          </DashboardCard>
 
-          <section className="panel" aria-labelledby="telemetry-counters">
-            <h2 id="telemetry-counters">Telemetry</h2>
+          <DashboardCard aria-label="Telemetry">
+            <DetailHeader title="Telemetry" />
             <dl className="detail-grid">
               <div>
                 <dt>Exporting</dt>
@@ -152,10 +161,10 @@ export function Settings() {
                 ))}
               </ul>
             )}
-          </section>
+          </DashboardCard>
 
-          <section className="panel" aria-labelledby="storage-info">
-            <h2 id="storage-info">Storage</h2>
+          <DashboardCard aria-label="Storage">
+            <DetailHeader title="Storage" />
             <dl className="detail-grid">
               <div>
                 <dt>Driver</dt>
@@ -166,12 +175,12 @@ export function Settings() {
                 <dd>{settings.storage.database ?? "unknown"}</dd>
               </div>
             </dl>
-          </section>
+          </DashboardCard>
         </>
       )}
 
-      <section className="panel" aria-labelledby="dashboard-preferences">
-        <h2 id="dashboard-preferences">Dashboard</h2>
+      <DashboardCard aria-label="Dashboard preferences">
+        <DetailHeader title="Dashboard" />
         <dl className="detail-grid">
           <div>
             <dt>API base URL</dt>
@@ -213,7 +222,7 @@ export function Settings() {
           <span className="stat-label">Theme</span>
           <ThemeToggle />
         </div>
-      </section>
+      </DashboardCard>
     </div>
   );
 }

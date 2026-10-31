@@ -1,10 +1,15 @@
 import { useMemo, useState } from "react";
 import { StatusBadge } from "../components/StatusBadge";
 import { DataTable } from "../components/DataTable";
+import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
-import { LoadingState } from "../components/LoadingState";
+import { TableSkeleton } from "../components/Skeleton";
+import {
+  DashboardCard,
+  DetailHeader,
+} from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
 import { useDecisions, usePolicy } from "../api/hooks";
-import type { Decision, DecisionKind, PolicyMatrixCell, PolicyRule } from "../api/types";
+import type { DecisionKind, PolicyMatrixCell, PolicyRule } from "../api/types";
 import { decisionTone, policyModeTone } from "../lib/status";
 import { formatDateTime } from "../lib/format";
 
@@ -40,7 +45,8 @@ export function Policy() {
   return (
     <div className="page">
       <header className="page-header">
-        <div>
+        <div className="page-title-pair">
+          <span className="page-kicker">Manage</span>
           <h1>Policy &amp; audit</h1>
           <p className="page-subtitle">
             Authorization rules, the caller × callee matrix and recent decisions.
@@ -55,7 +61,9 @@ export function Policy() {
       </header>
 
       {policyQuery.isPending ? (
-        <LoadingState label="Loading policy…" />
+        <DashboardCard aria-label="Policy loading">
+          <TableSkeleton rows={4} />
+        </DashboardCard>
       ) : policyQuery.isError ? (
         <ErrorState
           error={policyQuery.error}
@@ -63,11 +71,13 @@ export function Policy() {
           title="Could not load policy"
         />
       ) : !policy ? (
-        <LoadingState />
+        <DashboardCard aria-label="Policy loading">
+          <TableSkeleton rows={4} />
+        </DashboardCard>
       ) : (
         <>
-          <section className="panel" aria-labelledby="policy-summary">
-            <h2 id="policy-summary">Summary</h2>
+          <DashboardCard aria-label="Policy summary">
+            <DetailHeader title="Summary" />
             <dl className="detail-grid">
               <div>
                 <dt>Mode</dt>
@@ -92,10 +102,10 @@ export function Policy() {
                 <dd>{policy.callees.length}</dd>
               </div>
             </dl>
-          </section>
+          </DashboardCard>
 
-          <section className="panel" aria-labelledby="policy-rules">
-            <h2 id="policy-rules">Rules</h2>
+          <DashboardCard aria-label="Policy rules">
+            <DetailHeader title="Rules" />
             {policy.rules.length === 0 ? (
               <p className="muted">No rules configured — the default applies.</p>
             ) : (
@@ -128,10 +138,10 @@ export function Policy() {
                 ]}
               />
             )}
-          </section>
+          </DashboardCard>
 
-          <section className="panel" aria-labelledby="policy-matrix">
-            <h2 id="policy-matrix">Caller × callee matrix</h2>
+          <DashboardCard aria-label="Caller by callee matrix">
+            <DetailHeader title="Caller × callee matrix" />
             {policy.callers.length === 0 || policy.callees.length === 0 ? (
               <p className="muted">No callers or callees configured.</p>
             ) : (
@@ -177,14 +187,14 @@ export function Policy() {
               Cells are evaluated without a skill; skill-scoped rules appear in
               the rule list above.
             </p>
-          </section>
+          </DashboardCard>
         </>
       )}
 
-      <section className="panel" aria-labelledby="decision-log">
-        <h2 id="decision-log">Recent decisions</h2>
-        <div className="filter-bar">
-          <div className="field">
+      <DashboardCard aria-label="Recent decisions">
+        <DetailHeader title="Recent decisions" subtitle="Newest audit events first" />
+        <div className="filter-bar" style={{ marginBottom: 12 }}>
+          <div className="field" style={{ flexGrow: 0, minWidth: 150 }}>
             <label htmlFor="decision-kind">Kind</label>
             <select
               id="decision-kind"
@@ -203,64 +213,47 @@ export function Policy() {
         </div>
 
         {decisionsQuery.isPending ? (
-          <LoadingState label="Loading decisions…" />
+          <TableSkeleton rows={6} />
         ) : decisionsQuery.isError ? (
           <ErrorState
             error={decisionsQuery.error}
             onRetry={() => void decisionsQuery.refetch()}
             title="Could not load decisions"
           />
-        ) : (
-          <DataTable<Decision>
-            caption="Recent decisions"
-            rows={decisionsQuery.data?.items ?? []}
-            rowKey={(item) => `${item.timestamp}-${item.caller}-${item.callee}`}
-            emptyTitle="No decisions recorded"
-            emptyDescription="The decision ring is process-local and starts empty after a restart."
-            columns={[
-              {
-                key: "time",
-                header: "Time",
-                render: (item) => formatDateTime(item.timestamp),
-              },
-              {
-                key: "kind",
-                header: "Kind",
-                render: (item) => (
-                  <StatusBadge label={item.kind} tone="neutral" />
-                ),
-              },
-              { key: "caller", header: "Caller", render: (item) => item.caller },
-              { key: "callee", header: "Callee", render: (item) => item.callee },
-              {
-                key: "skill",
-                header: "Skill",
-                render: (item) => item.skill || "—",
-              },
-              {
-                key: "decision",
-                header: "Decision",
-                render: (item) => (
-                  <StatusBadge
-                    label={item.decision}
-                    tone={decisionTone(item.decision)}
-                  />
-                ),
-              },
-              {
-                key: "mode",
-                header: "Mode",
-                render: (item) => item.mode || "—",
-              },
-              {
-                key: "reason",
-                header: "Reason",
-                render: (item) => item.reason || item.rule || "—",
-              },
-            ]}
+        ) : (decisionsQuery.data?.items?.length ?? 0) === 0 ? (
+          <EmptyState
+            title="No decisions recorded"
+            description="The decision ring is process-local and starts empty after a restart."
+            icon="shield"
           />
+        ) : (
+          <ol className="timeline">
+            {(decisionsQuery.data?.items ?? []).map((item) => {
+              const tone = decisionTone(item.decision);
+              const dotClass =
+                tone === "good" ? "timeline-dot-good" : tone === "bad" ? "timeline-dot-bad" : tone === "warn" ? "timeline-dot-warn" : "";
+              return (
+                <li key={`${item.timestamp}-${item.caller}-${item.callee}`} className="timeline-item">
+                  <span className={`timeline-dot ${dotClass}`.trim()} aria-hidden="true" />
+                  <div className="timeline-body">
+                    <div className="chip-row">
+                      <StatusBadge label={item.decision} tone={tone} />
+                      <StatusBadge label={item.kind} tone="neutral" />
+                      <span className="timeline-meta">
+                        {item.caller} → {item.callee}
+                        {item.skill ? ` · ${item.skill}` : ""}
+                        {item.mode ? ` · ${item.mode}` : ""}
+                      </span>
+                    </div>
+                    <span className="timeline-meta">{formatDateTime(item.timestamp)}</span>
+                    <span className="muted">{item.reason || item.rule || "—"}</span>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
         )}
-      </section>
+      </DashboardCard>
     </div>
   );
 }

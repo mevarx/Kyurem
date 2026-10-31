@@ -4,6 +4,9 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -12,8 +15,15 @@ import {
 import { useCosts } from "../api/hooks";
 import type { CostGroupBy } from "../api/types";
 import { CostTable } from "../components/CostTable";
+import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
-import { LoadingState } from "../components/LoadingState";
+import { TableSkeleton } from "../components/Skeleton";
+import {
+  DashboardCard,
+  DashboardChartTooltip,
+  DetailHeader,
+  DetailTag,
+} from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
 import { TimeRangePicker } from "../components/TimeRangePicker";
 import { downloadCsv, toCsv } from "../lib/csv";
 import { formatCost, formatNumber } from "../lib/format";
@@ -25,6 +35,10 @@ const GROUP_OPTIONS: Array<{ value: CostGroupBy; label: string }> = [
   { value: "task", label: "Task" },
   { value: "window", label: "Time window" },
 ];
+
+const DONUT_COLORS = ["#7DD3FC", "#38BDF8", "#22C55E", "#F59E0B", "#EF4444", "#8B93A7", "#596074"];
+
+const MONTHLY_BUDGET_USD = Number(import.meta.env.VITE_KYUREM_MONTHLY_BUDGET_USD ?? 500);
 
 /** Cost and token report with grouping and CSV export. */
 export function Costs() {
@@ -39,11 +53,22 @@ export function Costs() {
     () =>
       (report?.buckets ?? []).slice(0, 20).map((bucket) => ({
         key: bucket.key,
-        cost_usd: bucket.cost_usd,
+        cost_usd: bucket.cost_usd ?? 0,
         spans: bucket.spans,
       })),
     [report],
   );
+
+  const donutData = useMemo(() => {
+    const top = chartData.slice(0, 6);
+    const rest = chartData.slice(6).reduce((sum, b) => sum + b.cost_usd, 0);
+    const out = top.map((b) => ({ name: b.key, value: b.cost_usd }));
+    if (rest > 0) out.push({ name: "Other", value: rest });
+    return out;
+  }, [chartData]);
+
+  const total = report?.total_usd ?? 0;
+  const budgetRatio = MONTHLY_BUDGET_USD > 0 ? Math.min(1, total / MONTHLY_BUDGET_USD) : 0;
 
   const exportCsv = () => {
     if (!report) return;
@@ -64,82 +89,153 @@ export function Costs() {
   return (
     <div className="page">
       <header className="page-header">
-        <div>
+        <div className="page-title-pair">
+          <span className="page-kicker">Manage</span>
           <h1>Costs</h1>
           <p className="page-subtitle">What the selected window cost — and who spent it.</p>
         </div>
         <TimeRangePicker value={range} onChange={setRange} idPrefix="costs-range" />
       </header>
 
-      <section className="panel" aria-labelledby="cost-controls">
-        <h2 id="cost-controls" className="sr-only">
-          Grouping
-        </h2>
-        <div className="filter-bar">
-          <div className="field">
-            <label htmlFor="cost-group-by">Group by</label>
-            <select
-              id="cost-group-by"
-              value={groupBy}
-              onChange={(event) => setGroupBy(event.target.value as CostGroupBy)}
-            >
-              {GROUP_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field field-end">
-            <button
-              type="button"
-              className="button button-primary"
-              onClick={exportCsv}
-              disabled={!report || report.buckets.length === 0}
-            >
-              Export CSV
-            </button>
-          </div>
+      <section className="filter-toolbar" aria-label="Cost controls">
+        <div className="field" style={{ flexGrow: 0, minWidth: 150 }}>
+          <label htmlFor="cost-group-by">Group by</label>
+          <select
+            id="cost-group-by"
+            value={groupBy}
+            onChange={(event) => setGroupBy(event.target.value as CostGroupBy)}
+          >
+            {GROUP_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field field-end" style={{ flexGrow: 0 }}>
+          <button
+            type="button"
+            className="button button-primary"
+            onClick={exportCsv}
+            disabled={!report || report.buckets.length === 0}
+          >
+            Export CSV
+          </button>
         </div>
       </section>
 
       {query.isPending ? (
-        <LoadingState label="Loading costs…" />
+        <DashboardCard aria-label="Costs loading">
+          <TableSkeleton rows={6} />
+        </DashboardCard>
       ) : query.isError ? (
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : !report ? (
-        <LoadingState />
+        <EmptyState title="No cost data for this window" icon="coins" />
       ) : (
         <>
-          <section className="panel" aria-labelledby="cost-chart">
-            <h2 id="cost-chart">Cost per {groupBy}</h2>
-            {chartData.length === 0 ? (
-              <p className="muted">No cost data for this window.</p>
-            ) : (
-              <div className="chart-frame">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="key" tick={{ fontSize: 11 }} interval={0} angle={-20} height={60} />
-                    <YAxis tick={{ fontSize: 12 }} tickFormatter={(value: number) => formatCost(value)} />
-                    <Tooltip
-                      formatter={(value) => formatCost(typeof value === "number" ? value : null)}
-                    />
-                    <Bar dataKey="cost_usd" fill="#4a7ebb" name="cost" />
-                  </BarChart>
-                </ResponsiveContainer>
+          <DashboardCard aria-label="Monthly budget">
+            <DetailHeader title="Monthly budget" subtitle="Window spend vs the configured budget">
+              <DetailTag color="var(--chart-1)">
+                {formatCost(total)} of {formatCost(MONTHLY_BUDGET_USD)}
+              </DetailTag>
+            </DetailHeader>
+            <div className="budget-wrap" role="progressbar" aria-valuenow={Math.round(budgetRatio * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Budget used">              <div className="budget-track">
+                <div className="budget-fill" style={{ width: `${budgetRatio * 100}%` }} />
               </div>
-            )}
-          </section>
+              <div className="budget-labels">
+                <span>{Math.round(budgetRatio * 100)}% used</span>
+                <span>{formatCost(Math.max(0, MONTHLY_BUDGET_USD - total))} left</span>
+              </div>
+            </div>
+          </DashboardCard>
 
-          <section className="panel" aria-labelledby="cost-table">
-            <h2 id="cost-table">Breakdown</h2>
-            <CostTable report={report} groupLabel={groupBy} />
-          </section>
+          <div className="panel-row">
+            <DashboardCard aria-label={`Cost per ${groupBy}`}>
+              <DetailHeader title={`Cost per ${groupBy}`} subtitle="Stacked by group, top 20" />
+              {chartData.length === 0 ? (
+                <EmptyState title="No cost data for this window" icon="coins" />
+              ) : (
+                <div className="chart-frame">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
+                      <defs>
+                        <linearGradient id="costFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#7DD3FC" stopOpacity={0.95} />
+                          <stop offset="100%" stopColor="#38BDF8" stopOpacity={0.55} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-strong)" />
+                      <XAxis dataKey="key" tick={{ fontSize: 11 }} interval={0} angle={-20} height={60} tickLine={false} axisLine={false} />
+                      <YAxis tick={{ fontSize: 11 }} width={56} tickFormatter={(value: number) => formatCost(value)} tickLine={false} axisLine={false} />
+                      <Tooltip
+                        cursor={false}
+                        content={
+                          <DashboardChartTooltip
+                            colors={{ cost_usd: "var(--chart-1)" }}
+                            names={{ cost_usd: "cost" }}
+                            valueFormatter={(value) => formatCost(typeof value === "number" ? value : null)}
+                          />
+                        }
+                      />
+                      <Bar dataKey="cost_usd" fill="url(#costFill)" name="cost" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </DashboardCard>
+
+            <DashboardCard aria-label="Share of spend">
+              <DetailHeader title="Share of spend" subtitle="Top groups by cost" />
+              {donutData.length === 0 ? (
+                <EmptyState title="No cost data for this window" icon="coins" />
+              ) : (
+                <>
+                  <div className="chart-frame" style={{ height: 220 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Tooltip
+                          cursor={false}
+                          content={
+                            <DashboardChartTooltip
+                              valueFormatter={(value) => formatCost(typeof value === "number" ? value : null)}
+                            />
+                          }
+                        />
+                        <Pie data={donutData} dataKey="value" nameKey="name" innerRadius="62%" outerRadius="90%" paddingAngle={2} strokeWidth={0}>
+                          {donutData.map((entry, i) => (
+                            <Cell key={entry.name} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="donut-legend">
+                    {donutData.slice(0, 6).map((entry, i) => (
+                      <div key={entry.name} className="donut-legend-row">
+                        <span className="donut-swatch" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} aria-hidden="true" />
+                        {entry.name}
+                        <span className="mono">{formatCost(entry.value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </DashboardCard>
+          </div>
+
+          <DashboardCard aria-label="Breakdown" className="overflow-hidden p-0">
+            <div className="p-4 pb-0">
+              <DetailHeader title="Breakdown" subtitle={`Per ${groupBy}, with tokens and spans`} />
+            </div>
+            <div className="p-3">
+              <CostTable report={report} groupLabel={groupBy} />
+            </div>
+          </DashboardCard>
 
           {groupBy === "task" ? (
-            <section className="panel" aria-labelledby="cost-task-links">
-              <h2 id="cost-task-links">Tasks in this report</h2>
+            <DashboardCard aria-label="Tasks in this report">
+              <DetailHeader title="Tasks in this report" subtitle="Jump straight to the trace" />
               <ul className="task-list">
                 {report.buckets.map((bucket) => (
                   <li key={bucket.key} className="task-list-item">
@@ -151,7 +247,7 @@ export function Costs() {
                   </li>
                 ))}
               </ul>
-            </section>
+            </DashboardCard>
           ) : (
             <p className="muted">
               {formatNumber(report.spans)} spans counted · {formatNumber(report.unknown_spans)} spans without usage

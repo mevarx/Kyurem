@@ -2,6 +2,10 @@ import { useMemo, useState } from "react";
 import type { RootCause, Span } from "../api/types";
 import { EmptyState } from "./EmptyState";
 import { StatusBadge } from "./StatusBadge";
+import {
+  DashboardCard,
+  DetailHeader,
+} from "./watermelon/capitalio-dashboard/components/capitalio/shared";
 
 export interface RootCausePanelProps {
   rootCause: RootCause | null | undefined;
@@ -39,22 +43,21 @@ export function RootCausePanel({ rootCause, spans = [] }: RootCausePanelProps) {
 
   if (!rootCause) {
     return (
-      <section className="panel" aria-labelledby="root-cause-heading">
-        <h2 id="root-cause-heading">Root cause</h2>
+      <DashboardCard aria-label="Root cause">
+        <DetailHeader title="Root cause" />
         <EmptyState
           title="No root cause identified"
           description="The gateway found no failing span on the critical path of this task."
         />
-      </section>
+      </DashboardCard>
     );
   }
 
   return (
-    <section className="panel root-cause-panel" aria-labelledby="root-cause-heading">
-      <div className="panel-header">
-        <h2 id="root-cause-heading">Root cause</h2>
+    <DashboardCard aria-label="Root cause" className="root-cause-panel">
+      <DetailHeader title="Root cause">
         <StatusBadge label="heuristic hint, not a verdict" tone="warn" />
-      </div>
+      </DetailHeader>
 
       <p className="root-cause-message">{rootCause.message}</p>
 
@@ -105,6 +108,6 @@ export function RootCausePanel({ rootCause, spans = [] }: RootCausePanelProps) {
           Span <code>{rootCause.span_id}</code>
         </p>
       ) : null}
-    </section>
+    </DashboardCard>
   );
 }

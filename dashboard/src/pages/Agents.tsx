@@ -2,8 +2,14 @@ import { useState } from "react";
 import { useAgents } from "../api/hooks";
 import type { AgentInfo } from "../api/types";
 import { DataTable, type DataTableColumn } from "../components/DataTable";
+import {
+  DashboardCard,
+  DetailHeader,
+  DetailTag,
+} from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
+import { AgentAvatar } from "../components/CopyableId";
 import { ErrorState } from "../components/ErrorState";
-import { LoadingState } from "../components/LoadingState";
+import { TableSkeleton } from "../components/Skeleton";
 import { StatusBadge } from "../components/StatusBadge";
 import { TimeRangePicker } from "../components/TimeRangePicker";
 import { formatCost, formatDuration, formatNumber, formatPercent, formatRelativeTime } from "../lib/format";
@@ -21,7 +27,12 @@ export function Agents() {
     {
       key: "name",
       header: "Agent",
-      render: (agent) => <span className="mono">{agent.name}</span>,
+      render: (agent) => (
+        <span className="agent-cell">
+          <AgentAvatar name={agent.name} />
+          <span className="mono">{agent.name}</span>
+        </span>
+      ),
     },
     {
       key: "aliases",
@@ -109,7 +120,8 @@ export function Agents() {
   return (
     <div className="page">
       <header className="page-header">
-        <div>
+        <div className="page-title-pair">
+          <span className="page-kicker">Manage</span>
           <h1>Agents</h1>
           <p className="page-subtitle">Registry, cards and traffic of every known agent.</p>
         </div>
@@ -117,24 +129,29 @@ export function Agents() {
       </header>
 
       {query.isPending ? (
-        <LoadingState label="Loading agents…" />
+        <DashboardCard aria-label="Agents loading">
+          <TableSkeleton rows={6} />
+        </DashboardCard>
       ) : query.isError ? (
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : (
-        <section className="panel" aria-labelledby="agent-table">
-          <div className="panel-header">
-            <h2 id="agent-table">Registered agents</h2>
-            <span className="muted">{formatNumber(rows.length)} agents</span>
+        <DashboardCard aria-label="Registered agents" className="overflow-hidden p-0">
+          <div className="p-4 pb-0">
+            <DetailHeader title="Registered agents" subtitle="Cards, verification and traffic">
+              <DetailTag>{formatNumber(rows.length)} agents</DetailTag>
+            </DetailHeader>
           </div>
-          <DataTable
-            caption="Agents registered in the Kyurem gateway"
-            columns={columns}
-            rows={rows}
-            rowKey={(agent) => agent.name}
-            emptyTitle="No agents registered"
-            emptyDescription="The gateway does not know any agent yet."
-          />
-        </section>
+          <div className="p-3">
+            <DataTable
+              caption="Agents registered in the Kyurem gateway"
+              columns={columns}
+              rows={rows}
+              rowKey={(agent) => agent.name}
+              emptyTitle="No agents registered"
+              emptyDescription="The gateway does not know any agent yet."
+            />
+          </div>
+        </DashboardCard>
       )}
     </div>
   );

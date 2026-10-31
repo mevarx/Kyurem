@@ -1,10 +1,9 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Bar,
-  BarChart,
+  Area,
+  AreaChart,
   CartesianGrid,
-  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -12,24 +11,24 @@ import {
 } from "recharts";
 import { LIVE_REFETCH_INTERVAL_MS, useOverview } from "../api/hooks";
 import type { Overview as OverviewData } from "../api/types";
+import {
+  DashboardCard,
+  DashboardChartTooltip,
+  DetailHeader,
+  DetailTag,
+} from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
-import { LoadingState } from "../components/LoadingState";
-import { StatCard } from "../components/StatCard";
+import { Sparkline } from "../components/Sparkline";
+import { OverviewSkeleton } from "../components/Skeleton";
 import { StatusBadge } from "../components/StatusBadge";
 import { TimeRangePicker } from "../components/TimeRangePicker";
+import { useCountUp } from "../lib/useCountUp";
 import { formatCost, formatDuration, formatNumber, formatPercent, formatTime } from "../lib/format";
 import { taskStatusTone } from "../lib/status";
 import { DEFAULT_TIME_RANGE, toApiWindow, type TimeRange } from "../lib/time";
 
-const SERIES = {
-  succeeded: "#4f9d69",
-  failed: "#d64545",
-  unknown: "#8a8f98",
-  cost: "#4a7ebb",
-} as const;
-
-/** Dashboard landing page: headline numbers, trends and recent failures. */
+/** Dashboard landing page: headline KPIs, throughput and recent failures. */
 export function Overview() {
   const [range, setRange] = useState<TimeRange>(DEFAULT_TIME_RANGE);
   const query = useOverview(toApiWindow(range), { refetchInterval: LIVE_REFETCH_INTERVAL_MS });
@@ -39,6 +38,7 @@ export function Overview() {
     () =>
       (data?.tasks_over_time ?? []).map((bucket) => ({
         label: formatTime(bucket.bucket),
+        total: bucket.succeeded + bucket.failed + bucket.unknown,
         succeeded: bucket.succeeded,
         failed: bucket.failed,
         unknown: bucket.unknown,
@@ -46,39 +46,16 @@ export function Overview() {
     [data],
   );
 
-  const costChart = useMemo(
-    () =>
-      (data?.cost_over_time ?? []).map((bucket) => ({
-        label: formatTime(bucket.bucket),
-        cost_usd: bucket.cost_usd,
-      })),
-    [data],
-  );
+  const throughputTotals = useMemo(() => taskChart.map((b) => b.total), [taskChart]);
+  const spendSeries = useMemo(() => (data?.cost_over_time ?? []).map((b) => b.cost_usd ?? 0), [data]);
 
-  const agentCostChart = useMemo(
-    () =>
-      (data?.top_agents_by_cost ?? []).map((bucket) => ({
-        key: bucket.key,
-        cost_usd: bucket.cost_usd,
-      })),
-    [data],
-  );
-
-  const failingChart = useMemo(
-    () =>
-      (data?.top_failing_agents ?? []).map((agent) => ({
-        name: agent.name,
-        errors: agent.errors,
-        error_rate: agent.error_rate,
-      })),
-    [data],
-  );
+  const successRate = data?.tasks_total ? (data.tasks_succeeded / data.tasks_total) : null;
 
   if (query.isPending) {
     return (
       <div className="page">
         <PageHeader range={range} onRangeChange={setRange} />
-        <LoadingState label="Loading overview…" />
+        <OverviewSkeleton />
       </div>
     );
   }
@@ -98,118 +75,152 @@ export function Overview() {
     <div className="page">
       <PageHeader range={range} onRangeChange={setRange} />
 
-      <section className="stat-grid" aria-label="Summary">
-        <StatCard label="Tasks" value={formatNumber(overview?.tasks_total)} />
-        <StatCard label="Succeeded" value={formatNumber(overview?.tasks_succeeded)} tone="good" />
-        <StatCard label="Failed" value={formatNumber(overview?.tasks_failed)} tone="bad" />
-        <StatCard label="Error rate" value={formatPercent(overview?.error_rate)} />
-        <StatCard label="p50 task duration" value={formatDuration(overview?.p50_task_duration_ms)} />
-        <StatCard label="p95 task duration" value={formatDuration(overview?.p95_task_duration_ms)} />
-        <StatCard label="Total cost" value={formatCost(overview?.total_cost_usd)} />
-        <StatCard label="Active agents" value={formatNumber(overview?.active_agents)} />
-        <StatCard label="Spans" value={formatNumber(overview?.spans_total)} />
-      </section>
-
-      <section className="panel" aria-labelledby="tasks-over-time">
-        <h2 id="tasks-over-time">Tasks over time</h2>
-        {taskChart.length === 0 ? (
-          <EmptyState title="No tasks in this window" description="Nothing was recorded for the selected range." />
-        ) : (
-          <div className="chart-frame">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={taskChart} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="succeeded" stackId="tasks" fill={SERIES.succeeded} name="succeeded" />
-                <Bar dataKey="failed" stackId="tasks" fill={SERIES.failed} name="failed" />
-                <Bar dataKey="unknown" stackId="tasks" fill={SERIES.unknown} name="unknown" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
+      <section className="kpi-grid" aria-label="Key indicators">
+        <KpiCard
+          label="Requests"
+          value={formatNumber(overview?.tasks_total)}
+          numeric={overview?.tasks_total ?? null}
+          format={(v) => formatNumber(Math.round(v))}
+          pill={<DeltaPill change={halfChange(throughputTotals)} suffix="vs 1st half" />}
+          hint={`${formatNumber(overview?.tasks_succeeded)} succeeded`}
+          sparkValues={throughputTotals}
+        />
+        <KpiCard
+          label="Success rate"
+          value={successRate === null ? "unknown" : formatPercent(successRate)}
+          numeric={successRate === null ? null : successRate * 100}
+          format={(v) => `${v.toFixed(1)}%`}
+          pill={<DeltaPill change={halfChange(taskChart.map((b) => b.succeeded))} suffix="volume" />}
+          hint={`${formatNumber(overview?.tasks_failed)} failed`}
+          sparkValues={taskChart.map((b) => (b.total === 0 ? 0 : b.succeeded / b.total))}
+          sparkStroke="var(--good)"
+        />
+        <KpiCard
+          label="p95 latency"
+          value={formatDuration(overview?.p95_task_duration_ms)}
+          numeric={null}
+          hint={`p50 ${formatDuration(overview?.p50_task_duration_ms)}`}
+          sparkValues={[]}
+          accent
+        />
+        <KpiCard
+          label="Active agents"
+          value={formatNumber(overview?.active_agents)}
+          numeric={overview?.active_agents ?? null}
+          format={(v) => formatNumber(Math.round(v))}
+          pill={<span className="pill pill-neutral">live</span>}
+          hint={`${formatNumber(overview?.spans_total)} spans`}
+          sparkValues={[]}
+        />
+        <KpiCard
+          label="Spend"
+          value={formatCost(overview?.total_cost_usd)}
+          numeric={overview?.total_cost_usd ?? null}
+          format={(v) =>
+            formatCost(overview?.total_cost_usd === null || overview?.total_cost_usd === undefined ? null : v)
+          }
+          pill={<DeltaPill change={halfChange(spendSeries)} suffix="vs 1st half" />}
+          hint="Selected window"
+          sparkValues={spendSeries}
+        />
       </section>
 
       <div className="panel-row">
-        <section className="panel" aria-labelledby="cost-over-time">
-          <h2 id="cost-over-time">Cost over time</h2>
-          {costChart.length === 0 ? (
-            <EmptyState title="No cost data in this window" />
+        <DashboardCard aria-label="Throughput">
+          <DetailHeader title="Throughput" subtitle="Requests per bucket across the window">
+            <DetailTag color="var(--chart-1)">
+              {formatNumber(overview?.tasks_total)} tasks · {formatPercent(overview?.error_rate)} errors
+            </DetailTag>
+          </DetailHeader>
+          <div id="throughput" className="sr-only">Throughput</div>
+          {taskChart.length === 0 ? (
+            <EmptyState
+              title="No tasks in this window"
+              description="Nothing was recorded for the selected range."
+              icon="search"
+            />
           ) : (
-            <div className="chart-frame">
+            <div className="chart-frame chart-frame-main">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={costChart} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(value: number) => formatCost(value)} />
+                <AreaChart data={taskChart} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
+                  <defs>
+                    <linearGradient id="tputFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#38BDF8" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#38BDF8" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-strong)" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" tickLine={false} axisLine={false} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={44} tickLine={false} axisLine={false} />
                   <Tooltip
-                    formatter={(value) => formatCost(typeof value === "number" ? value : null)}
+                    cursor={false}
+                    content={
+                      <DashboardChartTooltip
+                        colors={{ total: "var(--chart-1)" }}
+                        names={{ total: "requests" }}
+                      />
+                    }
                   />
-                  <Bar dataKey="cost_usd" fill={SERIES.cost} name="cost" />
-                </BarChart>
+                  <Area
+                    type="monotone"
+                    dataKey="total"
+                    name="requests"
+                    stroke="#7DD3FC"
+                    strokeWidth={2}
+                    fill="url(#tputFill)"
+                    dot={false}
+                    activeDot={{ r: 4, fill: "#7DD3FC", stroke: "#06202E" }}
+                  />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           )}
-        </section>
+        </DashboardCard>
 
-        <section className="panel" aria-labelledby="top-agents-cost">
-          <h2 id="top-agents-cost">Top agents by cost</h2>
-          {agentCostChart.length === 0 ? (
-            <EmptyState title="No agent cost data" />
+        <DashboardCard aria-label="Top agents">
+          <DetailHeader title="Top agents" subtitle="Ranked by spend in this window">
+            <DetailTag>Ranked list</DetailTag>
+          </DetailHeader>
+          {(data?.top_agents_by_cost?.length ?? 0) === 0 ? (
+            <EmptyState title="No agent cost data" icon="coins" />
           ) : (
-            <div className="chart-frame">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={agentCostChart}
-                  layout="vertical"
-                  margin={{ top: 8, right: 24, bottom: 8, left: 24 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 12 }} tickFormatter={(value: number) => formatCost(value)} />
-                  <YAxis type="category" dataKey="key" width={120} tick={{ fontSize: 12 }} />
-                  <Tooltip
-                    formatter={(value) => formatCost(typeof value === "number" ? value : null)}
-                  />
-                  <Bar dataKey="cost_usd" fill={SERIES.cost} name="cost" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <RankedBars
+              rows={(data?.top_agents_by_cost ?? []).slice(0, 8).map((bucket) => ({
+                key: bucket.key,
+                display: formatCost(bucket.cost_usd),
+                ratio: maxBy(data?.top_agents_by_cost ?? [], (b) => b.cost_usd ?? 0),
+                value: bucket.cost_usd ?? 0,
+                accent: true,
+              }))}
+            />
           )}
-        </section>
+        </DashboardCard>
       </div>
 
       <div className="panel-row">
-        <section className="panel" aria-labelledby="top-failing-agents">
-          <h2 id="top-failing-agents">Top failing agents</h2>
-          {failingChart.length === 0 ? (
-            <EmptyState title="No agent failures in this window" />
+        <DashboardCard aria-label="Top failing agents">
+          <DetailHeader title="Top failing agents" subtitle="Where the errors concentrate">
+            <DetailTag color="var(--destructive)">{formatNumber(overview?.tasks_failed)} failures</DetailTag>
+          </DetailHeader>
+          {(data?.top_failing_agents?.length ?? 0) === 0 ? (
+            <EmptyState title="No agent failures in this window" icon="check" />
           ) : (
-            <div className="chart-frame">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={failingChart}
-                  layout="vertical"
-                  margin={{ top: 8, right: 24, bottom: 8, left: 24 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
-                  <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12 }} />
-                  <Tooltip
-                    formatter={(value, name) =>
-                      name === "errors" ? formatNumber(Number(value)) : formatPercent(Number(value))
-                    }
-                  />
-                  <Bar dataKey="errors" fill={SERIES.failed} name="errors" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <RankedBars
+              rows={(data?.top_failing_agents ?? []).slice(0, 8).map((agent) => ({
+                key: agent.name,
+                display: `${formatNumber(agent.errors)} · ${formatPercent(agent.error_rate)}`,
+                ratio: maxBy(data?.top_failing_agents ?? [], (a) => a.errors),
+                value: agent.errors,
+                bad: true,
+              }))}
+            />
           )}
-        </section>
+        </DashboardCard>
 
-        <section className="panel" aria-labelledby="recent-failed-tasks">
-          <h2 id="recent-failed-tasks">Recent failed tasks</h2>
+        <DashboardCard aria-label="Recent failed tasks">
+          <DetailHeader title="Recent failed tasks" subtitle="Newest failures first">
+            <Link className="back-link" to="/tasks">All tasks</Link>
+          </DetailHeader>
           {overview && overview.recent_failed_tasks.length > 0 ? (
             <ul className="task-list">
               {overview.recent_failed_tasks.map((task) => (
@@ -228,11 +239,111 @@ export function Overview() {
               ))}
             </ul>
           ) : (
-            <EmptyState title="No failed tasks" description="Nothing failed in the selected window." />
+            <EmptyState title="No failed tasks" description="Nothing failed in the selected window." icon="check" />
           )}
-        </section>
+        </DashboardCard>
       </div>
     </div>
+  );
+}
+
+/** Relative change of the second half vs the first half of a series. */
+function halfChange(values: number[]): number | null {
+  if (values.length < 4) return null;
+  const mid = Math.floor(values.length / 2);
+  const first = values.slice(0, mid).reduce((a, b) => a + b, 0);
+  const second = values.slice(mid).reduce((a, b) => a + b, 0);
+  if (first <= 0) return second > 0 ? 1 : null;
+  return (second - first) / first;
+}
+
+function maxBy<T>(rows: T[], pick: (row: T) => number): number {
+  return rows.reduce((max, row) => Math.max(max, pick(row)), 0);
+}
+
+function DeltaPill({ change, suffix }: { change: number | null; suffix: string }) {
+  if (change === null || !Number.isFinite(change)) {
+    return <span className="pill pill-neutral">— {suffix}</span>;
+  }
+  const up = change >= 0;
+  const tone = up ? "pill-bad" : "pill-good";
+  const sign = up ? "+" : "−";
+  return (
+    <span className={`pill ${tone}`}>
+      {sign}
+      {Math.abs(change * 100).toFixed(0)}% {suffix}
+    </span>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  numeric,
+  format,
+  pill,
+  hint,
+  sparkValues,
+  sparkStroke,
+  accent,
+}: {
+  label: string;
+  value: string;
+  numeric: number | null;
+  format?: (v: number) => string;
+  pill?: React.ReactNode;
+  hint?: string;
+  sparkValues: number[];
+  sparkStroke?: string;
+  accent?: boolean;
+}) {
+  const animated = useCountUp(numeric ?? Number.NaN);
+  const display =
+    numeric === null || !Number.isFinite(numeric) || !format ? value : format(animated);
+  return (
+    <div className="card panel-gradient kpi-card">
+      <div className="kpi-top">
+        <span className="kpi-label">{label}</span>
+        {pill}
+      </div>
+      <span className={`kpi-value${accent ? " kpi-value-accent" : ""}`}>{display}</span>
+      {hint ? <span className="kpi-hint">{hint}</span> : null}
+      <Sparkline values={sparkValues} stroke={sparkStroke} />
+    </div>
+  );
+}
+
+interface RankedRow {
+  key: string;
+  display: string;
+  ratio: number;
+  value: number;
+  accent?: boolean;
+  bad?: boolean;
+}
+
+function RankedBars({ rows }: { rows: RankedRow[] }) {
+  const max = rows.reduce((m, r) => Math.max(m, r.ratio), 0) || 1;
+  return (
+    <ol className="ranked-list">
+      {rows.map((row, index) => (
+        <li key={row.key} className={`ranked-row${index === 0 ? " ranked-row-top" : ""}`}>
+          <span className="ranked-name">
+            <span className="avatar" aria-hidden="true">
+              {row.key.slice(0, 2).toUpperCase()}
+            </span>
+            {row.key}
+          </span>
+          <span className="ranked-value">{row.display}</span>
+          <span className="ranked-bar-track" aria-hidden="true">
+            <span
+              className={`ranked-bar-fill${row.bad ? " ranked-bar-fill-bad" : row.accent ? " ranked-bar-fill-accent" : ""}`}
+              style={{ width: `${Math.max(4, Math.min(100, (row.value / max) * 100))}%`, display: "block" }}
+            />
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -245,9 +356,10 @@ function PageHeader({
 }) {
   return (
     <header className="page-header">
-      <div>
+      <div className="page-title-pair">
+        <span className="page-kicker">Operate</span>
         <h1>Overview</h1>
-        <p className="page-subtitle">What happened in the Kyurem gateway.</p>
+        <p className="page-subtitle">Tasks, traces, cost and policy across every agent in the selected window.</p>
       </div>
       <TimeRangePicker value={range} onChange={onRangeChange} idPrefix="overview-range" />
     </header>
