@@ -89,9 +89,9 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
 }
 
 function edgeColor(errorRate: number): string {
-  if (errorRate >= 0.25) return "var(--bad)";
-  if (errorRate > 0) return "var(--warn)";
-  return "#38BDF8";
+  if (errorRate >= 0.25) return "var(--danger)";
+  if (errorRate > 0) return "var(--warning)";
+  return "var(--primary)";
 }
 
 function AgentEdge({

@@ -10,7 +10,7 @@ export interface SparklineProps {
 }
 
 /** Minimal SVG sparkline with gradient fill and a glowing end dot. */
-export function Sparkline({ values, stroke = "var(--accent-glow)", width = 220, height = 40 }: SparklineProps) {
+export function Sparkline({ values, stroke = "var(--primary)", width = 220, height = 40 }: SparklineProps) {
   const id = useId().replace(/[^a-zA-Z0-9]/g, "");
   if (values.length < 2) {
     return (

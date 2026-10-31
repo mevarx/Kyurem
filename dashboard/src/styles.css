@@ -1,104 +1,218 @@
 /* Tailwind v4 (utilities + @theme for the shadcn primitives). */
 @import "tailwindcss";
 
-/* ================================================================== *
- * Kyurem mission-control theme.
- * Dark-first. Depth from layered surfaces + hairline borders.
- * Accent: ice cyan #7DD3FC, glow #38BDF8.
- * ================================================================== */
-
 @custom-variant dark (&:is(.dark *));
 
-:root {
+/* ================================================================== *
+
+/* ================================================================== *
+ * Kyurem theme tokens — the single source of truth.
+ * Canonical names are the shadcn set (--background, --card, --primary,
+ * --accent, --border, --sidebar-*) because every primitive consumes them.
+ * Components must only ever use these tokens; no color literals.
+ * ================================================================== */
+
+:root,
+.dark {
   color-scheme: dark;
 
   --font-sans: "Inter", "Geist", "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", "Geist Mono", "SFMono-Regular", Consolas, monospace;
 
-  --bg: #07090f;
-  --surface: #0d111a;
+  /* Surfaces */
+  --background: #07090f;
+  --card: #0d111a;
+  --popover: #131825;
   --surface-raised: #131825;
-  --surface-overlay: #171e2e;
   --surface-sunken: #05070c;
 
-  --border: rgb(255 255 255 / 6%);
-  --border-strong: rgb(255 255 255 / 12%);
+  /* Lines */
+  --border: var(--border);
+  --border-strong: rgb(255 255 255 / 14%);
+  --input: rgb(255 255 255 / 14%);
 
-  --accent: #7dd3fc;
-  --accent-glow: #38bdf8;
-  --accent-ink: #06202e;
-  --accent-soft: rgb(125 211 252 / 12%);
+  /* Text */
+  --foreground: #f5f7fa;
+  --muted-foreground: #a3abbd;
+  --text-subtle: #7b8499;
 
-  --good: #22c55e;
-  --good-soft: rgb(34 197 94 / 13%);
-  --warn: #f59e0b;
-  --warn-soft: rgb(245 158 11 / 13%);
-  --bad: #ef4444;
-  --bad-soft: rgb(239 68 68 / 13%);
-  --neutral: #8b93a7;
-  --neutral-soft: rgb(139 147 167 / 13%);
+  /* Brand */
+  --primary: #7dd3fc;
+  --primary-foreground: #06222f;
+  --primary-glow: #38bdf8;
+  --ring: #7dd3fc;
+
+  /* Hover / active surface pair (shadcn semantics) */
+  --accent: rgb(125 211 252 / 10%);
+  --accent-foreground: #e6f6ff;
+  --muted: rgb(255 255 255 / 6%);
+  --secondary: #131825;
+  --secondary-foreground: #f5f7fa;
+  --card-foreground: #f5f7fa;
+  --popover-foreground: #f5f7fa;
+
+  /* Status: fg + ~12% tint + ~25% border */
+  --success: #4ade80;
+  --success-bg: rgb(74 222 128 / 12%);
+  --success-border: rgb(74 222 128 / 25%);
+  --warning: #fbbf24;
+  --warning-bg: rgb(251 191 36 / 12%);
+  --warning-border: rgb(251 191 36 / 25%);
+  --danger: #f87171;
+  --danger-bg: rgb(248 113 113 / 12%);
+  --danger-border: rgb(248 113 113 / 25%);
   --info: #7dd3fc;
-  --info-soft: rgb(125 211 252 / 12%);
+  --info-bg: rgb(125 211 252 / 12%);
+  --info-border: rgb(125 211 252 / 25%);
+  --destructive: #f87171;
+  --destructive-foreground: #1a0808;
 
-  --text: #f5f7fa;
-  --text-secondary: #8b93a7;
-  --text-muted: #596074;
+  /* Charts */
+  --chart-1: var(--primary);
+  --chart-2: #c4b5fd;
+  --chart-3: #fbbf24;
+  --chart-4: #4ade80;
+  --chart-5: #f87171;
 
+  /* Sidebar */
+  --sidebar: #0d111a;
+  --sidebar-foreground: var(--muted-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--primary);
+  --sidebar-muted-foreground: var(--text-subtle);
+
+  --radius: 10px;
   --radius-card: 16px;
   --radius-control: 10px;
   --radius-pill: 999px;
 
-  --shadow-float: 0 12px 40px rgb(0 0 0 / 45%);
-  --glow-accent: 0 0 12px rgb(56 189 248 / 45%), 0 0 32px rgb(56 189 248 / 18%);
-
+  --shadow-float: 0 12px 40px var(--shadow-color, rgb(0 0 0 / 45%));
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --dur-fast: 150ms;
   --dur-med: 220ms;
 
-  --sidebar: hsl(0 0% 98%);
-  --sidebar-foreground: hsl(240 5.3% 26.1%);
-  --sidebar-primary: hsl(240 5.9% 10%);
-  --sidebar-primary-foreground: hsl(0 0% 98%);
-  --sidebar-accent: hsl(240 4.8% 95.9%);
-  --sidebar-accent-foreground: hsl(240 5.9% 10%);
-  --sidebar-border: hsl(220 13% 91%);
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+  /* Aliases kept for the dashboard's own components */
+  --bg: var(--background);
+  --surface: var(--card);
+  --surface-overlay: var(--popover);
+  --text: var(--foreground);
+  --text-muted: var(--muted-foreground);
+  --accent-ink: #0369a1;
 }
 
 [data-theme="light"] {
   color-scheme: light;
 
-  --bg: #eef1f6;
-  --surface: #ffffff;
-  --surface-raised: #f2f5fa;
-  --surface-overlay: #ffffff;
-  --surface-sunken: #e4e9f1;
+  --background: #f4f6fa;
+  --card: #ffffff;
+  --popover: #ffffff;
+  --surface-raised: #f8fafc;
+  --surface-sunken: #e9edf4;
 
-  --border: rgb(15 23 42 / 8%);
+  --border: rgb(15 23 42 / 9%);
   --border-strong: rgb(15 23 42 / 16%);
+  --input: rgb(15 23 42 / 16%);
 
-  --accent: #0284c7;
-  --accent-glow: #38bdf8;
-  --accent-ink: #ffffff;
-  --accent-soft: rgb(2 132 199 / 10%);
+  --foreground: #0b1220;
+  --muted-foreground: #475569;
+  --text-subtle: #64748b;
 
-  --good: #15803d;
-  --good-soft: rgb(21 128 61 / 12%);
-  --warn: #b45309;
-  --warn-soft: rgb(180 83 9 / 12%);
-  --bad: #dc2626;
-  --bad-soft: rgb(220 38 38 / 10%);
-  --neutral: #596074;
-  --neutral-soft: rgb(89 96 116 / 12%);
-  --info: #0284c7;
-  --info-soft: rgb(2 132 199 / 10%);
+  --primary: #0284c7;
+  --primary-foreground: #ffffff;
+  --primary-glow: #0ea5e9;
+  --ring: #0284c7;
 
-  --text: #0b1220;
-  --text-secondary: #475069;
-  --text-muted: #79829a;
+  --accent: rgb(2 132 199 / 10%);
+  --accent-foreground: #075985;
+  --muted: rgb(15 23 42 / 4%);
+  --secondary: #f8fafc;
+  --secondary-foreground: #0b1220;
+  --card-foreground: #0b1220;
+  --popover-foreground: #0b1220;
+
+  --success: #15803d;
+  --success-bg: rgb(21 128 61 / 12%);
+  --success-border: rgb(21 128 61 / 25%);
+  --warning: #b45309;
+  --warning-bg: rgb(180 83 9 / 12%);
+  --warning-border: rgb(180 83 9 / 25%);
+  --danger: #b91c1c;
+  --danger-bg: rgb(185 28 28 / 12%);
+  --danger-border: rgb(185 28 28 / 25%);
+  --info: #0369a1;
+  --info-bg: rgb(3 105 161 / 12%);
+  --info-border: rgb(3 105 161 / 25%);
+  --destructive: #b91c1c;
+  --destructive-foreground: #ffffff;
+
+  --chart-1: var(--primary);
+  --chart-2: #7c3aed;
+  --chart-3: #b45309;
+  --chart-4: #15803d;
+  --chart-5: #b91c1c;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: var(--muted-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--primary);
+  --sidebar-muted-foreground: var(--text-subtle);
 
   --shadow-float: 0 12px 32px rgb(15 23 42 / 14%);
-  --glow-accent: 0 0 10px rgb(56 189 248 / 35%);
+
+  --bg: var(--background);
+  --surface: var(--card);
+  --surface-overlay: var(--popover);
+  --text: var(--foreground);
+  --text-muted: var(--muted-foreground);
+  --accent-ink: #0369a1;
+}
+
+/* Make the shadcn token set real for Tailwind utilities (bg-card,
+   text-muted-foreground, border-border, ...). Without this mapping the
+   utilities silently do not exist and text/borders disappear. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --color-subtle: var(--text-subtle);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius-card);
 }
 
 * {
@@ -132,7 +246,7 @@ body::before {
     linear-gradient(var(--border) 1px, transparent 1px),
     linear-gradient(90deg, var(--border) 1px, transparent 1px);
   background-size: 44px 44px;
-  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 30%, transparent 100%);
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, var(--foreground) 30%, transparent 100%);
   opacity: 0.5;
 }
 
@@ -169,9 +283,13 @@ code,
 }
 
 a {
-  color: var(--accent);
+  color: var(--primary);
   text-decoration: none;
   transition: color var(--dur-fast) ease-out;
+}
+
+[data-theme="light"] a {
+  color: var(--accent-ink);
 }
 
 button,
@@ -182,7 +300,7 @@ a {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
   border-radius: 6px;
 }
@@ -222,7 +340,7 @@ a {
   border-radius: var(--radius-control);
   border: 1px solid transparent;
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--muted-foreground);
   cursor: pointer;
   transition:
     background-color var(--dur-fast) var(--ease),
@@ -255,12 +373,12 @@ a {
 }
 
 .crumbs .crumb-parent {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   white-space: nowrap;
 }
 
 .crumbs .crumb-sep {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .crumbs .crumb-current {
@@ -284,7 +402,7 @@ a {
   border-radius: var(--radius-control);
   border: 1px solid var(--border);
   background: var(--surface-raised);
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 13px;
   cursor: pointer;
   transition:
@@ -294,7 +412,7 @@ a {
 
 .search-trigger:hover {
   border-color: var(--border-strong);
-  color: var(--text-secondary);
+  color: var(--muted-foreground);
 }
 
 .search-trigger svg {
@@ -311,7 +429,7 @@ a {
   border-radius: 6px;
   border: 1px solid var(--border-strong);
   background: var(--surface-sunken);
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .live-indicator {
@@ -320,7 +438,7 @@ a {
   gap: 8px;
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--muted-foreground);
   white-space: nowrap;
   padding: 6px 12px;
   border: 1px solid var(--border);
@@ -332,21 +450,21 @@ a {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--good);
-  box-shadow: 0 0 8px var(--good);
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success);
   animation: live-pulse 2s ease-out infinite;
   flex: none;
 }
 
 @keyframes live-pulse {
   0% {
-    box-shadow: 0 0 0 0 rgb(34 197 94 / 55%);
+    box-shadow: 0 0 0 0 var(--success);
   }
   70% {
-    box-shadow: 0 0 0 7px rgb(34 197 94 / 0%);
+    box-shadow: 0 0 0 7px var(--success);
   }
   100% {
-    box-shadow: 0 0 0 0 rgb(34 197 94 / 0%);
+    box-shadow: 0 0 0 0 var(--success);
   }
 }
 
@@ -394,8 +512,8 @@ a {
   height: 30px;
   flex: none;
   border-radius: 9px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-glow));
-  color: var(--accent-ink);
+  background: linear-gradient(135deg, var(--primary), var(--primary));
+  color: var(--primary-foreground);
   font-weight: 700;
   font-size: 15px;
   box-shadow: var(--glow-accent);
@@ -417,7 +535,7 @@ a {
 .brand-subtitle {
   font-family: var(--font-mono);
   font-size: 10.5px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .nav-section-label {
@@ -426,7 +544,7 @@ a {
   font-weight: 650;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .app-nav ul {
@@ -446,7 +564,7 @@ a {
   min-height: 36px;
   padding: 8px 12px;
   border-radius: var(--radius-pill);
-  color: var(--text-secondary);
+  color: var(--muted-foreground);
   font-size: 13.5px;
   font-weight: 500;
   border: 1px solid transparent;
@@ -460,7 +578,7 @@ a {
   height: 16px;
   flex: none;
   stroke-width: 1.8;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   transition: color var(--dur-fast) var(--ease);
 }
 
@@ -470,7 +588,7 @@ a {
 }
 
 .nav-link:hover svg {
-  color: var(--text-secondary);
+  color: var(--muted-foreground);
 }
 
 .nav-link.is-active {
@@ -488,12 +606,12 @@ a {
   bottom: 8px;
   width: 3px;
   border-radius: 3px;
-  background: var(--accent-glow);
+  background: var(--primary);
   box-shadow: var(--glow-accent);
 }
 
 .nav-link.is-active svg {
-  color: var(--accent);
+  color: var(--primary);
 }
 
 .nav-footer {
@@ -537,13 +655,13 @@ a {
 }
 
 .gateway-card dt {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .gateway-card dd {
   margin: 0;
   font-family: var(--font-mono);
-  color: var(--text-secondary);
+  color: var(--muted-foreground);
 }
 
 .app-shell.nav-collapsed .app-nav {
@@ -578,7 +696,7 @@ a {
 .app-main {
   flex: 1;
   min-width: 0;
-  padding: 24px 28px 48px;
+  padding: 28px 32px 56px;
 }
 
 .app-main:focus {
@@ -612,7 +730,7 @@ a {
   font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .page-header h1 {
@@ -620,7 +738,7 @@ a {
 }
 
 .page-subtitle {
-  color: var(--text-secondary);
+  color: var(--muted-foreground);
   font-size: 13px;
   margin-top: 2px;
   max-width: 64ch;
@@ -644,7 +762,7 @@ a {
 
 .tab-pair small {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 /* ---------------------------------- card ------------------------------- */
@@ -667,18 +785,45 @@ a {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(120% 90% at 100% 0%, rgb(125 211 252 / 8%), transparent 55%),
-    radial-gradient(100% 80% at 0% 100%, rgb(56 189 248 / 6%), transparent 55%);
+    radial-gradient(120% 90% at 100% 0%, var(--accent), transparent 55%),
+    radial-gradient(100% 80% at 0% 100%, var(--accent), transparent 55%);
 }
 
 .panel-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 16px;
+  align-items: start;
+}
+
+.link-inline {
+  color: var(--primary);
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: 4px;
+}
+
+.link-inline:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+[data-theme="light"] .link-inline {
+  color: var(--accent-ink);
+}
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
 }
 
 .muted {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 13px;
 }
 
@@ -736,21 +881,43 @@ a {
 .kpi-label {
   font-size: 11.5px;
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   letter-spacing: 0.02em;
 }
 
 .kpi-value {
   font-size: clamp(2rem, 2.6vw, 2.75rem);
   line-height: 1.05;
-  font-weight: 550;
+  font-weight: 500;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+  color: var(--foreground);
 }
 
-.kpi-value-accent {
-  color: var(--accent);
-  text-shadow: 0 0 24px rgb(56 189 248 / 35%);
+/* A quiet placeholder when a metric has no series to spark. */
+.spark-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  margin-top: 2px;
+}
+
+.spark-empty-line {
+  flex: 1;
+  height: 1px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--border-strong) 0 4px,
+    transparent 4px 8px
+  );
+}
+
+.spark-empty-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-subtle);
+  white-space: nowrap;
 }
 
 .kpi-foot {
@@ -761,7 +928,7 @@ a {
 
 .kpi-hint {
   font-size: 11.5px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-family: var(--font-mono);
 }
 
@@ -778,7 +945,7 @@ a {
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   padding: 3px 10px;
   border-radius: var(--radius-pill);
   font-size: 11.5px;
@@ -798,32 +965,37 @@ a {
 }
 
 .badge-good,
-.pill-good {
-  background: var(--good-soft);
-  color: var(--good);
+.pill-success {
+  background: var(--success-bg);
+  border-color: var(--success-border);
+  color: var(--success);
 }
 
 .badge-bad,
-.pill-bad {
-  background: var(--bad-soft);
-  color: var(--bad);
+.pill-danger {
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+  color: var(--danger);
 }
 
 .badge-warn,
-.pill-warn {
-  background: var(--warn-soft);
-  color: var(--warn);
+.pill-warning {
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+  color: var(--warning);
 }
 
 .badge-neutral,
 .pill-neutral {
-  background: var(--neutral-soft);
-  color: var(--neutral);
+  background: var(--muted);
+  border-color: var(--border);
+  color: var(--muted-foreground);
 }
 
 .badge-info,
 .pill-info {
-  background: var(--info-soft);
+  background: var(--info-bg);
+  border-color: var(--info-border);
   color: var(--info);
 }
 
@@ -859,7 +1031,7 @@ a {
 }
 
 .button:hover:not(:disabled) {
-  border-color: var(--accent);
+  border-color: var(--primary);
 }
 
 .button:active:not(:disabled) {
@@ -872,21 +1044,21 @@ a {
 }
 
 .button-primary {
-  background: linear-gradient(180deg, var(--accent), var(--accent-glow));
+  background: linear-gradient(180deg, var(--primary), var(--primary));
   border-color: transparent;
-  color: var(--accent-ink);
-  box-shadow: 0 0 16px rgb(56 189 248 / 30%);
+  color: var(--primary-foreground);
+  box-shadow: 0 0 16px var(--primary);
 }
 
 .button-primary:hover:not(:disabled) {
-  box-shadow: 0 0 24px rgb(56 189 248 / 45%);
+  box-shadow: 0 0 24px var(--primary);
   border-color: transparent;
 }
 
 .button-link {
   background: none;
   border: none;
-  color: var(--accent);
+  color: var(--primary);
   padding: 0;
   min-height: 0;
   text-decoration: underline;
@@ -930,7 +1102,7 @@ a {
   top: 0;
   z-index: 2;
   background: var(--surface-raised);
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.05em;
@@ -951,7 +1123,7 @@ a {
 }
 
 .data-table tbody tr:hover {
-  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
 }
 
 .align-right {
@@ -984,7 +1156,7 @@ td.align-right {
   border-radius: 6px;
   border: 1px solid transparent;
   background: transparent;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   cursor: pointer;
   opacity: 0;
   transition:
@@ -999,7 +1171,7 @@ tr:hover .copy-button,
 }
 
 .copy-button:hover {
-  color: var(--accent);
+  color: var(--primary);
   border-color: var(--border-strong);
 }
 
@@ -1018,8 +1190,8 @@ tr:hover .copy-button,
   border-radius: 50%;
   font-size: 10px;
   font-weight: 700;
-  color: var(--accent-ink);
-  background: linear-gradient(135deg, var(--accent), var(--accent-glow));
+  color: var(--primary-foreground);
+  background: linear-gradient(135deg, var(--primary), var(--primary));
   flex: none;
 }
 
@@ -1062,8 +1234,8 @@ tr:hover .copy-button,
   display: block;
   height: 100%;
   border-radius: 2px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-glow));
-  box-shadow: 0 0 6px rgb(56 189 248 / 50%);
+  background: linear-gradient(90deg, var(--primary), var(--primary));
+  box-shadow: 0 0 6px var(--primary);
 }
 
 .plain-list {
@@ -1098,13 +1270,13 @@ tr:hover .copy-button,
 }
 
 .field label {
-  color: var(--text-secondary);
+  color: var(--muted-foreground);
   font-size: 11.5px;
   font-weight: 600;
 }
 
 .field-hint {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 12px;
 }
 
@@ -1122,19 +1294,19 @@ select {
 }
 
 input::placeholder {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 input:hover,
 select:hover {
-  border-color: var(--text-muted);
+  border-color: var(--muted-foreground);
 }
 
 input:focus,
 select:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgb(56 189 248 / 22%);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--accent);
 }
 
 .chip-row {
@@ -1153,7 +1325,7 @@ select:focus {
   border: 1px solid var(--border-strong);
   background: var(--surface-raised);
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--muted-foreground);
 }
 
 .chip strong {
@@ -1170,14 +1342,14 @@ select:focus {
   border-radius: 50%;
   border: none;
   background: transparent;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   cursor: pointer;
   font-size: 13px;
   line-height: 1;
 }
 
 .chip button:hover {
-  color: var(--bad);
+  color: var(--danger);
 }
 
 /* --------------------------- segmented control ------------------------- */
@@ -1197,17 +1369,17 @@ select:focus {
   padding: 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
-  background: var(--surface);
+  background: var(--surface-raised);
 }
 
 .seg-highlight {
   position: absolute;
+  z-index: 0;
   top: 4px;
   bottom: 4px;
   border-radius: var(--radius-pill);
-  background: var(--surface-overlay);
+  background: var(--accent);
   border: 1px solid var(--border-strong);
-  box-shadow: 0 2px 10px rgb(0 0 0 / 30%);
   transition:
     left var(--dur-med) var(--ease),
     width var(--dur-med) var(--ease);
@@ -1224,14 +1396,14 @@ select:focus {
   border-radius: var(--radius-pill);
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   cursor: pointer;
   transition: color var(--dur-fast) var(--ease);
   white-space: nowrap;
 }
 
 .time-range-option:hover {
-  color: var(--text);
+  color: var(--foreground);
 }
 
 .time-range-option input {
@@ -1245,12 +1417,12 @@ select:focus {
 }
 
 .time-range-option.is-selected {
-  color: var(--accent);
+  color: var(--accent-foreground);
 }
 
 .time-range-option:focus-within {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .time-range-custom {
@@ -1259,11 +1431,11 @@ select:focus {
   gap: 8px;
   flex-wrap: wrap;
   font-size: 12.5px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .time-range-summary {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 11.5px;
   font-family: var(--font-mono);
 }
@@ -1289,8 +1461,8 @@ select:focus {
   width: 44px;
   height: 44px;
   border-radius: 14px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--primary);
+  color: var(--primary);
   margin-bottom: 4px;
 }
 
@@ -1301,8 +1473,8 @@ select:focus {
 }
 
 .state-icon-danger {
-  background: var(--bad-soft);
-  color: var(--bad);
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 .state-title {
@@ -1312,7 +1484,7 @@ select:focus {
 }
 
 .state-description {
-  color: var(--text-secondary);
+  color: var(--muted-foreground);
   font-size: 13px;
   max-width: 52ch;
 }
@@ -1320,7 +1492,7 @@ select:focus {
 .state-mono {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   background: var(--surface-sunken);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1352,12 +1524,12 @@ select:focus {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 7%) 50%, transparent 80%);
+  background: linear-gradient(100deg, transparent 20%, var(--border) 50%, transparent 80%);
   animation: shimmer 1.6s ease-out infinite;
 }
 
 [data-theme="light"] .skeleton::after {
-  background: linear-gradient(100deg, transparent 20%, rgb(15 23 42 / 7%) 50%, transparent 80%);
+  background: linear-gradient(100deg, transparent 20%, var(--border) 50%, transparent 80%);
 }
 
 @keyframes shimmer {
@@ -1407,13 +1579,13 @@ select:focus {
 }
 
 .recharts-legend-item-text {
-  color: var(--text-muted) !important;
+  color: var(--muted-foreground) !important;
 }
 
 .recharts-cartesian-axis-tick text {
   font-family: var(--font-mono);
   font-size: 11px;
-  fill: var(--text-muted);
+  fill: var(--muted-foreground);
 }
 
 .ranked-list {
@@ -1461,7 +1633,7 @@ select:focus {
   font-family: var(--font-mono);
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
-  color: var(--text-secondary);
+  color: var(--muted-foreground);
 }
 
 .ranked-bar-track {
@@ -1475,16 +1647,16 @@ select:focus {
 .ranked-bar-fill {
   height: 100%;
   border-radius: 2px;
-  background: var(--neutral);
+  background: var(--muted-foreground);
 }
 
 .ranked-bar-fill-accent {
-  background: linear-gradient(90deg, var(--accent), var(--accent-glow));
-  box-shadow: 0 0 8px rgb(56 189 248 / 55%);
+  background: linear-gradient(90deg, var(--primary), var(--primary));
+  box-shadow: 0 0 8px var(--primary);
 }
 
 .ranked-bar-fill-bad {
-  background: var(--bad);
+  background: var(--danger);
 }
 
 .budget-wrap {
@@ -1498,7 +1670,7 @@ select:focus {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--muted-foreground);
   font-family: var(--font-mono);
 }
 
@@ -1512,8 +1684,8 @@ select:focus {
 .budget-fill {
   height: 100%;
   border-radius: 4px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-glow));
-  box-shadow: 0 0 10px rgb(56 189 248 / 55%);
+  background: linear-gradient(90deg, var(--primary), var(--primary));
+  box-shadow: 0 0 10px var(--primary);
   transition: width 500ms var(--ease);
 }
 
@@ -1540,7 +1712,7 @@ select:focus {
 
 .donut-legend-row .mono {
   margin-left: auto;
-  color: var(--text-secondary);
+  color: var(--muted-foreground);
 }
 
 /* ------------------------------- task list --------------------------- */
@@ -1557,11 +1729,25 @@ select:focus {
 .task-list-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
   background: var(--surface-raised);
+}
+
+.task-id-link {
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+  border-radius: 4px;
+}
+
+.task-id-link:hover {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .task-list-meta {
@@ -1569,14 +1755,18 @@ select:focus {
   flex-wrap: wrap;
   gap: 12px;
   align-items: center;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 12.5px;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
 .task-list-error {
-  color: var(--bad);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+  border-radius: 6px;
+  padding: 4px 8px;
   font-size: 12.5px;
 }
 
@@ -1585,7 +1775,7 @@ select:focus {
 .drawer-scrim {
   position: fixed;
   inset: 0;
-  background: rgb(0 0 0 / 55%);
+  background: color-mix(in oklab, var(--background) 72%, transparent);
   backdrop-filter: blur(2px);
   z-index: 60;
   animation: fade-in var(--dur-med) var(--ease);
@@ -1673,22 +1863,22 @@ select:focus {
   height: 11px;
   border-radius: 50%;
   border: 2px solid var(--surface);
-  background: var(--neutral);
+  background: var(--muted-foreground);
 }
 
 .timeline-dot-good {
-  background: var(--good);
-  box-shadow: 0 0 8px rgb(34 197 94 / 60%);
+  background: var(--success);
+  box-shadow: 0 0 0 3px var(--success-bg);
 }
 
 .timeline-dot-bad {
-  background: var(--bad);
-  box-shadow: 0 0 8px rgb(239 68 68 / 60%);
+  background: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-bg);
 }
 
 .timeline-dot-warn {
-  background: var(--warn);
-  box-shadow: 0 0 8px rgb(245 158 11 / 60%);
+  background: var(--warning);
+  box-shadow: 0 0 0 3px var(--warning-bg);
 }
 
 .timeline-body {
@@ -1700,7 +1890,7 @@ select:focus {
 .timeline-meta {
   font-family: var(--font-mono);
   font-size: 11.5px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 /* --------------------------- command palette --------------------------- */
@@ -1708,7 +1898,7 @@ select:focus {
 .palette-scrim {
   position: fixed;
   inset: 0;
-  background: rgb(0 0 0 / 60%);
+  background: color-mix(in oklab, var(--background) 78%, transparent);
   backdrop-filter: blur(3px);
   z-index: 70;
   display: flex;
@@ -1742,7 +1932,7 @@ select:focus {
 .palette-input-row svg {
   width: 16px;
   height: 16px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   flex: none;
 }
 
@@ -1784,18 +1974,18 @@ select:focus {
 .palette-item svg {
   width: 15px;
   height: 15px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   flex: none;
 }
 
 .palette-item.is-active,
 .palette-item:hover {
-  background: var(--accent-soft);
+  background: var(--primary);
 }
 
 .palette-item .mono {
   margin-left: auto;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 11px;
 }
 
@@ -1818,7 +2008,7 @@ select:focus {
 }
 
 .theme-toggle:hover {
-  border-color: var(--accent);
+  border-color: var(--primary);
 }
 
 .theme-toggle svg {
@@ -1860,8 +2050,8 @@ select:focus {
   top: 0;
   z-index: 100;
   padding: 8px 12px;
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--primary);
+  color: var(--primary-foreground);
   border-radius: 0 0 8px 0;
   font-weight: 600;
 }
@@ -1887,7 +2077,7 @@ select:focus {
 }
 
 .detail-grid dt {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 11.5px;
   font-weight: 600;
 }
@@ -1901,7 +2091,7 @@ select:focus {
 
 .sub-heading {
   margin: 20px 0 8px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 11.5px;
   font-weight: 650;
   letter-spacing: 0.05em;
@@ -1936,7 +2126,7 @@ select:focus {
 }
 
 .span-node.is-highlighted > .span-node-row {
-  background: var(--warn-soft);
+  background: var(--warning-bg);
   border-radius: 8px;
 }
 
@@ -1955,14 +2145,14 @@ select:focus {
   border-radius: 6px;
   border: 1px solid transparent;
   background: none;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   cursor: pointer;
   font: inherit;
   line-height: 1;
 }
 
 .span-toggle:disabled {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   opacity: 0.4;
   cursor: default;
 }
@@ -1972,13 +2162,13 @@ select:focus {
 }
 
 .span-node-agent {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 12.5px;
 }
 
 .span-node-duration {
   margin-left: auto;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
   font-size: 12.5px;
   font-family: var(--font-mono);
@@ -1989,7 +2179,7 @@ select:focus {
 }
 
 .span-status-message {
-  color: var(--bad);
+  color: var(--danger);
   font-size: 12.5px;
 }
 
@@ -2001,7 +2191,7 @@ select:focus {
 }
 
 .attribute-list dt {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 11.5px;
   font-family: var(--font-mono);
 }
@@ -2025,19 +2215,19 @@ select:focus {
 }
 
 .span-meta {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 12.5px;
 }
 
 .span-id {
   margin-left: auto;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-family: var(--font-mono);
   font-size: 11.5px;
 }
 
 .root-cause-panel {
-  border-left: 3px solid var(--warn);
+  border-left: 3px solid var(--warning);
 }
 
 .root-cause-message {
@@ -2046,7 +2236,7 @@ select:focus {
 }
 
 .root-cause-detail {
-  color: var(--text-secondary);
+  color: var(--muted-foreground);
   font-size: 12.5px;
   margin-top: 8px;
 }
@@ -2054,7 +2244,7 @@ select:focus {
 .waterfall-axis {
   display: flex;
   justify-content: space-between;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 11px;
   font-family: var(--font-mono);
   margin-bottom: 8px;
@@ -2081,7 +2271,7 @@ select:focus {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .waterfall-track {
@@ -2096,33 +2286,33 @@ select:focus {
   top: 0;
   height: 100%;
   border-radius: 3px;
-  background: var(--accent-glow);
-  box-shadow: 0 0 8px rgb(56 189 248 / 45%);
+  background: var(--primary);
+  box-shadow: 0 0 8px var(--primary);
 }
 
 .waterfall-bar-good {
-  background: var(--good);
+  background: var(--success);
   box-shadow: none;
 }
 
 .waterfall-bar-bad {
-  background: var(--bad);
+  background: var(--danger);
   box-shadow: none;
 }
 
 .waterfall-bar-warn {
-  background: var(--warn);
+  background: var(--warning);
   box-shadow: none;
 }
 
 .waterfall-bar-neutral {
-  background: var(--neutral);
+  background: var(--muted-foreground);
   box-shadow: none;
 }
 
 .waterfall-duration {
   text-align: right;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
   font-size: 11.5px;
@@ -2147,7 +2337,7 @@ select:focus {
   border-radius: var(--radius-card);
   overflow: hidden;
   background:
-    radial-gradient(rgb(125 211 252 / 5%) 1px, transparent 1px);
+    radial-gradient(var(--accent) 1px, transparent 1px);
   background-size: 22px 22px;
   background-color: var(--surface-sunken);
 }
@@ -2178,7 +2368,7 @@ select:focus {
 .graph-canvas .react-flow__controls-button {
   background: var(--surface-overlay);
   border-bottom: 1px solid var(--border);
-  fill: var(--text-secondary);
+  fill: var(--muted-foreground);
 }
 
 .graph-canvas .react-flow__controls-button:hover {
@@ -2194,7 +2384,7 @@ select:focus {
 
 .graph-canvas .react-flow__attribution {
   background: transparent;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .graph-legend {
@@ -2203,7 +2393,7 @@ select:focus {
   flex-wrap: wrap;
   gap: 12px;
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--muted-foreground);
 }
 
 .graph-legend-item {
@@ -2215,15 +2405,15 @@ select:focus {
 .graph-legend-line {
   width: 22px;
   height: 0;
-  border-top: 2px dashed var(--neutral);
+  border-top: 2px dashed var(--muted-foreground);
 }
 
 .graph-legend-line-bad {
-  border-color: var(--bad);
+  border-color: var(--danger);
 }
 
 .graph-legend-line-warn {
-  border-color: var(--warn);
+  border-color: var(--warning);
 }
 
 .graph-node {
@@ -2232,12 +2422,12 @@ select:focus {
   border-radius: 12px;
   border: 1px solid var(--border-strong);
   background: color-mix(in srgb, var(--surface-overlay) 92%, transparent);
-  box-shadow: 0 0 0 1px rgb(0 0 0 / 30%), 0 0 18px rgb(56 189 248 / 12%);
+  box-shadow: 0 0 0 1px var(--border), 0 0 18px var(--accent);
   font-size: 12px;
 }
 
 .graph-node-selected {
-  border-color: var(--accent);
+  border-color: var(--primary);
   box-shadow: var(--glow-accent);
 }
 
@@ -2269,7 +2459,7 @@ select:focus {
   display: flex;
   justify-content: space-between;
   gap: 6px;
-  color: var(--text-secondary);
+  color: var(--muted-foreground);
   font-size: 11.5px;
   font-family: var(--font-mono);
 }
@@ -2277,7 +2467,7 @@ select:focus {
 .graph-node .react-flow__handle {
   width: 8px;
   height: 8px;
-  background: var(--accent);
+  background: var(--primary);
   border: 2px solid var(--surface-sunken);
 }
 
@@ -2286,7 +2476,7 @@ select:focus {
   border-radius: var(--radius-pill);
   border: 1px solid var(--border-strong);
   background: var(--surface-overlay);
-  color: var(--text-secondary);
+  color: var(--muted-foreground);
   font-size: 11px;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
@@ -2352,7 +2542,7 @@ select:focus {
     position: fixed;
     inset: 0;
     z-index: 50;
-    background: rgb(0 0 0 / 55%);
+    background: color-mix(in oklab, var(--background) 72%, transparent);
   }
 
   .app-shell.nav-collapsed .app-nav {
@@ -2423,68 +2613,3 @@ select:focus {
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* ----------------- Capitalio token rebrand (Kyurem ice) --------------- *
- * The block's own tokens win over Kyurem's base layer, so these overrides
- * use doubled specificity and stay scoped to .capitalio-dashboard.
- * Accent: icy cyan #7DD3FC, glow #38BDF8. No hardcoded colors elsewhere. */
-
-.capitalio-dashboard.capitalio-dashboard {
-  --primary: #0284c7;
-  --primary-foreground: #ffffff;
-  --ring: var(--primary);
-  --chart-1: #0284c7;
-  --chart-2: #7466f6;
-  --chart-3: #f59e0b;
-  --chart-4: #16a34a;
-  --chart-5: #dc2626;
-  --sidebar-primary: #0284c7;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-ring: var(--primary);
-}
-
-.dark .capitalio-dashboard.capitalio-dashboard {
-  --primary: #7dd3fc;
-  --primary-foreground: #06202e;
-  --ring: var(--primary);
-  --chart-1: #7dd3fc;
-  --chart-2: #a78bfa;
-  --chart-3: #f59e0b;
-  --chart-4: #22c55e;
-  --chart-5: #ef4444;
-  --sidebar-primary: #7dd3fc;
-  --sidebar-primary-foreground: #06202e;
-  --sidebar-ring: var(--primary);
-}
-
-/* ----------------- Capitalio token rebrand (Kyurem ice) --------------- *
- * The block's own tokens win over Kyurem's base layer, so these overrides
- * use doubled specificity and stay scoped to .capitalio-dashboard.
- * Accent: icy cyan #7DD3FC, glow #38BDF8. No hardcoded colors elsewhere. */
-
-.capitalio-dashboard.capitalio-dashboard {
-  --primary: #0284c7;
-  --primary-foreground: #ffffff;
-  --ring: var(--primary);
-  --chart-1: #0284c7;
-  --chart-2: #7466f6;
-  --chart-3: #f59e0b;
-  --chart-4: #16a34a;
-  --chart-5: #dc2626;
-  --sidebar-primary: #0284c7;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-ring: var(--primary);
-}
-
-.dark .capitalio-dashboard.capitalio-dashboard {
-  --primary: #7dd3fc;
-  --primary-foreground: #06202e;
-  --ring: var(--primary);
-  --chart-1: #7dd3fc;
-  --chart-2: #a78bfa;
-  --chart-3: #f59e0b;
-  --chart-4: #22c55e;
-  --chart-5: #ef4444;
-  --sidebar-primary: #7dd3fc;
-  --sidebar-primary-foreground: #06202e;
-  --sidebar-ring: var(--primary);
-}

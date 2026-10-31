@@ -81,7 +81,7 @@ export function Overview() {
           value={formatNumber(overview?.tasks_total)}
           numeric={overview?.tasks_total ?? null}
           format={(v) => formatNumber(Math.round(v))}
-          pill={<DeltaPill change={halfChange(throughputTotals)} suffix="vs 1st half" />}
+          pill={<DeltaPill change={halfChange(throughputTotals)} suffix="vs 1st half" tone="neutral" />}
           hint={`${formatNumber(overview?.tasks_succeeded)} succeeded`}
           sparkValues={throughputTotals}
         />
@@ -90,25 +90,25 @@ export function Overview() {
           value={successRate === null ? "unknown" : formatPercent(successRate)}
           numeric={successRate === null ? null : successRate * 100}
           format={(v) => `${v.toFixed(1)}%`}
-          pill={<DeltaPill change={halfChange(taskChart.map((b) => b.succeeded))} suffix="volume" />}
+          pill={<DeltaPill change={halfChange(taskChart.map((b) => b.succeeded))} suffix="volume" tone="success" />}
           hint={`${formatNumber(overview?.tasks_failed)} failed`}
           sparkValues={taskChart.map((b) => (b.total === 0 ? 0 : b.succeeded / b.total))}
-          sparkStroke="var(--good)"
+          sparkStroke="var(--success)"
         />
         <KpiCard
           label="p95 latency"
           value={formatDuration(overview?.p95_task_duration_ms)}
-          numeric={null}
+          numeric={overview?.p95_task_duration_ms ?? null}
+          format={(v) => formatDuration(v)}
           hint={`p50 ${formatDuration(overview?.p50_task_duration_ms)}`}
           sparkValues={[]}
-          accent
         />
         <KpiCard
           label="Active agents"
           value={formatNumber(overview?.active_agents)}
           numeric={overview?.active_agents ?? null}
           format={(v) => formatNumber(Math.round(v))}
-          pill={<span className="pill pill-neutral">live</span>}
+          pill={<span className="pill pill-info">live</span>}
           hint={`${formatNumber(overview?.spans_total)} spans`}
           sparkValues={[]}
         />
@@ -119,7 +119,7 @@ export function Overview() {
           format={(v) =>
             formatCost(overview?.total_cost_usd === null || overview?.total_cost_usd === undefined ? null : v)
           }
-          pill={<DeltaPill change={halfChange(spendSeries)} suffix="vs 1st half" />}
+          pill={<DeltaPill change={halfChange(spendSeries)} suffix="vs 1st half" tone="warning" />}
           hint="Selected window"
           sparkValues={spendSeries}
         />
@@ -142,16 +142,30 @@ export function Overview() {
           ) : (
             <div className="chart-frame chart-frame-main">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={taskChart} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
+                <AreaChart data={taskChart} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
                   <defs>
                     <linearGradient id="tputFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#38BDF8" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#38BDF8" stopOpacity={0} />
+                      <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-strong)" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" tickLine={false} axisLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={44} tickLine={false} axisLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 11, fill: "var(--text-subtle)" }}
+                    tickLine={false}
+                    axisLine={false}
+                    interval="preserveStartEnd"
+                    minTickGap={36}
+                    padding={{ left: 4, right: 8 }}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tick={{ fontSize: 11, fill: "var(--text-subtle)" }}
+                    width={44}
+                    tickLine={false}
+                    axisLine={false}
+                  />
                   <Tooltip
                     cursor={false}
                     content={
@@ -165,11 +179,11 @@ export function Overview() {
                     type="monotone"
                     dataKey="total"
                     name="requests"
-                    stroke="#7DD3FC"
+                    stroke="var(--primary)"
                     strokeWidth={2}
                     fill="url(#tputFill)"
                     dot={false}
-                    activeDot={{ r: 4, fill: "#7DD3FC", stroke: "#06202E" }}
+                    activeDot={{ r: 4, fill: "var(--primary)", stroke: "var(--card)" }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -184,15 +198,21 @@ export function Overview() {
           {(data?.top_agents_by_cost?.length ?? 0) === 0 ? (
             <EmptyState title="No agent cost data" icon="coins" />
           ) : (
-            <RankedBars
-              rows={(data?.top_agents_by_cost ?? []).slice(0, 8).map((bucket) => ({
-                key: bucket.key,
-                display: formatCost(bucket.cost_usd),
-                ratio: maxBy(data?.top_agents_by_cost ?? [], (b) => b.cost_usd ?? 0),
-                value: bucket.cost_usd ?? 0,
-                accent: true,
-              }))}
-            />
+            <>
+              <RankedBars
+                rows={(data?.top_agents_by_cost ?? []).slice(0, 5).map((bucket) => ({
+                  key: bucket.key,
+                  display: formatCost(bucket.cost_usd),
+                  ratio: maxBy(data?.top_agents_by_cost ?? [], (b) => b.cost_usd ?? 0),
+                  value: bucket.cost_usd ?? 0,
+                  accent: true,
+                }))}
+              />
+              <div className="card-footer">
+                <span className="count-meta">{formatCost(overview?.total_cost_usd)} total</span>
+                <Link className="link-inline" to="/costs">View all</Link>
+              </div>
+            </>
           )}
         </DashboardCard>
       </div>
@@ -205,27 +225,37 @@ export function Overview() {
           {(data?.top_failing_agents?.length ?? 0) === 0 ? (
             <EmptyState title="No agent failures in this window" icon="check" />
           ) : (
-            <RankedBars
-              rows={(data?.top_failing_agents ?? []).slice(0, 8).map((agent) => ({
-                key: agent.name,
-                display: `${formatNumber(agent.errors)} · ${formatPercent(agent.error_rate)}`,
-                ratio: maxBy(data?.top_failing_agents ?? [], (a) => a.errors),
-                value: agent.errors,
-                bad: true,
-              }))}
-            />
+            <>
+              <RankedBars
+                rows={(data?.top_failing_agents ?? []).slice(0, 5).map((agent) => ({
+                  key: agent.name,
+                  display: `${formatNumber(agent.errors)} · ${formatPercent(agent.error_rate)}`,
+                  ratio: maxBy(data?.top_failing_agents ?? [], (a) => a.errors),
+                  value: agent.errors,
+                  bad: true,
+                }))}
+              />
+              <div className="card-footer">
+                <span className="count-meta">
+                  {formatNumber(overview?.tasks_failed)} failed tasks
+                </span>
+                <Link className="link-inline" to="/agents">View all agents</Link>
+              </div>
+            </>
           )}
         </DashboardCard>
 
         <DashboardCard aria-label="Recent failed tasks">
           <DetailHeader title="Recent failed tasks" subtitle="Newest failures first">
-            <Link className="back-link" to="/tasks">All tasks</Link>
+            <Link className="link-inline" to="/tasks">All tasks</Link>
           </DetailHeader>
           {overview && overview.recent_failed_tasks.length > 0 ? (
             <ul className="task-list">
               {overview.recent_failed_tasks.map((task) => (
                 <li key={task.task_id} className="task-list-item">
-                  <Link to={`/tasks/${encodeURIComponent(task.task_id)}`}>{task.task_id}</Link>
+                  <Link className="task-id-link" to={`/tasks/${encodeURIComponent(task.task_id)}`}>
+                    {task.task_id}
+                  </Link>
                   <span className="task-list-meta">
                     <StatusBadge label={task.status} tone={taskStatusTone(task.status)} />
                     <span>{task.root_caller ?? "unknown"}</span>
@@ -261,16 +291,26 @@ function maxBy<T>(rows: T[], pick: (row: T) => number): number {
   return rows.reduce((max, row) => Math.max(max, pick(row)), 0);
 }
 
-function DeltaPill({ change, suffix }: { change: number | null; suffix: string }) {
+function DeltaPill({
+  change,
+  suffix,
+  tone,
+}: {
+  change: number | null;
+  suffix: string;
+  tone: "success" | "warning" | "danger" | "neutral";
+}) {
   if (change === null || !Number.isFinite(change)) {
     return <span className="pill pill-neutral">— {suffix}</span>;
   }
   const up = change >= 0;
-  const tone = up ? "pill-bad" : "pill-good";
-  const sign = up ? "+" : "−";
+  // Colour follows meaning; the arrow keeps it readable without colour.
+  const meaning =
+    tone === "neutral" ? "neutral" : tone === "warning" ? "warning" : tone === "success" ? (up ? "success" : "danger") : up ? "danger" : "success";
+  const icon = up ? "↑" : "↓";
   return (
-    <span className={`pill ${tone}`}>
-      {sign}
+    <span className={`pill pill-${meaning}`}>
+      <span aria-hidden="true">{icon}</span>
       {Math.abs(change * 100).toFixed(0)}% {suffix}
     </span>
   );
@@ -285,7 +325,6 @@ function KpiCard({
   hint,
   sparkValues,
   sparkStroke,
-  accent,
 }: {
   label: string;
   value: string;
@@ -295,7 +334,6 @@ function KpiCard({
   hint?: string;
   sparkValues: number[];
   sparkStroke?: string;
-  accent?: boolean;
 }) {
   const animated = useCountUp(numeric ?? Number.NaN);
   const display =
@@ -306,9 +344,16 @@ function KpiCard({
         <span className="kpi-label">{label}</span>
         {pill}
       </div>
-      <span className={`kpi-value${accent ? " kpi-value-accent" : ""}`}>{display}</span>
+      <span className="kpi-value">{display}</span>
       {hint ? <span className="kpi-hint">{hint}</span> : null}
-      <Sparkline values={sparkValues} stroke={sparkStroke} />
+      {sparkValues.length >= 2 ? (
+        <Sparkline values={sparkValues} stroke={sparkStroke} />
+      ) : (
+        <span className="spark-empty" aria-hidden="true">
+          <span className="spark-empty-line" />
+          <span className="spark-empty-label">no trend data</span>
+        </span>
+      )}
     </div>
   );
 }

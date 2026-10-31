@@ -36,7 +36,15 @@ const GROUP_OPTIONS: Array<{ value: CostGroupBy; label: string }> = [
   { value: "window", label: "Time window" },
 ];
 
-const DONUT_COLORS = ["#7DD3FC", "#38BDF8", "#22C55E", "#F59E0B", "#EF4444", "#8B93A7", "#596074"];
+const DONUT_COLORS = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--muted-foreground)",
+  "var(--text-subtle)",
+];
 
 const MONTHLY_BUDGET_USD = Number(import.meta.env.VITE_KYUREM_MONTHLY_BUDGET_USD ?? 500);
 
@@ -152,22 +160,36 @@ export function Costs() {
 
           <div className="panel-row">
             <DashboardCard aria-label={`Cost per ${groupBy}`}>
-              <DetailHeader title={`Cost per ${groupBy}`} subtitle="Stacked by group, top 20" />
+              <DetailHeader title={`Cost per ${groupBy}`} subtitle="Top 20 groups in the window" />
               {chartData.length === 0 ? (
                 <EmptyState title="No cost data for this window" icon="coins" />
               ) : (
                 <div className="chart-frame">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
+                    <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
                       <defs>
                         <linearGradient id="costFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#7DD3FC" stopOpacity={0.95} />
-                          <stop offset="100%" stopColor="#38BDF8" stopOpacity={0.55} />
+                          <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.9} />
+                          <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.45} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-strong)" />
-                      <XAxis dataKey="key" tick={{ fontSize: 11 }} interval={0} angle={-20} height={60} tickLine={false} axisLine={false} />
-                      <YAxis tick={{ fontSize: 11 }} width={56} tickFormatter={(value: number) => formatCost(value)} tickLine={false} axisLine={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                      <XAxis
+                        dataKey="key"
+                        tick={{ fontSize: 11, fill: "var(--text-subtle)" }}
+                        interval="preserveStartEnd"
+                        minTickGap={40}
+                        tickLine={false}
+                        axisLine={false}
+                        height={36}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 11, fill: "var(--text-subtle)" }}
+                        width={60}
+                        tickFormatter={(value: number) => formatCost(value)}
+                        tickLine={false}
+                        axisLine={false}
+                      />
                       <Tooltip
                         cursor={false}
                         content={

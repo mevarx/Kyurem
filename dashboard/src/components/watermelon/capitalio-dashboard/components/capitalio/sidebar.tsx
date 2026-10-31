@@ -64,14 +64,12 @@ const manageSection: NavSection = {
 function Brand() {
   return (
     <NavLink to="/" className="flex min-w-0 flex-1 items-center gap-3">
-      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-linear-to-t from-[color-mix(in_oklab,var(--primary)_80%,black)] to-primary text-lg font-bold text-white shadow-none">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-primary/40 bg-primary text-lg font-bold text-primary-foreground">
         K
       </div>
       <span className="flex min-w-0 flex-col leading-tight">
-        <span className="truncate text-lg font-medium text-sidebar-accent-foreground">
-          Kyurem
-        </span>
-        <span className="font-mono text-[11px] text-muted-foreground">a2a gateway</span>
+        <span className="truncate text-lg font-medium text-foreground">Kyurem</span>
+        <span className="font-mono text-[11px] text-subtle">a2a gateway</span>
       </span>
     </NavLink>
   )
@@ -98,7 +96,14 @@ function NavLinkButton({ item }: { item: NavItem }) {
         asChild
         tooltip={item.name}
         isActive={isActive}
-        className={cn('active-sidebar-item')}
+        className={cn(
+          'text-muted-foreground',
+          '[&>a>svg]:text-subtle',
+          'hover:bg-sidebar-accent hover:text-accent-foreground',
+          'data-[active=true]:bg-sidebar-accent data-[active=true]:text-accent-foreground',
+          'data-[active=true]:[&>a>svg]:text-primary',
+          isActive && 'active-sidebar-item',
+        )}
       >
         <NavLink to={item.href} end={item.href === '/'} onClick={handleClick}>
           <Icon className="size-4 shrink-0" />
@@ -127,7 +132,7 @@ function SidebarNavSection({ section }: { section: NavSection }) {
       <Collapsible.Root defaultOpen={section.defaultOpen ?? true}>
         <SidebarGroup>
           {section.label ? (
-            <Collapsible.Trigger className="flex w-full cursor-pointer items-center justify-between px-2 py-2 text-xs font-semibold tracking-wider text-muted-foreground/70 uppercase transition-colors hover:text-muted-foreground [&>svg]:size-3.5! [&>svg]:transition-transform [&>svg]:duration-200 [&>svg]:ease-out data-panel-open:[&>svg]:rotate-180">
+            <Collapsible.Trigger className="flex w-full cursor-pointer items-center justify-between px-2 py-2 text-xs font-semibold tracking-wider text-subtle uppercase transition-colors hover:text-muted-foreground [&>svg]:size-3.5! [&>svg]:transition-transform [&>svg]:duration-200 [&>svg]:ease-out data-panel-open:[&>svg]:rotate-180">
               {section.label}
               <ChevronDown className="shrink-0" />
             </Collapsible.Trigger>
@@ -143,7 +148,7 @@ function SidebarNavSection({ section }: { section: NavSection }) {
   return (
     <SidebarGroup>
       {section.label ? (
-        <SidebarGroupLabel className="px-2 py-2 text-xs font-semibold tracking-wider uppercase">
+        <SidebarGroupLabel className="px-2 py-2 text-xs font-semibold tracking-wider text-subtle uppercase">
           {section.label}
         </SidebarGroupLabel>
       ) : null}
@@ -160,12 +165,12 @@ function GatewayStatusCard() {
 
   return (
     <div className="rounded-lg border border-border bg-card p-3">
-      <div className="flex items-center gap-2 text-xs font-semibold">
+      <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
         <span
           className="size-2 shrink-0 rounded-full"
           style={{
-            backgroundColor: reachable ? 'var(--chart-4)' : 'var(--destructive)',
-            boxShadow: reachable ? '0 0 8px var(--chart-4)' : undefined,
+            backgroundColor: reachable ? 'var(--success)' : 'var(--danger)',
+            boxShadow: reachable ? '0 0 8px var(--success)' : undefined,
           }}
           aria-hidden="true"
         />
@@ -173,11 +178,11 @@ function GatewayStatusCard() {
       </div>
       <dl className="mt-2 space-y-1 font-mono text-[11px] text-muted-foreground">
         <div className="flex justify-between gap-2">
-          <dt>Version</dt>
+          <dt className="text-subtle">Version</dt>
           <dd className="truncate">{version ?? '—'}</dd>
         </div>
         <div className="flex justify-between gap-2">
-          <dt>Uptime</dt>
+          <dt className="text-subtle">Uptime</dt>
           <dd>{uptime === undefined ? '—' : formatUptime(uptime)}</dd>
         </div>
       </dl>
