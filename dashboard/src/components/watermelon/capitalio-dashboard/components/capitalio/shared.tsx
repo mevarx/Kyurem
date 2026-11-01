@@ -20,18 +20,6 @@ type DashboardChartTooltipProps = {
   valueFormatter?: (value: number | string, dataKey: string) => React.ReactNode
 }
 
-export function toneColor(tone: 'positive' | 'negative' | 'neutral') {
-  if (tone === 'positive') {
-    return 'var(--chart-4)'
-  }
-
-  if (tone === 'negative') {
-    return 'var(--destructive)'
-  }
-
-  return 'var(--foreground)'
-}
-
 export function DashboardCard({
   children,
   className,
@@ -136,14 +124,5 @@ export function DashboardChartTooltip({
         })}
       </div>
     </div>
-  )
-}
-
-export function ChartMarker({ color, className }: { color: string; className?: string }) {
-  return (
-    <span
-      className={cn('size-3 shrink-0 rounded-xs', className)}
-      style={{ backgroundColor: color }}
-    />
   )
 }

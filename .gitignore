@@ -74,3 +74,6 @@ demo/bin/bench-results/
 # Source documents not committed
 Kyurem Product Requirements Document.md
 dashboard/theme-audit/
+
+# Local design-direction reference (never commit; see chat history)
+/DESIGN.md
