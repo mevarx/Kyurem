@@ -647,7 +647,7 @@ a {
 .pill-danger {
   background: var(--danger-bg);
   border-color: var(--danger-border);
-  color: var(--danger);
+  color: var(--destructive-foreground);
 }
 
 .badge-warn,
