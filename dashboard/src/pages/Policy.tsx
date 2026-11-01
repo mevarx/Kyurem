@@ -8,8 +8,10 @@ import {
   DashboardCard,
   DetailHeader,
 } from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
+import { GoNoGo, type GoNoGoDecision } from "../components/go-no-go";
+import { TriageDesk, type TriageItem } from "../components/triage-desk";
 import { useDecisions, usePolicy } from "../api/hooks";
-import type { DecisionKind, PolicyMatrixCell, PolicyRule } from "../api/types";
+import type { Decision, DecisionKind, PolicyMatrixCell, PolicyRule } from "../api/types";
 import { decisionTone, policyModeTone } from "../lib/status";
 import { formatDateTime } from "../lib/format";
 
@@ -20,6 +22,20 @@ const KIND_OPTIONS: Array<{ value: DecisionKind | ""; label: string }> = [
   { value: "auth", label: "Auth" },
 ];
 
+/** Risk score for review ordering: denies first, then warnings. */
+function decisionRisk(decision: Decision["decision"]): number {
+  if (decision === "deny") return 90;
+  if (decision === "warn") return 60;
+  return 10;
+}
+
+function triageId(item: Decision): string {
+  return `${item.timestamp}-${item.kind}-${item.caller}-${item.callee}`;
+}
+
+/* access-pass is intentionally unwired: the API exposes no access-grant
+   flow (decisions are a read-only audit log), so once/hour/always
+   durations plus revoke would imply a grant that cannot be enforced. */
 /** Authorization policy, the caller x callee matrix and the decision audit log. */
 export function Policy() {
   const policyQuery = usePolicy();
@@ -27,6 +43,53 @@ export function Policy() {
   const decisionsQuery = useDecisions(kind, 100);
 
   const policy = policyQuery.data;
+  const decisions = useMemo(() => decisionsQuery.data?.items ?? [], [decisionsQuery.data]);
+
+  // Riskiest-first review queue over failing decisions; allows stay green
+  // and are excluded so the queue complements the full audit log below.
+  const triageItems = useMemo<TriageItem[]>(
+    () =>
+      decisions
+        .filter((item) => item.decision !== "allow")
+        .map((item) => {
+          const route = `${item.caller} → ${item.callee}`;
+          const note = item.reason || item.rule || "";
+          return {
+            id: triageId(item),
+            title: `${item.decision} · ${route}`,
+            agent: item.caller,
+            kind: item.kind,
+            risk: decisionRisk(item.decision),
+            body: [
+              { text: `${item.kind} decision ${item.decision} on ${route}` },
+              ...(item.skill ? [{ text: ` via skill ${item.skill}` }] : []),
+              ...(note
+                ? [
+                    {
+                      text: ` — ${note}`,
+                      risk: (item.decision === "deny" ? "high" : "medium") as "high" | "medium",
+                      note,
+                    },
+                  ]
+                : [{ text: ` · mode ${item.mode ?? "unknown"}` }]),
+            ],
+          };
+        }),
+    [decisions],
+  );
+
+  // Most urgent failing decision for the approve/undo review card.
+  const pendingDecision = useMemo(
+    () =>
+      decisions.find((item) => item.decision === "deny") ??
+      decisions.find((item) => item.decision === "warn") ??
+      null,
+    [decisions],
+  );
+  const pendingId = pendingDecision ? triageId(pendingDecision) : null;
+  const [outcome, setOutcome] = useState<{ id: string; decision: GoNoGoDecision } | null>(null);
+  const visibleOutcome = outcome && outcome.id === pendingId ? outcome : null;
+  const [lastResolution, setLastResolution] = useState<string | null>(null);
 
   const matrixByCaller = useMemo(() => {
     if (!policy) return new Map<string, Map<string, PolicyMatrixCell>>();
@@ -190,6 +253,63 @@ export function Policy() {
           </DashboardCard>
         </>
       )}
+
+      {!decisionsQuery.isPending && !decisionsQuery.isError && triageItems.length > 0 ? (
+        <>
+          <DashboardCard aria-label="Decision review queue">
+            <DetailHeader
+              title="Review queue"
+              subtitle="Riskiest failing decisions first — complements the full audit log below"
+            />
+            <div className="mt-4 flex justify-center">
+              <TriageDesk
+                key={`${kind}-${triageItems.length}-${triageItems[0]?.id ?? "empty"}`}
+                items={triageItems}
+                onResolve={(item, action) =>
+                  setLastResolution(`${item.title} → ${action} (local review; audit log unchanged)`)
+                }
+                title="Needs review"
+              />
+            </div>
+            {lastResolution ? <p className="muted mt-3 text-center">{lastResolution}</p> : null}
+          </DashboardCard>
+
+          {pendingDecision && pendingId ? (
+            <DashboardCard aria-label="Decision approval">
+              <DetailHeader
+                title="Approve or deny"
+                subtitle="Local acknowledgement — the decisions log is read-only and gateway policy is unchanged"
+              />
+              <div className="mt-4 flex justify-center">
+                <GoNoGo
+                  key={pendingId}
+                  onDecision={(decision) => setOutcome({ id: pendingId, decision })}
+                  onUndo={() => setOutcome(null)}
+                  request={{
+                    agent: pendingDecision.caller,
+                    action: `access ${pendingDecision.callee}${pendingDecision.skill ? ` with ${pendingDecision.skill}` : ""}`,
+                    risk: pendingDecision.decision === "deny" ? "high" : "medium",
+                    preview: {
+                      type: "command",
+                      command: `${pendingDecision.kind} → ${pendingDecision.decision}`,
+                      cwd: `${pendingDecision.caller} → ${pendingDecision.callee}`,
+                    },
+                    reason:
+                      pendingDecision.reason ||
+                      pendingDecision.rule ||
+                      `mode: ${pendingDecision.mode ?? "unknown"} · ${formatDateTime(pendingDecision.timestamp)}`,
+                  }}
+                />
+              </div>
+              {visibleOutcome ? (
+                <p className="muted mt-3 text-center">
+                  Marked {visibleOutcome.decision} locally — recorded in this view only.
+                </p>
+              ) : null}
+            </DashboardCard>
+          ) : null}
+        </>
+      ) : null}
 
       <DashboardCard aria-label="Recent decisions">
         <DetailHeader title="Recent decisions" subtitle="Newest audit events first" />
