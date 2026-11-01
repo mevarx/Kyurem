@@ -1330,8 +1330,7 @@ select:focus {
 }
 
 .ranked-bar-fill-accent {
-  background: var(--primary);
-  box-shadow: 0 0 8px var(--primary);
+  background: var(--chart-1);
 }
 
 .ranked-bar-fill-bad {

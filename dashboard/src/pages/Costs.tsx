@@ -177,8 +177,8 @@ export function Costs() {
                     <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
                       <defs>
                         <linearGradient id="costFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.9} />
-                          <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.45} />
+                          <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.9} />
+                          <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.45} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />

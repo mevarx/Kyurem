@@ -92,7 +92,7 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
 function edgeColor(errorRate: number): string {
   if (errorRate >= 0.25) return "var(--danger)";
   if (errorRate > 0) return "var(--warning)";
-  return "var(--primary)";
+  return "var(--chart-1)";
 }
 
 function AgentEdge({
@@ -263,7 +263,7 @@ export function AgentGraphCanvas({
       >
         <Background gap={22} size={1.2} />
         <Controls />
-        <MiniMap pannable zoomable nodeColor="var(--primary)" maskColor="var(--background)" />
+        <MiniMap pannable zoomable nodeColor="var(--chart-1)" maskColor="var(--background)" />
       </ReactFlow>
     </div>
   );

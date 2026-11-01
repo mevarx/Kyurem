@@ -169,8 +169,8 @@ export function Overview() {
                 <AreaChart data={taskChart} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
                   <defs>
                     <linearGradient id="tputFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
+                      <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
@@ -203,11 +203,11 @@ export function Overview() {
                     type="monotone"
                     dataKey="total"
                     name="requests"
-                    stroke="var(--primary)"
+                    stroke="var(--chart-1)"
                     strokeWidth={2}
                     fill="url(#tputFill)"
                     dot={false}
-                    activeDot={{ r: 4, fill: "var(--primary)", stroke: "var(--card)" }}
+                    activeDot={{ r: 4, fill: "var(--chart-1)", stroke: "var(--card)" }}
                   />
                 </AreaChart>
               </ResponsiveContainer>

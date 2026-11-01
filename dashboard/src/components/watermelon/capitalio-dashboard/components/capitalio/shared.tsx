@@ -75,7 +75,7 @@ export function DetailHeader({
 
 export function DetailTag({
   children,
-  color = 'var(--primary)',
+  color = 'var(--chart-1)',
 }: {
   children: React.ReactNode
   color?: string
