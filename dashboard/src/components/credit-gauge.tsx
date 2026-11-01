@@ -257,7 +257,7 @@ export function CreditGauge({
           <span
             className={cn(
               "font-medium text-sm tabular-nums transition-colors duration-300",
-              level === "over" ? "text-destructive" : level === "near" ? "text-warning-foreground" : "text-muted-foreground",
+              level === "over" ? "text-destructive-foreground" : level === "near" ? "text-warning-foreground" : "text-muted-foreground",
             )}
           >
             <Roll text={`${Math.round(ratio * 100)}%`} />
@@ -408,7 +408,7 @@ export function CreditGauge({
           aria-live="polite"
           className={cn(
             "text-pretty text-xs transition-colors duration-300",
-            level === "over" ? "text-destructive" : level === "near" ? "text-warning-foreground" : "text-muted-foreground",
+            level === "over" ? "text-destructive-foreground" : level === "near" ? "text-warning-foreground" : "text-muted-foreground",
           )}
         >
           {status}

@@ -221,7 +221,7 @@ export function ToolReceipt({
                       <Rule />
                       <div className="flex flex-col gap-1">
                         <span className="text-[11px] text-muted-foreground uppercase tracking-[0.14em]">Error</span>
-                        <span className="text-pretty text-destructive">{call.error}</span>
+                        <span className="text-pretty text-destructive-foreground">{call.error}</span>
                       </div>
                     </>
                   )}
@@ -246,7 +246,7 @@ export function ToolReceipt({
           <div className="flex min-h-5 items-center gap-2">
             {failed ? (
               <>
-                <span className="min-w-0 flex-1 truncate text-destructive">{open ? "Not charged" : (call.error ?? "Failed")}</span>
+                <span className="min-w-0 flex-1 truncate text-destructive-foreground">{open ? "Not charged" : (call.error ?? "Failed")}</span>
                 {onRetry && (
                   <Button className="-my-1 font-sans" onClick={() => onRetry(call.id)} size="xs" variant="outline">
                     <RotateCwIcon />
@@ -278,7 +278,7 @@ export function ToolReceipt({
             <motion.span
               animate={{ opacity: 1, scale: 1, rotate: -12 }}
               aria-hidden
-              className="pointer-events-none absolute top-7 right-24 rounded-md border-2 border-destructive/75 px-2 py-0.5 pl-[calc(--spacing(2)+0.24em)] font-bold text-base text-destructive/90 tracking-[0.24em]"
+              className="pointer-events-none absolute top-7 right-24 rounded-md border-2 border-destructive/75 px-2 py-0.5 pl-[calc(--spacing(2)+0.24em)] font-bold text-base text-destructive-foreground/90 tracking-[0.24em]"
               exit={{ opacity: 0, scale: 1.04, transition: { duration: 0.15 } }}
               initial={reduce ? { opacity: 0, scale: 1, rotate: -12 } : { opacity: 0, scale: 1.5, rotate: -18 }}
               transition={reduce ? { duration: 0.15 } : { type: "spring", stiffness: 700, damping: 32 }}

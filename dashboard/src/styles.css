@@ -20,64 +20,64 @@
   --font-mono: "JetBrains Mono", "Geist Mono", "SFMono-Regular", Consolas, monospace;
 
   /* Surfaces */
-  --background: #07090f;
-  --card: #0d111a;
-  --popover: #131825;
-  --surface-raised: #131825;
-  --surface-sunken: #05070c;
+  --background: #0a0a0a;
+  --card: #1a1a1a;
+  --popover: #242424;
+  --surface-raised: #242424;
+  --surface-sunken: #000000;
 
   /* Lines */
-  --border: rgb(255 255 255 / 7%);
-  --border-strong: rgb(255 255 255 / 14%);
-  --input: rgb(255 255 255 / 14%);
+  --border: #2a2a2a;
+  --border-strong: #3a3a3a;
+  --input: #3a3a3a;
 
   /* Text */
-  --foreground: #f5f7fa;
-  --muted-foreground: #a3abbd;
-  --text-subtle: #7b8499;
+  --foreground: #ffffff;
+  --muted-foreground: #cccccc;
+  --text-subtle: #888888;
 
   /* Brand */
-  --primary: #7dd3fc;
-  --primary-foreground: #06222f;
-  --ring: #7dd3fc;
+  --primary: #faff69;
+  --primary-foreground: #0a0a0a;
+  --ring: #faff69;
 
   /* Hover / active surface pair (shadcn semantics) */
-  --accent: rgb(125 211 252 / 10%);
-  --accent-foreground: #e6f6ff;
+  --accent: rgb(250 255 105 / 12%);
+  --accent-foreground: #ffffff;
   --muted: rgb(255 255 255 / 6%);
-  --secondary: #131825;
-  --secondary-foreground: #f5f7fa;
-  --card-foreground: #f5f7fa;
-  --popover-foreground: #f5f7fa;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #ffffff;
+  --card-foreground: #ffffff;
+  --popover-foreground: #ffffff;
 
   /* Status: fg + ~12% tint + ~25% border */
-  --success: #4ade80;
-  --success-foreground: #a7f3d0;
-  --success-bg: rgb(74 222 128 / 12%);
-  --success-border: rgb(74 222 128 / 25%);
-  --warning: #fbbf24;
-  --warning-foreground: #fde68a;
-  --warning-bg: rgb(251 191 36 / 12%);
-  --warning-border: rgb(251 191 36 / 25%);
-  --danger: #f87171;
-  --danger-bg: rgb(248 113 113 / 12%);
-  --danger-border: rgb(248 113 113 / 25%);
-  --info: #7dd3fc;
-  --info-foreground: #bae6fd;
-  --info-bg: rgb(125 211 252 / 12%);
-  --info-border: rgb(125 211 252 / 25%);
-  --destructive: #f87171;
+  --success: #22c55e;
+  --success-foreground: #86efac;
+  --success-bg: rgb(34 197 94 / 12%);
+  --success-border: rgb(34 197 94 / 25%);
+  --warning: #f59e0b;
+  --warning-foreground: #fcd34d;
+  --warning-bg: rgb(245 158 11 / 12%);
+  --warning-border: rgb(245 158 11 / 25%);
+  --danger: #ef4444;
+  --danger-bg: rgb(239 68 68 / 12%);
+  --danger-border: rgb(239 68 68 / 25%);
+  --info: #3b82f6;
+  --info-foreground: #93c5fd;
+  --info-bg: rgb(59 130 246 / 12%);
+  --info-border: rgb(59 130 246 / 25%);
+  --destructive: #ef4444;
   --destructive-foreground: #fecaca;
 
   /* Charts */
   --chart-1: var(--primary);
   --chart-2: #c4b5fd;
-  --chart-3: #fbbf24;
-  --chart-4: #4ade80;
-  --chart-5: #f87171;
+  --chart-3: #f59e0b;
+  --chart-4: #22c55e;
+  --chart-5: #ef4444;
 
   /* Sidebar */
-  --sidebar: #0d111a;
+  --sidebar: #0a0a0a;
   --sidebar-foreground: var(--muted-foreground);
   --sidebar-accent: var(--accent);
   --sidebar-accent-foreground: var(--accent-foreground);
@@ -86,9 +86,9 @@
   --sidebar-border: var(--border);
   --sidebar-ring: var(--primary);
 
-  --radius: 10px;
-  --radius-card: 16px;
-  --radius-control: 10px;
+  --radius: 8px;
+  --radius-card: 12px;
+  --radius-control: 8px;
   --radius-pill: 999px;
 
   --shadow-float: 0 12px 40px rgb(0 0 0 / 45%);
@@ -101,7 +101,7 @@
   --surface: var(--card);
   --surface-overlay: var(--popover);
   --text: var(--foreground);
-  --accent-ink: #075985;
+  --accent-ink: #faff69;
 }
 
 [data-theme="light"] {
@@ -121,12 +121,12 @@
   --muted-foreground: #475569;
   --text-subtle: #64748b;
 
-  --primary: #0369a1;
-  --primary-foreground: #ffffff;
-  --ring: #0369a1;
+  --primary: #faff69;
+  --primary-foreground: #0a0a0a;
+  --ring: #5f6400;
 
-  --accent: rgb(2 132 199 / 10%);
-  --accent-foreground: #075985;
+  --accent: rgb(95 100 0 / 12%);
+  --accent-foreground: #3f4300;
   --muted: rgb(15 23 42 / 4%);
   --secondary: #f8fafc;
   --secondary-foreground: #0b1220;
@@ -149,9 +149,9 @@
   --info-bg: rgb(7 89 133 / 12%);
   --info-border: rgb(7 89 133 / 25%);
   --destructive: #b91c1c;
-  --destructive-foreground: #ffffff;
+  --destructive-foreground: #b91c1c;
 
-  --chart-1: var(--primary);
+  --chart-1: #5f6400;
   --chart-2: #6d28d9;
   --chart-3: #92400e;
   --chart-4: #166534;
@@ -172,7 +172,7 @@
   --surface: var(--card);
   --surface-overlay: var(--popover);
   --text: var(--foreground);
-  --accent-ink: #075985;
+  --accent-ink: #5f6400;
 }
 
 /* Make the shadcn token set real for Tailwind utilities (bg-card,
@@ -193,6 +193,7 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-accent-ink: var(--accent-ink);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
@@ -667,7 +668,7 @@ a {
 .pill-info {
   background: var(--info-bg);
   border-color: var(--info-border);
-  color: var(--info);
+  color: var(--info-foreground);
 }
 
 .badge-row {
@@ -734,7 +735,7 @@ a {
 .button-link {
   background: none;
   border: none;
-  color: var(--primary);
+  color: var(--accent-ink);
   padding: 0;
   min-height: 0;
   text-decoration: underline;

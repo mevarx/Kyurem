@@ -324,7 +324,7 @@ export function JsonExplorer({
               <InputGroupAddon align="inline-end">
                 <span
                   aria-live="polite"
-                  className={cn("font-mono text-xs tabular-nums", matches.length ? "text-muted-foreground" : "text-destructive")}
+                  className={cn("font-mono text-xs tabular-nums", matches.length ? "text-muted-foreground" : "text-destructive-foreground")}
                 >
                   {matches.length ? `${Math.min(active, matches.length - 1) + 1}/${matches.length}` : "0/0"}
                 </span>

@@ -156,7 +156,7 @@ type Mood = "good" | "bad" | "flat";
 
 const moodText: Record<Mood, string> = {
   good: "text-success-foreground",
-  bad: "text-destructive",
+  bad: "text-destructive-foreground",
   flat: "text-muted-foreground",
 };
 const moodBg: Record<Mood, string> = {
@@ -297,7 +297,7 @@ export function SinceYouLeft({
               <Roll text={String(tally.good)} />
               <span className="text-muted-foreground">better</span>
             </span>
-            <span className="inline-flex items-center gap-1 text-destructive">
+            <span className="inline-flex items-center gap-1 text-destructive-foreground">
               <span className="size-1.5 rounded-full bg-destructive" />
               <Roll text={String(tally.bad)} />
               <span className="text-muted-foreground">worse</span>
