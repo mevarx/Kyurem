@@ -26,7 +26,7 @@ export const badgeVariants = cva(
         destructive:
           "bg-destructive text-white [button&,a&]:hover:bg-destructive/90",
         error:
-          "bg-destructive/8 text-destructive-foreground dark:bg-destructive/16",
+          "bg-destructive/8 text-destructive dark:bg-destructive/16",
         info: "bg-info/8 text-info-foreground dark:bg-info/16",
         outline:
           "border-input bg-background text-foreground dark:bg-input/32 [button&,a&]:hover:bg-accent/50 dark:[button&,a&]:hover:bg-input/48",

@@ -29,7 +29,7 @@ const LEVELS: { id: LogLevel; label: string; short: string; text: string; dot: s
   { id: "debug", label: "Debug", short: "DBG", text: "text-muted-foreground", dot: "bg-muted-foreground/60" },
   { id: "info", label: "Info", short: "INF", text: "text-info-foreground", dot: "bg-info" },
   { id: "warn", label: "Warn", short: "WRN", text: "text-warning-foreground", dot: "bg-warning" },
-  { id: "error", label: "Error", short: "ERR", text: "text-destructive-foreground", dot: "bg-destructive" },
+  { id: "error", label: "Error", short: "ERR", text: "text-destructive", dot: "bg-destructive" },
 ];
 const levelInfo = Object.fromEntries(LEVELS.map((l) => [l.id, l])) as Record<LogLevel, (typeof LEVELS)[number]>;
 
@@ -311,7 +311,7 @@ export function LogStream({ initialLines = [], subscribe, limit = 500, foldAfter
                       animate={{ scale: 1 }}
                       className={cn(
                         "inline-flex shrink-0 items-center gap-0.5 self-center rounded-full px-1.5 font-sans font-medium text-[10.5px] tabular-nums leading-4",
-                        last.level === "error" ? "bg-destructive/12 text-destructive-foreground" : "bg-muted text-muted-foreground",
+                        last.level === "error" ? "bg-destructive/12 text-destructive" : "bg-muted text-muted-foreground",
                       )}
                       initial={freshGroup && !reduce ? { scale: 1.15 } : false}
                       key={item.lines.length}

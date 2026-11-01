@@ -153,13 +153,12 @@ export function Costs() {
       ) : (
         <>
           <CreditGauge
-            categories={chartData.slice(0, 5).map((bucket) => ({
+            categories={chartData.map((bucket) => ({
               id: bucket.key,
               label: bucket.key,
               used: bucket.cost_usd,
             }))}
             daily={dailySpend.values}
-            daysInPeriod={Math.max(dailySpend.values.length, 1)}
             limit={MONTHLY_BUDGET_USD}
             periodStart={dailySpend.start}
             title="Monthly budget"
@@ -216,25 +215,25 @@ export function Costs() {
               )}
             </DashboardCard>
 
-            <DashboardCard aria-label="Share of spend">
-              <DetailHeader title="Share of spend" subtitle="Top groups by cost" />
-              {donutData.length === 0 ? (
+            {donutData.length === 0 ? (
+              <DashboardCard aria-label="Share of spend">
+                <DetailHeader title="Share of spend" subtitle="Top groups by cost" />
                 <EmptyState title="No cost data for this window" icon="coins" />
-              ) : (
-                <DonutLegend
-                  caption={`By ${groupBy} · click a row to isolate it`}
-                  format={{ style: "currency", currency: "USD" }}
-                  slices={donutData.map((entry, i) => ({
-                    id: entry.name,
-                    label: entry.name,
-                    value: entry.value,
-                    color: DONUT_COLORS[i % DONUT_COLORS.length],
-                  }))}
-                  title="Share of spend"
-                  totalLabel="spend"
-                />
-              )}
-            </DashboardCard>
+              </DashboardCard>
+            ) : (
+              <DonutLegend
+                caption={`By ${groupBy} · click a row to isolate it`}
+                format={{ style: "currency", currency: "USD" }}
+                slices={donutData.map((entry, i) => ({
+                  id: entry.name,
+                  label: entry.name,
+                  value: entry.value,
+                  color: DONUT_COLORS[i % DONUT_COLORS.length],
+                }))}
+                title="Share of spend"
+                totalLabel="spend"
+              />
+            )}
           </div>
 
           <DashboardCard aria-label="Breakdown" className="overflow-hidden p-0">

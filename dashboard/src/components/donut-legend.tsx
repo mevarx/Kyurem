@@ -249,7 +249,6 @@ export function DonutLegend({
             return (
               <li key={s.id}>
                 <button
-                  aria-label={`${s.label}: ${fmt.format(s.value)}${off ? ", hidden" : `, ${share(s.value).toFixed(1)}%`}. Press to ${off ? "show" : "hide"}.`}
                   aria-pressed={!off}
                   className={cn(
                     "group/row flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-left outline-none transition-[background-color,opacity,scale] duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.97]",
@@ -282,6 +281,7 @@ export function DonutLegend({
                     <span className="font-medium text-sm tabular-nums">{fmt.format(s.value)}</span>
                     <span className="text-muted-foreground text-xs tabular-nums">{off ? "hidden" : `${share(s.value).toFixed(1)}%`}</span>
                   </span>
+                  <span className="sr-only">Press to {off ? "show" : "hide"}</span>
                 </button>
               </li>
             );

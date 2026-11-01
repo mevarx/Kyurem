@@ -12,7 +12,6 @@ import {
   useTransform,
 } from "motion/react";
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +23,6 @@ export interface CreditCategory {
 
 export interface CreditGaugeProps {
   title?: string;
-  plan?: string;
   categories: CreditCategory[];
   limit: number;
   warnAt?: number;
@@ -164,7 +162,6 @@ function PlanButton({ level, onClick }: { level: Level; onClick?: () => void }) 
 
 export function CreditGauge({
   title = "AI credits",
-  plan = "Pro",
   categories,
   limit,
   warnAt = 0.8,
@@ -253,15 +250,14 @@ export function CreditGauge({
           </span>
           <div className="flex items-baseline gap-1.5">
             <Roll className="font-semibold text-3xl tracking-tight" text={int.format(total)} />
-            <span className="text-muted-foreground text-sm tabular-nums">/ {int.format(limit)}</span>
+            <span className="text-muted-foreground text-sm tabular-nums">/ {int.format(limit)} {unit}</span>
           </div>
         </div>
         <div className="flex flex-col items-end gap-1.5">
-          <Badge variant="outline">{plan}</Badge>
           <span
             className={cn(
               "font-medium text-sm tabular-nums transition-colors duration-300",
-              level === "over" ? "text-destructive-foreground" : level === "near" ? "text-warning-foreground" : "text-muted-foreground",
+              level === "over" ? "text-destructive" : level === "near" ? "text-warning-foreground" : "text-muted-foreground",
             )}
           >
             <Roll text={`${Math.round(ratio * 100)}%`} />
@@ -412,12 +408,12 @@ export function CreditGauge({
           aria-live="polite"
           className={cn(
             "text-pretty text-xs transition-colors duration-300",
-            level === "over" ? "text-destructive-foreground" : level === "near" ? "text-warning-foreground" : "text-muted-foreground",
+            level === "over" ? "text-destructive" : level === "near" ? "text-warning-foreground" : "text-muted-foreground",
           )}
         >
           {status}
         </p>
-        <PlanButton level={level} onClick={onUpgrade} />
+        {onUpgrade ? <PlanButton level={level} onClick={onUpgrade} /> : null}
       </footer>
     </section>
   );

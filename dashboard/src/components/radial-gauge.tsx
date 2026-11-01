@@ -39,7 +39,7 @@ const CAP = ((TRACK / 2 / R) * 180) / Math.PI;
 const TONE: Record<GaugeTone, { stroke: string; text: string; bg: string }> = {
   success: { stroke: "stroke-success", text: "text-success-foreground", bg: "bg-success/10 dark:bg-success/16" },
   warning: { stroke: "stroke-warning", text: "text-warning-foreground", bg: "bg-warning/10 dark:bg-warning/16" },
-  destructive: { stroke: "stroke-destructive", text: "text-destructive-foreground", bg: "bg-destructive/10 dark:bg-destructive/16" },
+  destructive: { stroke: "stroke-destructive", text: "text-destructive", bg: "bg-destructive/10 dark:bg-destructive/16" },
   info: { stroke: "stroke-info", text: "text-info-foreground", bg: "bg-info/10 dark:bg-info/16" },
 };
 

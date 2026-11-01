@@ -33,7 +33,7 @@ const BOTTOM = 22;
 const MARKER = [
   { line: "stroke-muted-foreground", chip: "bg-muted text-foreground", dot: "bg-muted-foreground" },
   { line: "stroke-warning", chip: "bg-warning/12 text-warning-foreground dark:bg-warning/16", dot: "bg-warning" },
-  { line: "stroke-destructive", chip: "bg-destructive/10 text-destructive-foreground dark:bg-destructive/16", dot: "bg-destructive" },
+  { line: "stroke-destructive", chip: "bg-destructive/10 text-destructive dark:bg-destructive/16", dot: "bg-destructive" },
 ];
 
 function mulberry(seed: number) {

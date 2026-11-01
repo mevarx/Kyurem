@@ -34,7 +34,7 @@ export interface TriageDeskProps {
 const stamps: Record<TriageAction, { label: string; tone: string }> = {
   approve: { label: "Approved", tone: "border-success text-success-foreground" },
   edit: { label: "Edited", tone: "border-info text-info-foreground" },
-  reject: { label: "Rejected", tone: "border-destructive text-destructive-foreground" },
+  reject: { label: "Rejected", tone: "border-destructive text-destructive" },
   skip: { label: "Later", tone: "border-muted-foreground text-muted-foreground" },
 };
 
@@ -49,7 +49,7 @@ const press = "transition-[scale,box-shadow,background-color] duration-150 ease-
 const easeOut = [0.23, 1, 0.32, 1] as const;
 
 function riskTone(risk: number) {
-  if (risk >= 70) return "bg-destructive/12 text-destructive-foreground";
+  if (risk >= 70) return "bg-destructive/12 text-destructive";
   if (risk >= 40) return "bg-warning/14 text-warning-foreground";
   return "bg-success/12 text-success-foreground";
 }

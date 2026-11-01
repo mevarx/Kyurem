@@ -229,7 +229,7 @@ export function GoNoGo({ request, timeout = 30, onDecision, onUndo, className }:
                         className={cn(
                           "whitespace-pre-wrap px-3 py-px",
                           line.kind === "+" && "bg-success/10 text-success-foreground",
-                          line.kind === "-" && "bg-destructive/10 text-destructive-foreground",
+                          line.kind === "-" && "bg-destructive/10 text-destructive",
                           line.kind === " " && "text-muted-foreground",
                         )}
                         key={i}
