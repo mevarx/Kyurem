@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { LIVE_REFETCH_INTERVAL_MS, useOverview } from "../api/hooks";
+import { LIVE_REFETCH_INTERVAL_MS, useOverview, useTasks } from "../api/hooks";
 import type { Overview as OverviewData } from "../api/types";
 import {
   DashboardCard,
@@ -19,12 +19,16 @@ import {
 } from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
+import { LatencyHistogram } from "../components/latency-histogram";
+import { RimLight } from "../components/rim-light";
+import { SinceYouLeft } from "../components/since-you-left";
 import { Sparkline } from "../components/Sparkline";
 import { OverviewSkeleton } from "../components/Skeleton";
 import { StatusBadge } from "../components/StatusBadge";
 import { TimeRangePicker } from "../components/TimeRangePicker";
 import { useCountUp } from "../lib/useCountUp";
-import { formatCost, formatDuration, formatNumber, formatPercent, formatTime } from "../lib/format";
+import { useLastVisit } from "../lib/lastVisit";
+import { formatCost, formatDateTime, formatDuration, formatNumber, formatPercent, formatTime } from "../lib/format";
 import { taskStatusTone } from "../lib/status";
 import { DEFAULT_TIME_RANGE, toApiWindow, type TimeRange } from "../lib/time";
 
@@ -50,6 +54,27 @@ export function Overview() {
   const spendSeries = useMemo(() => (data?.cost_over_time ?? []).map((b) => b.cost_usd ?? 0), [data]);
 
   const successRate = data?.tasks_total ? (data.tasks_succeeded / data.tasks_total) : null;
+
+  const lastVisit = useLastVisit();
+  const recentDurations = useTasks({ limit: 100 }, { refetchInterval: LIVE_REFETCH_INTERVAL_MS });
+  const latencyBins = useMemo(() => {
+    const durations = (recentDurations.data?.items ?? [])
+      .map((t) => t.duration_ms)
+      .filter((d) => Number.isFinite(d) && d >= 0);
+    if (durations.length === 0) return { bins: [] as number[], binSize: 50 };
+    const max = Math.max(...durations);
+    const binSize = Math.max(1, Math.ceil(max / 40));
+    const count = Math.ceil((max + 1) / binSize);
+    const bins = new Array<number>(count).fill(0);
+    for (const d of durations) bins[Math.min(count - 1, Math.floor(d / binSize))] += 1;
+    return { bins, binSize };
+  }, [recentDurations.data]);
+
+  const successSeries = useMemo(
+    () => taskChart.map((b) => (b.total === 0 ? 0 : (b.succeeded / b.total) * 100)),
+    [taskChart],
+  );
+  const failedSeries = useMemo(() => taskChart.map((b) => b.failed), [taskChart]);
 
   if (query.isPending) {
     return (
@@ -126,7 +151,9 @@ export function Overview() {
       </section>
 
       <div className="panel-row">
-        <DashboardCard aria-label="Throughput">
+        <div className="relative">
+          <RimLight className="text-primary" />
+          <DashboardCard aria-label="Throughput">
           <DetailHeader title="Throughput" subtitle="Requests per bucket across the window">
             <DetailTag color="var(--chart-1)">
               {formatNumber(overview?.tasks_total)} tasks · {formatPercent(overview?.error_rate)} errors
@@ -189,7 +216,8 @@ export function Overview() {
               </ResponsiveContainer>
             </div>
           )}
-        </DashboardCard>
+          </DashboardCard>
+        </div>
 
         <DashboardCard aria-label="Top agents">
           <DetailHeader title="Top agents" subtitle="Ranked by spend in this window">
@@ -272,6 +300,33 @@ export function Overview() {
             <EmptyState title="No failed tasks" description="Nothing failed in the selected window." icon="check" />
           )}
         </DashboardCard>
+      </div>
+
+      <div className="panel-row">
+        <LatencyHistogram
+          bins={latencyBins.bins}
+          binSize={latencyBins.binSize}
+          caption={`Bucketed client-side from the latest ${recentDurations.data?.items.length ?? 0} task durations · markers are window p50/p95`}
+          markerValues={[overview?.p50_task_duration_ms ?? 0, overview?.p95_task_duration_ms ?? 0]}
+          title="Task latency"
+        />
+        <SinceYouLeft
+          defaultPeriod="visit"
+          metrics={[
+            { id: "requests", label: "Requests", good: "up", format: (v) => formatNumber(Math.round(v)), series: { visit: throughputTotals } },
+            { id: "success", label: "Success rate", good: "up", format: (v) => `${v.toFixed(1)}%`, series: { visit: successSeries } },
+            { id: "failed", label: "Failed tasks", good: "down", format: (v) => formatNumber(Math.round(v)), series: { visit: failedSeries } },
+            { id: "spend", label: "Spend (USD)", good: "down", format: (v) => formatCost(v), series: { visit: spendSeries } },
+          ]}
+          periods={[
+            {
+              id: "visit",
+              label: "This window",
+              caption: lastVisit ? `Since your last visit · ${formatDateTime(lastVisit)}` : "Since your last visit",
+            },
+          ]}
+          title="Since you left"
+        />
       </div>
     </div>
   );

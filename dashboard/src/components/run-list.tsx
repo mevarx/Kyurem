@@ -36,6 +36,12 @@ export interface RunListProps {
   title?: string;
   onOpen?: (task: RunListItem) => void;
   className?: string;
+  /**
+   * Hide the Approve / Reject / Retry / Stop buttons and keep only Open.
+   * For read-only record lists (e.g. gateway task history) where those
+   * actions would only flip local state instead of doing anything real.
+   */
+  hideActions?: boolean;
 }
 
 type Filter = "all" | RunStatus;
@@ -83,7 +89,7 @@ function clock(seconds: number) {
   return `${h ? `${h}:` : ""}${mm}:${String(s).padStart(2, "0")}`;
 }
 
-export function RunList({ tasks: initial, autoplay = true, title = "Background agents", onOpen, className }: RunListProps) {
+export function RunList({ tasks: initial, autoplay = true, title = "Background agents", onOpen, className, hideActions = false }: RunListProps) {
   const reduce = useSafeReducedMotion();
   const listId = useId();
   const [tasks, setTasks] = useState(initial);
@@ -200,6 +206,7 @@ export function RunList({ tasks: initial, autoplay = true, title = "Background a
                 key={task.id}
                 onAct={act}
                 onOpen={onOpen}
+                hideActions={hideActions}
                 onToggle={() => setOpenId((o) => (o === task.id ? null : task.id))}
                 open={openId === task.id}
                 reduce={!!reduce}
@@ -232,6 +239,7 @@ function RunRow({
   onToggle,
   onAct,
   onOpen,
+  hideActions = false,
   reduce,
   spring,
 }: {
@@ -240,6 +248,7 @@ function RunRow({
   onToggle: () => void;
   onAct: (id: string, status: RunStatus, step: string) => void;
   onOpen?: (task: RunListItem) => void;
+  hideActions?: boolean;
   reduce: boolean;
   spring: object;
 }) {
@@ -350,7 +359,7 @@ function RunRow({
                 })}
               </ol>
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {task.status === "review" && (
+                {!hideActions && task.status === "review" && (
                   <>
                     <Button onClick={() => onAct(task.id, "done", "Approved by you")} className={press} size="xs">
                       <CheckIcon />
@@ -366,13 +375,13 @@ function RunRow({
                     </Button>
                   </>
                 )}
-                {task.status === "failed" && (
+                {!hideActions && task.status === "failed" && (
                   <Button onClick={() => onAct(task.id, "running", "Retrying from the last checkpoint")} className={press} size="xs">
                     <RotateCwIcon />
                     Retry
                   </Button>
                 )}
-                {task.status === "running" && (
+                {!hideActions && task.status === "running" && (
                   <Button onClick={() => onAct(task.id, "failed", "Stopped by you")} className={press} size="xs" variant="outline">
                     <SquareIcon />
                     Stop

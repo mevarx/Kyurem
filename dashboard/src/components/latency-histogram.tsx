@@ -12,6 +12,12 @@ export interface LatencyHistogramProps {
   bins?: number[];
   binSize?: number;
   percentiles?: number[];
+  /**
+   * Explicit marker positions in milliseconds, one per `percentiles` entry.
+   * When provided, the p50/p95 chips and marker lines use these gateway
+   * values instead of percentiles derived from the (possibly partial) bins.
+   */
+  markerValues?: number[];
   defaultRange?: [number, number] | null;
   onRangeChange?: (range: [number, number] | null) => void;
   defaultScale?: HistogramScale;
@@ -59,6 +65,7 @@ export function LatencyHistogram({
   bins = defaultBins,
   binSize = 30,
   percentiles = [0.5, 0.95, 0.99],
+  markerValues,
   defaultRange = null,
   onRangeChange,
   defaultScale = "linear",
@@ -94,7 +101,7 @@ export function LatencyHistogram({
   const xOf = (ms: number) => (ms / (n * binSize)) * width;
   const ms = (v: number) => (v >= 1000 ? `${Number((v / 1000).toFixed(2))}s` : `${Math.round(v)}ms`);
 
-  const marks = useMemo(() => {
+  const baseMarks = useMemo(() => {
     let acc = 0;
     const cum: number[] = [];
     for (const b of bins) {
@@ -109,6 +116,13 @@ export function LatencyHistogram({
       return { p, value: (i + within) * binSize };
     });
   }, [bins, percentiles, total, binSize]);
+
+  // Gateway-supplied markers (e.g. overview p50/p95) win over bin-derived
+  // ones when the bins are only a partial sample of task durations.
+  const marks = useMemo(() => {
+    if (!markerValues) return baseMarks;
+    return percentiles.map((p, i) => ({ p, value: markerValues[i] ?? baseMarks[i]?.value ?? 0 }));
+  }, [markerValues, percentiles, baseMarks]);
 
   const sel = range ? [Math.min(range[0], range[1]), Math.max(range[0], range[1])] : null;
   const selCount = sel ? bins.slice(sel[0], sel[1] + 1).reduce((a, b) => a + b, 0) : 0;
