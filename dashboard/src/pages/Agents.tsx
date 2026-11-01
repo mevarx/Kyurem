@@ -9,6 +9,7 @@ import {
 } from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
 import { AgentAvatar } from "../components/CopyableId";
 import { ErrorState } from "../components/ErrorState";
+import { RadialGauge } from "../components/radial-gauge";
 import { TableSkeleton } from "../components/Skeleton";
 import { StatusBadge } from "../components/StatusBadge";
 import { TimeRangePicker } from "../components/TimeRangePicker";
@@ -22,6 +23,8 @@ export function Agents() {
   const query = useAgents(toApiWindow(range));
 
   const rows = query.data?.items ?? [];
+
+  const meanErrorRate = rows.length === 0 ? 0 : (rows.reduce((sum, a) => sum + (a.error_rate ?? 0), 0) / rows.length) * 100;
 
   const columns: DataTableColumn<AgentInfo>[] = [
     {
@@ -135,7 +138,21 @@ export function Agents() {
       ) : query.isError ? (
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : (
-        <DashboardCard aria-label="Registered agents" className="overflow-hidden p-0">
+        <div className="panel-row">
+          <DashboardCard aria-label="Fleet error rate">
+            <RadialGauge
+              bands={[
+                { to: 1, label: "Healthy", tone: "success" },
+                { to: 5, label: "Elevated", tone: "warning" },
+                { to: 100, label: "Critical", tone: "destructive" },
+              ]}
+              caption={`Mean error rate across ${formatNumber(rows.length)} agents · lower is better`}
+              label="Fleet error rate"
+              unit="%"
+              value={meanErrorRate}
+            />
+          </DashboardCard>
+          <DashboardCard aria-label="Registered agents" className="overflow-hidden p-0">
           <div className="p-4 pb-0">
             <DetailHeader title="Registered agents" subtitle="Cards, verification and traffic">
               <DetailTag>{formatNumber(rows.length)} agents</DetailTag>
@@ -152,6 +169,7 @@ export function Agents() {
             />
           </div>
         </DashboardCard>
+        </div>
       )}
     </div>
   );
