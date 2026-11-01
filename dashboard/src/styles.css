@@ -52,15 +52,18 @@
 
   /* Status: fg + ~12% tint + ~25% border */
   --success: #4ade80;
+  --success-foreground: #a7f3d0;
   --success-bg: rgb(74 222 128 / 12%);
   --success-border: rgb(74 222 128 / 25%);
   --warning: #fbbf24;
+  --warning-foreground: #fde68a;
   --warning-bg: rgb(251 191 36 / 12%);
   --warning-border: rgb(251 191 36 / 25%);
   --danger: #f87171;
   --danger-bg: rgb(248 113 113 / 12%);
   --danger-border: rgb(248 113 113 / 25%);
   --info: #7dd3fc;
+  --info-foreground: #bae6fd;
   --info-bg: rgb(125 211 252 / 12%);
   --info-border: rgb(125 211 252 / 25%);
   --destructive: #f87171;
@@ -131,15 +134,18 @@
   --popover-foreground: #0b1220;
 
   --success: #166534;
+  --success-foreground: #166534;
   --success-bg: rgb(22 101 52 / 12%);
   --success-border: rgb(22 101 52 / 25%);
   --warning: #92400e;
+  --warning-foreground: #92400e;
   --warning-bg: rgb(146 64 14 / 12%);
   --warning-border: rgb(146 64 14 / 25%);
   --danger: #b91c1c;
   --danger-bg: rgb(185 28 28 / 12%);
   --danger-border: rgb(185 28 28 / 25%);
   --info: #075985;
+  --info-foreground: #075985;
   --info-bg: rgb(7 89 133 / 12%);
   --info-border: rgb(7 89 133 / 25%);
   --destructive: #b91c1c;
@@ -193,9 +199,12 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-danger: var(--danger);
   --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-subtle: var(--text-subtle);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
