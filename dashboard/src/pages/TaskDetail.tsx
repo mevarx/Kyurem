@@ -1,8 +1,10 @@
 import { Link, useParams } from "react-router-dom";
 import { useTaskDetail } from "../api/hooks";
-import type { Event } from "../api/types";
+import type { Event, Span, Task } from "../api/types";
 import { CostTable } from "../components/CostTable";
-import { DataTable, type DataTableColumn } from "../components/DataTable";
+import { JsonExplorer } from "../components/json-explorer";
+import { LogStream, type LogLine, type LogLevel } from "../components/log-stream";
+import { ToolReceiptSpike, type ToolReceiptCall } from "../components/tool-receipt";
 import {
   DashboardCard,
   DetailHeader,
@@ -54,29 +56,8 @@ export function TaskDetail() {
 
   const { task, spans, root_cause, cost, events } = detail;
   const affectedSpanIds = root_cause?.affected_span_ids ?? [];
-
-  const eventColumns: DataTableColumn<Event>[] = [
-    { key: "time", header: "Time", render: (event) => formatDateTime(event.time) },
-    { key: "name", header: "Event", render: (event) => event.name },
-    { key: "span_id", header: "Span", render: (event) => <code>{event.span_id}</code> },
-    {
-      key: "attributes",
-      header: "Attributes",
-      render: (event) => {
-        const entries = Object.entries(event.attributes ?? {});
-        if (entries.length === 0) return <span className="muted">none</span>;
-        return (
-          <ul className="event-attributes">
-            {entries.map(([key, value]) => (
-              <li key={key}>
-                <code>{key}</code>: {value}
-              </li>
-            ))}
-          </ul>
-        );
-      },
-    },
-  ];
+  const receiptCalls = toReceiptCalls(spans);
+  const logLines = toLogLines(events ?? []);
 
   return (
     <div className="page">
@@ -145,16 +126,32 @@ export function TaskDetail() {
         <CostTable report={cost} caption="Cost breakdown of this task" />
       </DashboardCard>
 
+      <div className="panel-row">
+        <DashboardCard aria-label="Tool calls">
+          <DetailHeader title="Tool calls" subtitle="Per-span time; the gateway does not expose per-span cost" />
+          {receiptCalls.length === 0 ? (
+            <EmptyState title="No spans recorded" description="The gateway returned no spans for this task." />
+          ) : (
+            <ToolReceiptSpike calls={receiptCalls} currency="$" />
+          )}
+        </DashboardCard>
+
+        <DashboardCard aria-label="Task payload">
+          <DetailHeader title="Task payload" subtitle="Raw task record" />
+          <JsonExplorer data={taskPayload(task)} title="task" />
+        </DashboardCard>
+      </div>
+
       <DashboardCard aria-label="Span events">
-        <DetailHeader title="Span events" />
-        <DataTable
-          caption="Events recorded for this task"
-          columns={eventColumns}
-          rows={events ?? []}
-          rowKey={(event) => `${event.span_id}-${event.time}-${event.name}`}
-          emptyTitle="No events recorded"
-          emptyDescription="The gateway recorded no policy or lifecycle events for this task."
-        />
+        <DetailHeader title="Span events" subtitle="Searchable stream; repeated bursts fold together" />
+        {logLines.length === 0 ? (
+          <EmptyState
+            title="No events recorded"
+            description="The gateway recorded no policy or lifecycle events for this task."
+          />
+        ) : (
+          <LogStream initialLines={logLines} title="events" />
+        )}
       </DashboardCard>
     </div>
   );
@@ -166,4 +163,50 @@ function BackLink() {
       ← All tasks
     </Link>
   );
+}
+
+/** Map spans to thermal receipts: time always, cost/tokens only when the span carries them. */
+function toReceiptCalls(spans: Span[]): ToolReceiptCall[] {
+  return spans.map((span) => {
+    const code = (span.status_code ?? "").toUpperCase();
+    const failed = Boolean(span.error_type) || code === "ERROR" || code === "STATUS_CODE_ERROR";
+    return {
+      id: span.span_id,
+      name: span.name,
+      summary: span.service_name ?? span.agent ?? span.caller ?? undefined,
+      status: failed ? "error" : "success",
+      durationMs: span.duration_ms,
+      args: span.attributes,
+      error: span.status_message ?? span.error_type ?? undefined,
+    };
+  });
+}
+
+/** Map gateway events to log lines; access-decision and error names surface as errors. */
+function toLogLines(events: Event[]): LogLine[] {
+  return events.map((event, index) => {
+    const name = event.name.toLowerCase();
+    const level: LogLevel =
+      name.includes("error") || name.includes("fail") || name.includes("deny")
+        ? "error"
+        : name.includes("warn") || name.includes("policy")
+          ? "warn"
+          : "info";
+    return {
+      id: `${event.span_id}-${event.time}-${index}`,
+      ts: Date.parse(event.time),
+      level,
+      service: event.span_id.slice(0, 8),
+      message: event.name,
+    };
+  });
+}
+
+/** Task record as explorer data; unknown shapes degrade to a string. */
+function taskPayload(task: Task) {
+  try {
+    return JSON.parse(JSON.stringify(task)) as Parameters<typeof JsonExplorer>[0]["data"];
+  } catch {
+    return String(task?.task_id ?? "task");
+  }
 }
