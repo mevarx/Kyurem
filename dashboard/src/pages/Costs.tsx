@@ -4,9 +4,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -45,6 +42,19 @@ const DONUT_COLORS = [
   "var(--muted-foreground)",
   "var(--text-subtle)",
 ];
+
+/** Build a conic-gradient ring from the cost shares (no SVG, no a11y noise). */
+function buildConicGradient(rows: Array<{ value: number }>): string {
+  const totalValue = rows.reduce((sum, row) => sum + row.value, 0);
+  if (totalValue <= 0) return "var(--muted)";
+  let cursor = 0;
+  const stops = rows.map((row, index) => {
+    const start = cursor;
+    cursor += (row.value / totalValue) * 100;
+    return `${DONUT_COLORS[index % DONUT_COLORS.length]} ${start}% ${cursor}%`;
+  });
+  return `conic-gradient(${stops.join(", ")})`;
+}
 
 const MONTHLY_BUDGET_USD = Number(import.meta.env.VITE_KYUREM_MONTHLY_BUDGET_USD ?? 500);
 
@@ -213,24 +223,15 @@ export function Costs() {
                 <EmptyState title="No cost data for this window" icon="coins" />
               ) : (
                 <>
-                  <div className="chart-frame" style={{ height: 220 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Tooltip
-                          cursor={false}
-                          content={
-                            <DashboardChartTooltip
-                              valueFormatter={(value) => formatCost(typeof value === "number" ? value : null)}
-                            />
-                          }
-                        />
-                        <Pie data={donutData} dataKey="value" nameKey="name" innerRadius="62%" outerRadius="90%" paddingAngle={2} strokeWidth={0}>
-                          {donutData.map((entry, i) => (
-                            <Cell key={entry.name} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
-                          ))}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
+                  <div className="donut-ring" aria-hidden="true">
+                    <div
+                      className="donut-ring-arc"
+                      style={{ background: buildConicGradient(donutData) }}
+                    />
+                    <div className="donut-ring-hole">
+                      <span className="donut-ring-value">{formatCost(total)}</span>
+                      <span className="donut-ring-label">spend</span>
+                    </div>
                   </div>
                   <div className="donut-legend">
                     {donutData.slice(0, 6).map((entry, i) => (

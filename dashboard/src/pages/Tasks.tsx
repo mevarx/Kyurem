@@ -122,6 +122,7 @@ export function Tasks() {
     {
       key: "root_caller",
       header: "Root caller",
+      hideOnMobile: true,
       render: (task) => (
         <span className="agent-cell">
           <AgentAvatar name={task.root_caller ?? "unknown"} />
@@ -155,17 +156,20 @@ export function Tasks() {
       key: "agents",
       header: "Agents",
       align: "right",
+      hideOnMobile: true,
       render: (task) => formatNumber(task.agents.length),
     },
     {
       key: "cost",
       header: "Cost",
       align: "right",
+      hideOnMobile: true,
       render: (task) => formatCost(task.cost_usd),
     },
     {
       key: "started_at",
       header: "Started",
+      hideOnMobile: true,
       render: (task) => formatDateTime(task.started_at),
     },
   ];
@@ -271,7 +275,7 @@ export function Tasks() {
             </DetailHeader>
           </div>
           <div className="p-3">
-            <div className="table-wrapper" style={{ border: "none", borderRadius: 12 }}>
+            <div className="table-wrapper" tabIndex={0} style={{ border: "none", borderRadius: 12 }}>
               <DataTable
                 caption="Tasks seen by the Kyurem gateway"
                 columns={columns}

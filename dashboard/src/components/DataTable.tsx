@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "../lib/utils";
 import { EmptyState } from "./EmptyState";
 
 export interface DataTableColumn<T> {
@@ -8,6 +9,8 @@ export interface DataTableColumn<T> {
   render: (row: T) => ReactNode;
   align?: "left" | "right";
   width?: string;
+  /** Hide this column on narrow screens to keep the table legible. */
+  hideOnMobile?: boolean;
 }
 
 export interface DataTableProps<T> {
@@ -41,7 +44,7 @@ export function DataTable<T>({
   }
 
   return (
-    <div className={`table-wrapper${className ? ` ${className}` : ""}`}>
+    <div className={`table-wrapper${className ? ` ${className}` : ""}`} tabIndex={0}>
       <table className="data-table">
         <caption className="sr-only">{caption}</caption>
         <thead>
@@ -51,7 +54,10 @@ export function DataTable<T>({
                 key={column.key}
                 scope="col"
                 style={column.width ? { width: column.width } : undefined}
-                className={column.align === "right" ? "align-right" : undefined}
+                className={cn(
+                  column.align === "right" && "align-right",
+                  column.hideOnMobile && "col-hide-sm",
+                )}
               >
                 {column.header}
               </th>
@@ -68,7 +74,10 @@ export function DataTable<T>({
               {columns.map((column) => (
                 <td
                   key={column.key}
-                  className={column.align === "right" ? "align-right" : undefined}
+                  className={cn(
+                    column.align === "right" && "align-right",
+                    column.hideOnMobile && "col-hide-sm",
+                  )}
                 >
                   {column.render(row)}
                 </td>

@@ -339,13 +339,13 @@ function KpiCard({
   const display =
     numeric === null || !Number.isFinite(numeric) || !format ? value : format(animated);
   return (
-    <div className="card panel-gradient kpi-card">
-      <div className="kpi-top">
-        <span className="kpi-label">{label}</span>
-        {pill}
-      </div>
+    <div className="card kpi-card">
+      <span className="kpi-label">{label}</span>
       <span className="kpi-value">{display}</span>
-      {hint ? <span className="kpi-hint">{hint}</span> : null}
+      <div className="kpi-foot">
+        {pill}
+        {hint ? <span className="kpi-hint">{hint}</span> : null}
+      </div>
       {sparkValues.length >= 2 ? (
         <Sparkline values={sparkValues} stroke={sparkStroke} />
       ) : (

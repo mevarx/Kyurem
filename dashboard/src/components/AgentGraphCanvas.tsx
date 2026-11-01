@@ -16,6 +16,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import type { AgentInfo, GraphEdge, GraphNode } from "../api/types";
+import { useTheme } from "../lib/useTheme";
 import { formatCost, formatDuration, formatNumber, formatPercent } from "../lib/format";
 import { breakerStateTone, cardStatusTone, errorRateTone, isUnknownState } from "../lib/status";
 import { StatusBadge } from "./StatusBadge";
@@ -46,7 +47,7 @@ export type AgentEdgeData = {
 type AgentFlowNode = Node<AgentNodeData, "agent">;
 type AgentFlowEdge = Edge<AgentEdgeData, "agent">;
 
-const NODE_WIDTH = 220;
+const NODE_WIDTH = 240;
 const NODE_HEIGHT = 96;
 
 function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
@@ -174,6 +175,7 @@ export function AgentGraphCanvas({
     for (const agent of agents) map.set(agent.name, agent);
     return map;
   }, [agents]);
+  const { theme } = useTheme();
 
   const flow = useMemo(() => {
     const graph = new dagre.graphlib.Graph();
@@ -256,12 +258,12 @@ export function AgentGraphCanvas({
         fitView
         minZoom={0.2}
         maxZoom={2}
-        colorMode="dark"
+        colorMode={theme}
         proOptions={{ hideAttribution: true }}
       >
         <Background gap={22} size={1.2} />
         <Controls />
-        <MiniMap pannable zoomable />
+        <MiniMap pannable zoomable nodeColor="var(--primary)" maskColor="var(--background)" />
       </ReactFlow>
     </div>
   );

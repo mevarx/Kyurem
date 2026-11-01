@@ -145,7 +145,7 @@ export function Policy() {
             {policy.callers.length === 0 || policy.callees.length === 0 ? (
               <p className="muted">No callers or callees configured.</p>
             ) : (
-              <div className="table-wrapper">
+              <div className="table-wrapper" tabIndex={0}>
                 <table className="data-table">
                   <caption className="sr-only">Policy matrix</caption>
                   <thead>
@@ -193,7 +193,7 @@ export function Policy() {
 
       <DashboardCard aria-label="Recent decisions">
         <DetailHeader title="Recent decisions" subtitle="Newest audit events first" />
-        <div className="filter-bar" style={{ marginBottom: 12 }}>
+        <div className="filter-bar" style={{ marginTop: 14, marginBottom: 4 }}>
           <div className="field" style={{ flexGrow: 0, minWidth: 150 }}>
             <label htmlFor="decision-kind">Kind</label>
             <select

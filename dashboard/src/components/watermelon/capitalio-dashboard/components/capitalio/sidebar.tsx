@@ -98,10 +98,10 @@ function NavLinkButton({ item }: { item: NavItem }) {
         isActive={isActive}
         className={cn(
           'text-muted-foreground',
-          '[&>a>svg]:text-subtle',
-          'hover:bg-sidebar-accent hover:text-accent-foreground',
+          '[&>svg]:text-subtle',
+          'hover:bg-sidebar-accent hover:text-accent-foreground hover:[&>svg]:text-accent-foreground',
           'data-[active=true]:bg-sidebar-accent data-[active=true]:text-accent-foreground',
-          'data-[active=true]:[&>a>svg]:text-primary',
+          'data-[active=true]:[&>svg]:text-primary',
           isActive && 'active-sidebar-item',
         )}
       >

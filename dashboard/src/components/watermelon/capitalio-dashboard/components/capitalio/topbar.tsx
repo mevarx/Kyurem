@@ -46,14 +46,14 @@ export function DashboardTopbar({ onSearch }: { onSearch: () => void }) {
         <button
           type="button"
           onClick={onSearch}
-          aria-label="Open command palette"
           className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-card px-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground md:w-52 md:flex-none"
         >
-          <Search className="size-4 shrink-0" />
-          <span className="hidden truncate md:inline">Search…</span>
+          <Search className="size-4 shrink-0" aria-hidden="true" />
+          <span className="hidden truncate md:inline">Search</span>
           <kbd className="ml-auto hidden rounded border border-border bg-muted px-1.5 font-mono text-[11px] md:inline">
             ⌘K
           </kbd>
+          <span className="sr-only">Open command palette</span>
         </button>
 
         <span

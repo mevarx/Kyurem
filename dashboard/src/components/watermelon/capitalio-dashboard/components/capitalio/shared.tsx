@@ -75,19 +75,24 @@ export function DetailHeader({
 
 export function DetailTag({
   children,
-  color = 'var(--chart-1)',
+  color = 'var(--primary)',
 }: {
   children: React.ReactNode
   color?: string
 }) {
   return (
     <span
-      className="rounded-lg px-3 py-1 text-sm leading-5"
+      className="inline-flex items-center gap-2 rounded-lg px-3 py-1 text-sm leading-5 text-foreground"
       style={{
-        color,
-        backgroundColor: `color-mix(in oklab, ${color} 10%, transparent)`,
+        backgroundColor: `color-mix(in oklab, ${color} 12%, transparent)`,
+        border: `1px solid color-mix(in oklab, ${color} 25%, transparent)`,
       }}
     >
+      <span
+        aria-hidden="true"
+        className="size-1.5 shrink-0 rounded-full"
+        style={{ backgroundColor: color }}
+      />
       {children}
     </span>
   )
