@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect -- vendored devl.dev: timer/clock reset on status change */
 
 import { WifiOffIcon } from "lucide-react";
 import { AnimatePresence, MotionConfig, type MotionValue, motion, useReducedMotion, useSpring, useTransform } from "motion/react";

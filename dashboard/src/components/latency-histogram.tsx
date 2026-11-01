@@ -96,7 +96,11 @@ export function LatencyHistogram({
 
   const marks = useMemo(() => {
     let acc = 0;
-    const cum = bins.map((b) => (acc += b));
+    const cum: number[] = [];
+    for (const b of bins) {
+      acc += b;
+      cum.push(acc);
+    }
     return percentiles.map((p) => {
       const goal = p * total;
       const i = cum.findIndex((c) => c >= goal);

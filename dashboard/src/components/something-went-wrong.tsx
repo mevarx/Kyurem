@@ -160,7 +160,9 @@ function CopyButton({ text }: { text: string }) {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(text);
-    } catch {}
+    } catch {
+      /* clipboard unavailable (permissions/SSR): still show the copied hint */
+    }
     setCopied(true);
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setCopied(false), 1800);

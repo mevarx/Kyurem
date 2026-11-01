@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect -- vendored devl.dev: recent-pick state reset on open */
 
 import { ChevronRightIcon, CircleCheckIcon, CornerDownLeftIcon, HistoryIcon, SearchIcon } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";

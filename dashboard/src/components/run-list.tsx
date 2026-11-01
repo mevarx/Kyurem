@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect, react-hooks/refs -- vendored devl.dev: live-clock resets; layout-ref reads in rolling digits */
 
 import { CheckIcon, ChevronDownIcon, CircleAlertIcon, CircleCheckIcon, CircleXIcon, ExternalLinkIcon, RotateCwIcon, SquareIcon, XIcon } from "lucide-react";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "motion/react";

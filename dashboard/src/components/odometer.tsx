@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect, react-hooks/refs -- vendored devl.dev: motion-value clock reset; layout-ref reads in digit roller */
 
 import {
   AnimatePresence,

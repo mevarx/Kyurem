@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect -- vendored devl.dev: reconnect timer resets */
 
 import { CheckIcon, Loader2Icon, RefreshCwIcon } from "lucide-react";
 import { animate, motion, useInView, useMotionValue, useReducedMotion, useTransform } from "motion/react";

@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/refs -- vendored devl.dev: layout-ref reads in sweep animation */
 
 import { useReducedMotion } from "motion/react";
 import {
