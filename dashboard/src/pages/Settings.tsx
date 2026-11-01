@@ -8,6 +8,7 @@ import {
   DashboardCard,
   DetailHeader,
 } from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
+import { ShortcutSheet } from "../components/shortcut-sheet";
 import { StatusBadge } from "../components/StatusBadge";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { formatNumber, formatUptime } from "../lib/format";
@@ -222,6 +223,33 @@ export function Settings() {
           <span className="stat-label">Theme</span>
           <ThemeToggle />
         </div>
+      </DashboardCard>
+
+      <DashboardCard aria-label="Keyboard shortcuts">
+        <DetailHeader title="Keyboard shortcuts" />
+        <ShortcutSheet
+          groups={[
+            {
+              title: "Command menu",
+              shortcuts: [
+                { label: "Open command menu", keys: [["mod", "K"]], keywords: ["palette", "search", "go to"] },
+                { label: "Run highlighted action", keys: [["enter"]], keywords: ["select", "confirm"] },
+                { label: "Move selection", keys: [["up"], ["down"]], keywords: ["navigate", "arrows"] },
+                { label: "Close menu", keys: [["esc"]], keywords: ["dismiss", "exit"] },
+              ],
+            },
+            {
+              title: "Shortcut panel",
+              shortcuts: [
+                { label: "Open this panel", keys: [["?"]], keywords: ["help", "shortcuts"] },
+                { label: "Filter shortcuts", keys: [["type"]], keywords: ["search", "find"] },
+                { label: "Close panel", keys: [["esc"]], keywords: ["dismiss", "exit"] },
+              ],
+            },
+          ]}
+        >
+          <p className="muted">Focus this card, then press the keys below. The command menu works anywhere.</p>
+        </ShortcutSheet>
       </DashboardCard>
     </div>
   );

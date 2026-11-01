@@ -33,6 +33,17 @@ export interface LauncherProps {
   placeholder?: string;
   triggerLabel?: string;
   defaultOpen?: boolean;
+  /**
+   * Controlled visibility. When set, the trigger button is hidden and the
+   * parent owns visibility (the app shell global shortcut owns it here).
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /**
+   * Resolve free text to a synthetic action shown with the results, e.g. an
+   * open-by-id entry when nothing else matches.
+   */
+  queryAction?: (query: string) => LauncherAction | undefined;
   className?: string;
 }
 
@@ -83,10 +94,19 @@ export function Launcher({
   placeholder = "Type a command or search…",
   triggerLabel = "Search or jump to…",
   defaultOpen = false,
+  open,
+  onOpenChange,
+  queryAction,
   className,
 }: LauncherProps) {
   const [radius, radiusProbe] = useThemeRadius(1);
-  const [open, setOpen] = useState(defaultOpen);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
+  const controlled = open !== undefined;
+  const isOpen = controlled ? open : uncontrolledOpen;
+  const requestOpen = (next: boolean) => {
+    if (controlled) onOpenChange?.(next);
+    else setUncontrolledOpen(next);
+  };
   const [page, setPage] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -117,7 +137,9 @@ export function Launcher({
         .filter((x) => x.s > 0)
         .sort((x, y) => y.s - x.s)
         .map((x) => x.a);
-      return hits.length ? [{ title: page ? (pages[page]?.title ?? "Results") : "Results", items: hits }] : [];
+      const extra = queryAction?.(query.trim());
+      const items = extra ? [...hits, extra] : hits;
+      return items.length ? [{ title: page ? (pages[page]?.title ?? "Results") : "Results", items }] : [];
     }
     if (page) return [{ title: pages[page]?.title ?? "", items: source }];
     const out: Section[] = [];
@@ -130,7 +152,7 @@ export function Launcher({
       else out.push({ title, items: [a] });
     }
     return out;
-  }, [query, page, pages, actions, recent, all]);
+  }, [query, page, pages, actions, recent, all, queryAction]);
 
   const flat = sections.flatMap((s) => s.items.map((item) => ({ item, section: s.title })));
   const current = flat[Math.min(active, flat.length - 1)];
@@ -160,25 +182,32 @@ export function Launcher({
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [open]);
+  }, [isOpen]);
 
   const focusOnOpen = useRef(false);
   const show = () => {
     focusOnOpen.current = true;
-    setOpen(true);
+    requestOpen(true);
     setLastRun(null);
   };
   useEffect(() => {
-    if (open && focusOnOpen.current) {
+    if (isOpen && focusOnOpen.current) {
       focusOnOpen.current = false;
       inputRef.current?.focus();
     }
-  }, [open]);
+  }, [isOpen]);
+  // Controlled panels mount straight into the open state, so focus the input
+  // on the closed -> open transition.
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (controlled && isOpen && !wasOpenRef.current) inputRef.current?.focus();
+    wasOpenRef.current = isOpen;
+  }, [controlled, isOpen]);
   const close = () => {
-    setOpen(false);
+    requestOpen(false);
     setPage(null);
     setQuery("");
-    requestAnimationFrame(() => triggerRef.current?.focus());
+    if (!controlled) requestAnimationFrame(() => triggerRef.current?.focus());
   };
   const goTo = (next: string | null) => {
     setDirection(next ? 1 : -1);
@@ -190,7 +219,11 @@ export function Launcher({
   const run = (action: LauncherAction) => {
     if (action.page) return goTo(action.page);
     action.onSelect?.();
-    setRecent((list) => [action.id, ...list.filter((id) => id !== action.id)].slice(0, recentLimit));
+    // Synthetic query actions (open-by-id) are not part of the index, so only
+    // real actions join the recent list.
+    if (all.has(action.id)) {
+      setRecent((list) => [action.id, ...list.filter((id) => id !== action.id)].slice(0, recentLimit));
+    }
     setLastRun(action.done ?? action.label);
     clearTimeout(timer.current);
     timer.current = window.setTimeout(() => setLastRun(null), 2600);
@@ -227,7 +260,7 @@ export function Launcher({
   const onWrapperKey = (event: KeyboardEvent<HTMLDivElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
       event.preventDefault();
-      if (open) close();
+      if (isOpen) close();
       else show();
     }
   };
@@ -239,7 +272,7 @@ export function Launcher({
     <div className={cn("relative w-full max-w-md", className)} onKeyDown={onWrapperKey}>
       {radiusProbe}
       <AnimatePresence initial={false} mode="popLayout">
-        {open ? (
+        {isOpen ? (
           <motion.div
             className="overflow-hidden border bg-popover text-popover-foreground shadow-lg/5"
             exit={{ opacity: 0, transition: { duration: 0.12 } }}
@@ -409,7 +442,7 @@ export function Launcher({
         )}
       </AnimatePresence>
       <AnimatePresence>
-        {lastRun && !open && (
+        {lastRun && !isOpen && (
           <motion.p
             animate={{ opacity: 1, y: 0 }}
             aria-live="polite"

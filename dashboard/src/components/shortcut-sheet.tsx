@@ -26,6 +26,12 @@ export interface ShortcutSheetProps {
   defaultPlatform?: Platform;
   title?: string;
   className?: string;
+  /**
+   * Controlled visibility. When set, the parent owns the open state so a
+   * global shell shortcut (the ? key) can open the sheet from anywhere.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const MAC: Record<string, string> = { mod: "⌘", shift: "⇧", alt: "⌥", ctrl: "⌃", enter: "↵", esc: "esc", backspace: "⌫", up: "↑", down: "↓", left: "←", right: "→" };
@@ -45,15 +51,21 @@ function Highlight({ text, query }: { text: string; query: string }) {
   return (
     <>
       {text.slice(0, i)}
-      <mark className="rounded-[calc(var(--radius)*0.3)] bg-amber-400/30 text-foreground">{text.slice(i, i + query.length)}</mark>
+      <mark className="rounded-[calc(var(--radius)*0.3)] bg-warning/30 text-foreground">{text.slice(i, i + query.length)}</mark>
       {text.slice(i + query.length)}
     </>
   );
 }
 
-export function ShortcutSheet({ groups, children, defaultPlatform, title = "Keyboard shortcuts", className }: ShortcutSheetProps) {
+export function ShortcutSheet({ groups, children, defaultPlatform, title = "Keyboard shortcuts", className, open, onOpenChange }: ShortcutSheetProps) {
   const reduce = useReducedMotion();
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const controlled = open !== undefined;
+  const isOpen = controlled ? open : uncontrolledOpen;
+  const requestOpen = (next: boolean) => {
+    if (controlled) onOpenChange?.(next);
+    else setUncontrolledOpen(next);
+  };
   const [query, setQuery] = useState("");
   const [platform, setPlatform] = useState<Platform>(defaultPlatform ?? "mac");
   const rootRef = useRef<HTMLDivElement>(null);
@@ -68,11 +80,11 @@ export function ShortcutSheet({ groups, children, defaultPlatform, title = "Keyb
   }, [defaultPlatform]);
 
   useEffect(() => {
-    if (open) inputRef.current?.focus();
-  }, [open]);
+    if (isOpen) inputRef.current?.focus();
+  }, [isOpen]);
 
   const close = () => {
-    setOpen(false);
+    requestOpen(false);
     setQuery("");
     rootRef.current?.focus();
   };
@@ -95,7 +107,7 @@ export function ShortcutSheet({ groups, children, defaultPlatform, title = "Keyb
   const total = filtered.reduce((n, g) => n + g.shortcuts.length, 0);
 
   const onRootKey = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (open) {
+    if (isOpen) {
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
@@ -105,7 +117,7 @@ export function ShortcutSheet({ groups, children, defaultPlatform, title = "Keyb
     }
     if (event.key === "?" && !event.metaKey && !event.ctrlKey && !isTyping(event.target)) {
       event.preventDefault();
-      setOpen(true);
+      requestOpen(true);
     }
   };
 
@@ -130,13 +142,13 @@ export function ShortcutSheet({ groups, children, defaultPlatform, title = "Keyb
       role="region"
       tabIndex={0}
     >
-      <div aria-hidden={open || undefined} inert={open || undefined}>
+      <div aria-hidden={isOpen || undefined} inert={isOpen || undefined}>
         {children}
         <div className="flex items-center justify-between border-t px-4 py-2 text-muted-foreground text-xs">
           <span>Click anywhere in here, then press</span>
           <button
             className="flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-            onClick={() => setOpen(true)}
+            onClick={() => requestOpen(true)}
             type="button"
           >
             <Kbd>?</Kbd>
@@ -146,7 +158,7 @@ export function ShortcutSheet({ groups, children, defaultPlatform, title = "Keyb
       </div>
 
       <AnimatePresence>
-        {open && (
+        {isOpen && (
           <motion.div
             animate={{ opacity: 1 }}
             className="absolute inset-0 z-10 flex items-end bg-background/40 p-2 backdrop-blur-[2px]"

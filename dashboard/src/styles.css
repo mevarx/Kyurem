@@ -1608,6 +1608,10 @@ select:focus {
 
 /* --------------------------- command palette --------------------------- */
 
+.palette-modal {
+  width: min(36rem, 100%);
+  height: fit-content;
+}
 .palette-scrim {
   position: fixed;
   inset: 0;
