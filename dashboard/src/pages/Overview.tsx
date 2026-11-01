@@ -20,7 +20,6 @@ import {
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { LatencyHistogram } from "../components/latency-histogram";
-import { RimLight } from "../components/rim-light";
 import { SinceYouLeft } from "../components/since-you-left";
 import { Sparkline } from "../components/Sparkline";
 import { OverviewSkeleton } from "../components/Skeleton";
@@ -151,9 +150,7 @@ export function Overview() {
       </section>
 
       <div className="panel-row">
-        <div className="relative">
-          <RimLight className="text-primary" />
-          <DashboardCard aria-label="Throughput">
+        <DashboardCard aria-label="Throughput">
           <DetailHeader title="Throughput" subtitle="Requests per bucket across the window">
             <DetailTag color="var(--chart-1)">
               {formatNumber(overview?.tasks_total)} tasks · {formatPercent(overview?.error_rate)} errors
@@ -217,7 +214,6 @@ export function Overview() {
             </div>
           )}
           </DashboardCard>
-        </div>
 
         <DashboardCard aria-label="Top agents">
           <DetailHeader title="Top agents" subtitle="Ranked by spend in this window">

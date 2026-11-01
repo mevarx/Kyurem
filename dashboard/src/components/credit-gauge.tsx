@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable react-hooks/refs -- vendored devl.dev: layout-ref reads in gauge animation */
 
-import { ArrowUpRightIcon, SparklesIcon } from "lucide-react";
+import { ArrowUpRightIcon, CoinsIcon } from "lucide-react";
 import {
   AnimatePresence,
   animate,
@@ -151,7 +151,7 @@ function PlanButton({ level, onClick }: { level: Level; onClick?: () => void }) 
           key={label}
           transition={{ type: "spring", duration: 0.3, bounce: 0 }}
         >
-          {level === "near" || level === "over" ? <SparklesIcon /> : null}
+          {level === "near" || level === "over" ? <ArrowUpRightIcon /> : null}
           {label}
           {level === "calm" ? <ArrowUpRightIcon /> : null}
         </motion.span>
@@ -245,7 +245,7 @@ export function CreditGauge({
       <header className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-1.5">
           <span className="flex items-center gap-1.5 text-muted-foreground text-xs">
-            <SparklesIcon className="size-3.5" />
+            <CoinsIcon className="size-3.5" />
             {title}
           </span>
           <div className="flex items-baseline gap-1.5">

@@ -61,8 +61,8 @@ export function DashboardTopbar({ onSearch }: { onSearch: () => void }) {
           title="Dashboard polls the gateway every 5 seconds"
         >
           <span
-            className="size-2 shrink-0 animate-pulse rounded-full"
-            style={{ backgroundColor: 'var(--chart-4)', boxShadow: '0 0 8px var(--chart-4)' }}
+            className="size-2 shrink-0 rounded-full"
+            style={{ backgroundColor: 'var(--chart-4)' }}
             aria-hidden="true"
           />
           <span className="hidden sm:inline">Live · 5s</span>
