@@ -9,9 +9,11 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useCosts } from "../api/hooks";
+import { useCosts, useOverview } from "../api/hooks";
 import type { CostGroupBy } from "../api/types";
 import { CostTable } from "../components/CostTable";
+import { CreditGauge } from "../components/credit-gauge";
+import { DonutLegend } from "../components/donut-legend";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { TableSkeleton } from "../components/Skeleton";
@@ -19,7 +21,6 @@ import {
   DashboardCard,
   DashboardChartTooltip,
   DetailHeader,
-  DetailTag,
 } from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
 import { TimeRangePicker } from "../components/TimeRangePicker";
 import { downloadCsv, toCsv } from "../lib/csv";
@@ -43,19 +44,6 @@ const DONUT_COLORS = [
   "var(--text-subtle)",
 ];
 
-/** Build a conic-gradient ring from the cost shares (no SVG, no a11y noise). */
-function buildConicGradient(rows: Array<{ value: number }>): string {
-  const totalValue = rows.reduce((sum, row) => sum + row.value, 0);
-  if (totalValue <= 0) return "var(--muted)";
-  let cursor = 0;
-  const stops = rows.map((row, index) => {
-    const start = cursor;
-    cursor += (row.value / totalValue) * 100;
-    return `${DONUT_COLORS[index % DONUT_COLORS.length]} ${start}% ${cursor}%`;
-  });
-  return `conic-gradient(${stops.join(", ")})`;
-}
-
 const MONTHLY_BUDGET_USD = Number(import.meta.env.VITE_KYUREM_MONTHLY_BUDGET_USD ?? 500);
 
 /** Cost and token report with grouping and CSV export. */
@@ -64,6 +52,7 @@ export function Costs() {
   const [groupBy, setGroupBy] = useState<CostGroupBy>("agent");
   const apiWindow = toApiWindow(range);
   const query = useCosts(apiWindow, groupBy);
+  const overviewQuery = useOverview(apiWindow);
 
   const report = query.data;
 
@@ -85,8 +74,19 @@ export function Costs() {
     return out;
   }, [chartData]);
 
-  const total = report?.total_usd ?? 0;
-  const budgetRatio = MONTHLY_BUDGET_USD > 0 ? Math.min(1, total / MONTHLY_BUDGET_USD) : 0;
+  /** Aggregate overview window buckets into calendar-day spend for the gauge strip. */
+  const dailySpend = useMemo(() => {
+    const byDay = new Map<string, number>();
+    for (const bucket of overviewQuery.data?.cost_over_time ?? []) {
+      const day = new Date(bucket.bucket).toISOString().slice(0, 10);
+      byDay.set(day, (byDay.get(day) ?? 0) + (bucket.cost_usd ?? 0));
+    }
+    const days = [...byDay.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
+    return {
+      start: days.length > 0 ? new Date(`${days[0][0]}T00:00:00Z`) : undefined,
+      values: days.map(([, value]) => value),
+    };
+  }, [overviewQuery.data]);
 
   const exportCsv = () => {
     if (!report) return;
@@ -152,21 +152,20 @@ export function Costs() {
         <EmptyState title="No cost data for this window" icon="coins" />
       ) : (
         <>
-          <DashboardCard aria-label="Monthly budget">
-            <DetailHeader title="Monthly budget" subtitle="Window spend vs the configured budget">
-              <DetailTag color="var(--chart-1)">
-                {formatCost(total)} of {formatCost(MONTHLY_BUDGET_USD)}
-              </DetailTag>
-            </DetailHeader>
-            <div className="budget-wrap" role="progressbar" aria-valuenow={Math.round(budgetRatio * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Budget used">              <div className="budget-track">
-                <div className="budget-fill" style={{ width: `${budgetRatio * 100}%` }} />
-              </div>
-              <div className="budget-labels">
-                <span>{Math.round(budgetRatio * 100)}% used</span>
-                <span>{formatCost(Math.max(0, MONTHLY_BUDGET_USD - total))} left</span>
-              </div>
-            </div>
-          </DashboardCard>
+          <CreditGauge
+            categories={chartData.slice(0, 5).map((bucket) => ({
+              id: bucket.key,
+              label: bucket.key,
+              used: bucket.cost_usd,
+            }))}
+            daily={dailySpend.values}
+            daysInPeriod={Math.max(dailySpend.values.length, 1)}
+            limit={MONTHLY_BUDGET_USD}
+            periodStart={dailySpend.start}
+            title="Monthly budget"
+            unit="$"
+            warnAt={0.8}
+          />
 
           <div className="panel-row">
             <DashboardCard aria-label={`Cost per ${groupBy}`}>
@@ -222,27 +221,18 @@ export function Costs() {
               {donutData.length === 0 ? (
                 <EmptyState title="No cost data for this window" icon="coins" />
               ) : (
-                <>
-                  <div className="donut-ring" aria-hidden="true">
-                    <div
-                      className="donut-ring-arc"
-                      style={{ background: buildConicGradient(donutData) }}
-                    />
-                    <div className="donut-ring-hole">
-                      <span className="donut-ring-value">{formatCost(total)}</span>
-                      <span className="donut-ring-label">spend</span>
-                    </div>
-                  </div>
-                  <div className="donut-legend">
-                    {donutData.slice(0, 6).map((entry, i) => (
-                      <div key={entry.name} className="donut-legend-row">
-                        <span className="donut-swatch" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} aria-hidden="true" />
-                        {entry.name}
-                        <span className="mono">{formatCost(entry.value)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
+                <DonutLegend
+                  caption={`By ${groupBy} · click a row to isolate it`}
+                  format={{ style: "currency", currency: "USD" }}
+                  slices={donutData.map((entry, i) => ({
+                    id: entry.name,
+                    label: entry.name,
+                    value: entry.value,
+                    color: DONUT_COLORS[i % DONUT_COLORS.length],
+                  }))}
+                  title="Share of spend"
+                  totalLabel="spend"
+                />
               )}
             </DashboardCard>
           </div>
