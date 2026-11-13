@@ -1,6 +1,11 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterEach } from "vitest";
+
+// Routes are code-split (React.lazy); under the full parallel suite the chunk
+// transform can exceed RTL's 1s default. Assertions are unchanged; only the
+// wait for the dynamic import gets headroom.
+configure({ asyncUtilTimeout: 5_000 });
 
 // Vitest runs without globals in this project, so Testing Library cannot
 // register its automatic cleanup hook by itself.

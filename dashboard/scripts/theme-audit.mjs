@@ -14,10 +14,25 @@ const axePath = require.resolve("axe-core/axe.min.js");
 const BASE = process.argv[2] ?? "http://localhost:5173";
 const OUT = "theme-audit";
 
+/** Prefer a real task id so task-detail is audited against a rendered trace,
+ * falling back to the fixture id when the gateway has no tasks. */
+async function resolveTaskId() {
+  try {
+    const res = await fetch(`${BASE}/api/v1/tasks?limit=1`);
+    if (!res.ok) return "task-9f31c4";
+    const body = await res.json();
+    return body?.items?.[0]?.task_id ?? "task-9f31c4";
+  } catch {
+    return "task-9f31c4";
+  }
+}
+
+const taskId = await resolveTaskId();
+
 const PAGES = [
   ["overview", "/"],
   ["tasks", "/tasks"],
-  ["task-detail", "/tasks/task-9f31c4"],
+  ["task-detail", `/tasks/${encodeURIComponent(taskId)}`],
   ["graph", "/graph"],
   ["costs", "/costs"],
   ["agents", "/agents"],
