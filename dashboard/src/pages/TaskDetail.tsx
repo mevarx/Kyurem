@@ -53,6 +53,25 @@ export function TaskDetail() {
   }
 
   if (query.isError) {
+    const err: unknown = query.error;
+    const isNotFound =
+      (typeof err === "object" &&
+        err !== null &&
+        (("status" in err && err.status === 404) ||
+          ("code" in err && err.code === "not_found"))) ||
+      (err instanceof Error && /not found/i.test(err.message));
+    if (isNotFound) {
+      return (
+        <div className="page">
+          <BackLink />
+          <EmptyState
+            title="Task not found"
+            description={`The gateway returned no task for id ${taskId}.`}
+            icon="search"
+          />
+        </div>
+      );
+    }
     return (
       <div className="page">
         <BackLink />

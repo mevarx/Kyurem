@@ -426,9 +426,10 @@ function KpiCard({
           fontFamily: "var(--font-sans)",
           fontWeight: 700,
           letterSpacing: "-1.5px",
-          fontSize: "2.5rem",
+          fontSize: "clamp(1.75rem, 1rem + 2vw, 2.5rem)",
           lineHeight: 1,
           fontVariantNumeric: "tabular-nums",
+          overflowWrap: "anywhere",
         }}
       >
         {display}
@@ -504,7 +505,7 @@ function PageHeader({
             fontWeight: 600,
             letterSpacing: "1.5px",
             textTransform: "uppercase",
-            color: "var(--text-subtle)",
+            color: "var(--muted-foreground)",
           }}
         >
           Operate
