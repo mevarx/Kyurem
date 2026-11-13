@@ -19,7 +19,11 @@ export interface DataTableProps<T> {
   columns: DataTableColumn<T>[];
   rows: T[];
   rowKey: (row: T) => string;
-  /** Optional mouse convenience: clicking a row triggers the callback. */
+  /**
+   * Optional convenience: clicking a row triggers the callback. Clickable rows
+   * are also focusable and activate with Enter/Space; the row's primary action
+   * stays reachable by keyboard via the in-row link as well.
+   */
   onRowClick?: (row: T) => void;
   /** Message shown when there are no rows. */
   emptyTitle?: string;
@@ -81,6 +85,17 @@ export function DataTable<T>({
               className={onRowClick ? "is-clickable cursor-pointer" : undefined}
               style={{ transition: "background-color 120ms var(--ease)" }}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
+              tabIndex={onRowClick ? 0 : undefined}
+              onKeyDown={
+                onRowClick
+                  ? (event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onRowClick(row);
+                      }
+                    }
+                  : undefined
+              }
             >
               {columns.map((column) => (
                 <td

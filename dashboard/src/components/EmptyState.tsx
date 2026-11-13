@@ -66,8 +66,8 @@ export function EmptyState({
       </span>
       <p className="state-title" style={rise(1)}>{title}</p>
       {showQuery ? (
-        <p className="state-mono" aria-label="Searched query" style={rise(2)}>
-          &ldquo;{trimmedQuery}&rdquo;
+        <p className="state-mono" style={rise(2)}>
+          <span className="sr-only">Searched query: </span>&ldquo;{trimmedQuery}&rdquo;
         </p>
       ) : null}
       {showBlocked ? (

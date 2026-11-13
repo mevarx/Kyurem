@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useTaskDetail } from "../api/hooks";
 import type { Event, Span, Task } from "../api/types";
@@ -25,6 +26,21 @@ export function TaskDetail() {
   const { taskId = "" } = useParams<{ taskId: string }>();
   const query = useTaskDetail(taskId);
 
+  const detail = query.data;
+  const spansForMemo = detail?.spans;
+  const eventsForMemo = detail?.events;
+  const receiptCalls = useMemo(() => toReceiptCalls(spansForMemo ?? []), [spansForMemo]);
+  const logLines = useMemo(() => toLogLines(eventsForMemo ?? []), [eventsForMemo]);
+  const bottleneck = useMemo(
+    () =>
+      !spansForMemo || spansForMemo.length === 0
+        ? null
+        : spansForMemo.reduce((slowest, span) =>
+            (span.duration_ms ?? 0) > (slowest.duration_ms ?? 0) ? span : slowest,
+          ),
+    [spansForMemo],
+  );
+
   if (query.isPending) {
     return (
       <div className="page">
@@ -45,7 +61,6 @@ export function TaskDetail() {
     );
   }
 
-  const detail = query.data;
   if (!detail) {
     return (
       <div className="page">
@@ -55,17 +70,9 @@ export function TaskDetail() {
     );
   }
 
-  const { task, spans, root_cause, cost, events } = detail;
+  const { task, spans, root_cause, cost } = detail;
   const affectedSpanIds = root_cause?.affected_span_ids ?? [];
-  const receiptCalls = toReceiptCalls(spans);
-  const logLines = toLogLines(events ?? []);
   const isFailed = task.status === "failed";
-  const bottleneck =
-    spans.length === 0
-      ? null
-      : spans.reduce((slowest, span) =>
-          (span.duration_ms ?? 0) > (slowest.duration_ms ?? 0) ? span : slowest,
-        );
   return (
     <div className="page">
       <BackLink />

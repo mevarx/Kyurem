@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Area,
@@ -73,6 +73,34 @@ export function Overview() {
     [taskChart],
   );
   const failedSeries = useMemo(() => taskChart.map((b) => b.failed), [taskChart]);
+  const errorRateSeries = useMemo(
+    () => taskChart.map((b) => (b.total === 0 ? 0 : (b.failed / b.total) * 100)),
+    [taskChart],
+  );
+  const topCostRows = useMemo<RankedRow[]>(() => {
+    const buckets = data?.top_agents_by_cost ?? [];
+    const max = maxBy(buckets, (b) => b.cost_usd ?? 0);
+    return buckets.slice(0, 5).map((bucket) => ({
+      key: bucket.key,
+      display: formatCost(bucket.cost_usd),
+      ratio: max,
+      value: bucket.cost_usd ?? 0,
+      accent: true,
+    }));
+  }, [data]);
+  const topFailingRows = useMemo<RankedRow[]>(() => {
+    const agents = data?.top_failing_agents ?? [];
+    const max = maxBy(agents, (a) => a.errors);
+    const failedTotal = data?.tasks_failed ?? 0;
+    return agents.slice(0, 5).map((agent) => ({
+      key: agent.name,
+      display: `${formatNumber(agent.errors)} · ${formatPercent(agent.error_rate)}`,
+      ratio: max,
+      value: agent.errors,
+      bad: true,
+      sub: failedTotal > 0 ? `${formatPercent(agent.errors / (failedTotal || 1))} of failures` : undefined,
+    }));
+  }, [data]);
 
   if (query.isPending) {
     return (
@@ -119,7 +147,7 @@ export function Overview() {
           format={(v) => `${v.toFixed(1)}%`}
           pill={<DeltaPill change={halfChange(failedSeries)} suffix="vs 1st half" tone="danger" />}
           hint={`${formatNumber(overview?.tasks_failed)} failed`}
-          sparkValues={taskChart.map((b) => (b.total === 0 ? 0 : (b.failed / b.total) * 100))}
+          sparkValues={errorRateSeries}
           sparkStroke="var(--danger)"
         />
         <KpiCard
@@ -226,15 +254,7 @@ export function Overview() {
             <EmptyState title="No agent cost data" icon="coins" />
           ) : (
             <>
-              <RankedBars
-                rows={(data?.top_agents_by_cost ?? []).slice(0, 5).map((bucket) => ({
-                  key: bucket.key,
-                  display: formatCost(bucket.cost_usd),
-                  ratio: maxBy(data?.top_agents_by_cost ?? [], (b) => b.cost_usd ?? 0),
-                  value: bucket.cost_usd ?? 0,
-                  accent: true,
-                }))}
-              />
+              <RankedBars rows={topCostRows} />
               <div className="card-footer">
                 <span className="count-meta">{formatCost(overview?.total_cost_usd)} total</span>
                 <Link className="link-inline" to="/costs">View all</Link>
@@ -253,19 +273,7 @@ export function Overview() {
             <EmptyState title="No agent failures in this window" icon="check" />
           ) : (
             <>
-              <RankedBars
-                rows={(data?.top_failing_agents ?? []).slice(0, 5).map((agent) => ({
-                  key: agent.name,
-                  display: `${formatNumber(agent.errors)} · ${formatPercent(agent.error_rate)}`,
-                  ratio: maxBy(data?.top_failing_agents ?? [], (a) => a.errors),
-                  value: agent.errors,
-                  bad: true,
-                  sub:
-                    (overview?.tasks_failed ?? 0) > 0
-                      ? `${formatPercent(agent.errors / (overview?.tasks_failed ?? 1))} of failures`
-                      : undefined,
-                }))}
-              />
+              <RankedBars rows={topFailingRows} />
               <div className="card-footer">
                 <span className="count-meta">
                   {formatNumber(overview?.tasks_failed)} failed tasks
@@ -350,7 +358,7 @@ function maxBy<T>(rows: T[], pick: (row: T) => number): number {
   return rows.reduce((max, row) => Math.max(max, pick(row)), 0);
 }
 
-function DeltaPill({
+const DeltaPill = memo(function DeltaPill({
   change,
   suffix,
   tone,
@@ -373,7 +381,7 @@ function DeltaPill({
       {Math.abs(change * 100).toFixed(0)}% {suffix}
     </span>
   );
-}
+});
 
 function KpiCard({
   label,
@@ -451,8 +459,7 @@ interface RankedRow {
   /** Optional secondary line, e.g. share of total failures. */
   sub?: string;
 }
-
-function RankedBars({ rows }: { rows: RankedRow[] }) {
+const RankedBars = memo(function RankedBars({ rows }: { rows: RankedRow[] }) {
   const max = rows.reduce((m, r) => Math.max(m, r.ratio), 0) || 1;
   return (
     <ol className="ranked-list">
@@ -478,7 +485,7 @@ function RankedBars({ rows }: { rows: RankedRow[] }) {
       ))}
     </ol>
   );
-}
+});
 
 function PageHeader({
   range,

@@ -99,7 +99,7 @@ export function SpanWaterfall({ spans, selectedSpanId, onSelectSpan }: SpanWater
                   )}`}
                   aria-label={`Select span ${row.span.name}, ${row.agent}, ${formatDuration(
                     row.span.duration_ms,
-                  )}`}
+                  )}, status ${row.span.status_code ?? row.span.error_type ?? "unknown"}`}
                   aria-pressed={isSelected}
                   onClick={() => toggle(row.span.span_id)}
                 />

@@ -209,7 +209,7 @@ function AppError({
         {request ? <span style={{ display: "block" }}>{request}</span> : null}
       </div>
       <div className="state-action">
-        <button type="button" className="button" onClick={copy}>
+        <button type="button" className="button" onClick={copy} aria-live="polite">
           {copied ? "Copied" : "Copy details"}
         </button>
         {reportHref ? (

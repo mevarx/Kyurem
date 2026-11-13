@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import dagre from "dagre";
 import {
   Background,
@@ -50,8 +50,7 @@ type AgentFlowEdge = Edge<AgentEdgeData, "agent">;
 
 const NODE_WIDTH = 240;
 const NODE_HEIGHT = 96;
-
-function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
+const AgentNode = memo(function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
   const cardStatus = data.cardStatus ?? "unknown";
   const verification = data.verification ?? "unknown";
   return (
@@ -101,7 +100,7 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
       <Handle type="source" position={Position.Right} />
     </div>
   );
-}
+});
 
 function edgeColor(errorRate: number): string {
   if (errorRate >= 0.25) return "var(--danger)";
@@ -109,7 +108,7 @@ function edgeColor(errorRate: number): string {
   return "var(--chart-1)";
 }
 
-function AgentEdge({
+const AgentEdge = memo(function AgentEdge({
   id,
   sourceX,
   sourceY,
@@ -168,7 +167,7 @@ function AgentEdge({
       </EdgeLabelRenderer>
     </>
   );
-}
+});
 
 const nodeTypes = { agent: AgentNode };
 const edgeTypes = { agent: AgentEdge };

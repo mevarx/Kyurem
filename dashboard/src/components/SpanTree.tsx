@@ -77,7 +77,7 @@ function SpanRow({
         <button
           type="button"
           className="span-node-name"
-          aria-label={`Select span ${span.name}`}
+          aria-label={highlighted ? `Select span ${span.name}, affected by root cause` : `Select span ${span.name}`}
           aria-pressed={selected}
           title={span.name}
           onClick={() => onSelect(selected ? null : span.span_id)}
