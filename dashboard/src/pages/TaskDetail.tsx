@@ -71,11 +71,11 @@ export function TaskDetail() {
       <BackLink />
 
       <header className="page-header">
-        <div className="page-title-pair">
+        <div className="page-title-pair min-w-0">
           <span className="page-kicker">Task</span>
-          <h1 className="mono">{task.task_id}</h1>
-          <p className="page-subtitle">
-            Trace <code className="mono">{task.trace_id}</code> · started {formatDateTime(task.started_at)}
+          <h1 className="mono min-w-0 truncate break-all" title={task.task_id}>{task.task_id}</h1>
+          <p className="page-subtitle min-w-0 break-words">
+            Trace <code className="mono break-all">{task.trace_id}</code> · started {formatDateTime(task.started_at)}
           </p>
         </div>
         <StatusBadge label={task.status} tone={taskStatusTone(task.status)} />
@@ -125,8 +125,8 @@ export function TaskDetail() {
       {task.error_message ? (
         <DashboardCard aria-label="Task error">
           <DetailHeader title="Error" subtitle={task.error_type ?? "Task failed"} />
-          <p className="mono">
-            <strong>{task.error_type ?? "unknown"}</strong>: {task.error_message}
+          <p className="mono min-w-0 break-words">
+            <strong className="break-all">{task.error_type ?? "unknown"}</strong>: {task.error_message}
           </p>
         </DashboardCard>
       ) : null}
@@ -134,24 +134,24 @@ export function TaskDetail() {
       {isFailed && root_cause ? null : <RootCausePanel rootCause={root_cause} spans={spans} />}
 
       <div className="panel-row">
-        <DashboardCard aria-label="Span tree">
+        <DashboardCard aria-label="Span tree" className="min-w-0">
           <DetailHeader title="Span tree" subtitle={`${formatNumber(spans.length)} spans`} />
           <SpanTree spans={spans} highlightSpanIds={affectedSpanIds} />
         </DashboardCard>
 
-        <DashboardCard aria-label="Timeline">
+        <DashboardCard aria-label="Timeline" className="min-w-0">
           <DetailHeader title="Timeline" subtitle="Span waterfall" />
           <SpanWaterfall spans={spans} />
         </DashboardCard>
       </div>
 
-      <DashboardCard aria-label="Cost breakdown">
+      <DashboardCard aria-label="Cost breakdown" className="min-w-0">
         <DetailHeader title="Cost breakdown" subtitle={formatCost(cost?.total_usd ?? null)} />
         <CostTable report={cost} caption="Cost breakdown of this task" />
       </DashboardCard>
 
       <div className="panel-row">
-        <DashboardCard aria-label="Tool calls">
+        <DashboardCard aria-label="Tool calls" className="min-w-0">
           <DetailHeader title="Tool calls" subtitle="Per-span time; the gateway does not expose per-span cost" />
           {receiptCalls.length === 0 ? (
             <EmptyState title="No spans recorded" description="The gateway returned no spans for this task." />
@@ -160,13 +160,13 @@ export function TaskDetail() {
           )}
         </DashboardCard>
 
-        <DashboardCard aria-label="Task payload">
+        <DashboardCard aria-label="Task payload" className="min-w-0">
           <DetailHeader title="Task payload" subtitle="Raw task record" />
           <JsonExplorer data={taskPayload(task)} title="task" />
         </DashboardCard>
       </div>
 
-      <DashboardCard aria-label="Span events">
+      <DashboardCard aria-label="Span events" className="min-w-0">
         <DetailHeader title="Span events" subtitle="Searchable stream; repeated bursts fold together" />
         {logLines.length === 0 ? (
           <EmptyState

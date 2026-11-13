@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { cn } from "../lib/utils";
 import { EmptyState } from "./EmptyState";
 
@@ -39,12 +39,22 @@ export function DataTable<T>({
   emptyDescription,
   className,
 }: DataTableProps<T>) {
+  const scrollHintId = `${useId()}-scroll-hint`;
   if (rows.length === 0) {
     return <EmptyState title={emptyTitle} description={emptyDescription} />;
   }
 
   return (
-    <div className={`table-wrapper${className ? ` ${className}` : ""}`} tabIndex={0}>
+    <div
+      className={`table-wrapper${className ? ` ${className}` : ""}`}
+      tabIndex={0}
+      role="region"
+      aria-label={caption}
+      aria-describedby={scrollHintId}
+    >
+      <p id={scrollHintId} className="sr-only">
+        Scroll horizontally to see all columns.
+      </p>
       <table className="data-table">
         <caption className="sr-only">{caption}</caption>
         <thead>

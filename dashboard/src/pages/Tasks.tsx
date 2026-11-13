@@ -192,7 +192,7 @@ export function Tasks() {
         </div>
       </header>
 
-      <section className="filter-toolbar" aria-label="Task filters">
+      <section className="filter-toolbar max-sm:flex-col max-sm:items-stretch" aria-label="Task filters">
         <div className="field">
           <label htmlFor="task-search">Task id</label>
           <input
@@ -293,7 +293,7 @@ export function Tasks() {
                 emptyDescription="Try a wider time range or clear the filters."
               />
             </div>
-            <div className="pagination px-3 pb-1">
+            <div className="pagination flex-wrap px-3 pb-1">
               <span className="mono" aria-live="polite">
                 Page {page + 1} of {pageCount}
               </span>

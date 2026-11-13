@@ -62,7 +62,7 @@ const manageSection: NavSection = {
   ],
 }
 
-function Brand() {
+function Brand({ onNavigate }: { onNavigate?: () => void }) {
   const settingsQuery = useSettings({ refetchInterval: 30_000 })
   const liveLabel = settingsQuery.isPending
     ? 'Connecting'
@@ -75,7 +75,7 @@ function Brand() {
       ? 'bg-danger'
       : 'bg-success'
   return (
-    <NavLink to="/" className="flex min-w-0 flex-1 items-center gap-3">
+    <NavLink to="/" className="flex min-w-0 flex-1 items-center gap-3" onClick={onNavigate}>
       <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-lg font-bold text-primary-foreground">
         K
       </div>
@@ -218,10 +218,14 @@ function GatewayStatusCard() {
 }
 
 export function DashboardSidebar() {
+  const { isMobile, setOpenMobile } = useSidebar()
+  const closeOnNavigate = () => {
+    if (isMobile) setOpenMobile(false)
+  }
   return (
     <Sidebar className="border-none! p-0.5 capitalio-dashboard">
       <SidebarHeader className="mb-4 flex-row items-start gap-2 px-4 pt-6 pb-0">
-        <Brand />
+        <Brand onNavigate={closeOnNavigate} />
       </SidebarHeader>
 
       <SidebarContent className="gap-2 px-4 pb-4">

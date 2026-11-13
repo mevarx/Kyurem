@@ -119,7 +119,7 @@ export function Costs() {
         </div>
       </header>
 
-      <section className="filter-toolbar" aria-label="Cost controls">
+      <section className="filter-toolbar max-sm:flex-col max-sm:items-stretch" aria-label="Cost controls">
         <div className="field" style={{ flexGrow: 0, minWidth: 150 }}>
           <label htmlFor="cost-group-by">Group by</label>
           <select
@@ -247,7 +247,7 @@ export function Costs() {
                 <DetailTag color="var(--muted-foreground)">{`${formatNumber(report.unknown_spans)} unknown cost`}</DetailTag>
               </DetailHeader>
             </div>
-            <div className="p-3">
+            <div className="table-wrapper max-w-full p-3" tabIndex={0} style={{ border: "none", borderRadius: 12 }}>
               <CostTable report={report} groupLabel={groupBy} />
             </div>
           </DashboardCard>

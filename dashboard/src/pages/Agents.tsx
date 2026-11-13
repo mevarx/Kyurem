@@ -40,11 +40,13 @@ export function Agents() {
     {
       key: "aliases",
       header: "Aliases",
+      hideOnMobile: true,
       render: (agent) => (agent.aliases.length > 0 ? agent.aliases.join(", ") : "unknown"),
     },
     {
       key: "upstreams",
       header: "Upstreams",
+      hideOnMobile: true,
       render: (agent) => (
         <ul className="plain-list">
           {agent.upstreams.length > 0 ? (
@@ -58,6 +60,7 @@ export function Agents() {
     {
       key: "card_status",
       header: "Card",
+      hideOnMobile: true,
       render: (agent) => (
         <StatusBadge label={agent.card_status} tone={cardStatusTone(agent.card_status)} />
       ),
@@ -65,6 +68,7 @@ export function Agents() {
     {
       key: "verification",
       header: "Verification",
+      hideOnMobile: true,
       render: (agent) => (
         <StatusBadge
           label={agent.verification}
@@ -86,18 +90,21 @@ export function Agents() {
     {
       key: "last_seen",
       header: "Last seen",
+      hideOnMobile: true,
       render: (agent) => formatRelativeTime(agent.last_seen),
     },
     {
       key: "spans",
       header: "Spans",
       align: "right",
+      hideOnMobile: true,
       render: (agent) => formatNumber(agent.spans),
     },
     {
       key: "errors",
       header: "Errors",
       align: "right",
+      hideOnMobile: true,
       render: (agent) => formatNumber(agent.errors),
     },
     {
@@ -110,12 +117,14 @@ export function Agents() {
       key: "p95",
       header: "p95",
       align: "right",
+      hideOnMobile: true,
       render: (agent) => formatDuration(agent.p95_ms ?? null),
     },
     {
       key: "cost",
       header: "Cost",
       align: "right",
+      hideOnMobile: true,
       render: (agent) => formatCost(agent.cost_usd),
     },
   ];

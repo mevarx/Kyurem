@@ -69,17 +69,19 @@ export function AgentGraph() {
         />
       ) : (
         <div className="graph-layout">
-          <DashboardCard aria-label="Call graph" className="p-2">
+          <DashboardCard aria-label="Call graph" className="min-w-0 p-2">
             <h2 id="graph-heading" className="sr-only">
               Call graph
             </h2>
-            <AgentGraphCanvas
-              nodes={graphQuery.data?.nodes ?? []}
-              edges={graphQuery.data?.edges ?? []}
-              agents={agents}
-              selectedAgent={selected}
-              onSelectAgent={(name) => setSelected(name)}
-            />
+            <div className="min-w-0 [&_.graph-canvas]:h-[420px]! sm:[&_.graph-canvas]:h-[620px]!">
+              <AgentGraphCanvas
+                nodes={graphQuery.data?.nodes ?? []}
+                edges={graphQuery.data?.edges ?? []}
+                agents={agents}
+                selectedAgent={selected}
+                onSelectAgent={(name) => setSelected(name)}
+              />
+            </div>
             <p className="graph-legend mono tabular">
               <span className="graph-legend-item">
                 <span className="graph-legend-line" style={{ borderColor: "var(--chart-1)" }} aria-hidden="true" />{" "}
@@ -92,13 +94,13 @@ export function AgentGraph() {
                 <span className="graph-legend-line graph-legend-line-bad" aria-hidden="true" /> erroring · error rate
                 ≥ 25%
               </span>
-              <span>Width ∝ calls · labels show calls · p95 · hover an edge for errors and cost.</span>
+              <span className="min-w-0 break-words">Width ∝ calls · labels show calls · p95 · hover an edge for errors and cost.</span>
             </p>
           </DashboardCard>
 
-          <DashboardCard aria-label="Agent details" className="graph-side-panel">
+          <DashboardCard aria-label="Agent details" className="graph-side-panel min-w-0">
             <DetailHeader title="Agent" subtitle={selected ? "Selected node inspector" : "Select a node to inspect"}>
-              {selected ? <DetailTag>{selected}</DetailTag> : null}
+              {selected ? <DetailTag><span className="min-w-0 break-all">{selected}</span></DetailTag> : null}
             </DetailHeader>
             {selected === null ? (
               <EmptyState title="No agent selected" description="Click a node to inspect the agent." />
@@ -136,8 +138,8 @@ function AgentDetail({
   const breaker = agent?.breaker_state;
 
   return (
-    <div className="agent-detail">
-      <h3 className="agent-detail-name mono">{name}</h3>
+    <div className="agent-detail min-w-0">
+      <h3 className="agent-detail-name mono min-w-0 break-all">{name}</h3>
 
       <div className="badge-row">
         <StatusBadge label={`card: ${cardStatus}`} tone={cardStatusTone(cardStatus)} />
@@ -161,7 +163,7 @@ function AgentDetail({
             {agent?.upstreams?.length ? (
               <ul className="plain-list">
                 {agent.upstreams.map((upstream) => (
-                  <li key={upstream}>{upstream}</li>
+                  <li key={upstream} className="break-all">{upstream}</li>
                 ))}
               </ul>
             ) : (
@@ -205,9 +207,9 @@ function AgentDetail({
         <ul className="task-list">
           {errors.map((error) => (
             <li key={error.task_id} className="task-list-item">
-              <Link to={`/tasks/${encodeURIComponent(error.task_id)}`}>{error.task_id}</Link>
+              <Link to={`/tasks/${encodeURIComponent(error.task_id)}`} className="min-w-0 break-all">{error.task_id}</Link>
               {error.error_message ? (
-                <span className="task-list-error">{error.error_message}</span>
+                <span className="task-list-error break-words">{error.error_message}</span>
               ) : null}
             </li>
           ))}

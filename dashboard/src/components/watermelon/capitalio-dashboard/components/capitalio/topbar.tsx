@@ -1,6 +1,7 @@
+import * as React from 'react'
 import { Search } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
-import { SidebarTrigger } from '@/components/ui/sidebar'
+import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
 const TITLES: Record<string, { section: string; title: string }> = {
@@ -23,10 +24,22 @@ function titleFor(pathname: string): { section: string; title: string } {
 export function DashboardTopbar({ onSearch }: { onSearch: () => void }) {
   const { pathname } = useLocation()
   const { section, title } = titleFor(pathname)
+  const { openMobile } = useSidebar()
+  const triggerRef = React.useRef<HTMLButtonElement>(null)
+  const wasOpenRef = React.useRef(false)
+  React.useEffect(() => {
+    if (wasOpenRef.current && !openMobile) triggerRef.current?.focus()
+    wasOpenRef.current = openMobile
+  }, [openMobile])
 
   return (
-    <header className="flex h-14 w-full shrink-0 items-center gap-2 border-b border-border bg-background px-4 md:h-16 md:gap-3 md:px-8">
-      <SidebarTrigger className="size-9 shrink-0 md:hidden [&_svg]:size-5!" />
+    <header className="m4-topbar flex h-14 w-full shrink-0 items-center gap-2 border-b border-border bg-background px-4 md:h-16 md:gap-3 md:px-8">
+      <SidebarTrigger
+        ref={triggerRef}
+        aria-label="Open navigation"
+        aria-expanded={openMobile}
+        className="size-9 shrink-0 md:hidden [&_svg]:size-5!"
+      />
 
       <nav className="flex min-w-0 flex-1 items-center gap-2 text-sm" aria-label="Breadcrumb">
         <span className="hidden shrink-0 text-muted-foreground sm:inline">{section}</span>

@@ -2203,3 +2203,36 @@ select:focus {
 .icon-button:active {
   transform: scale(0.97);
 }
+
+/* ============================ M4 responsive ============================== *
+ * Mobile navigation drawer + compressed topbar. Token contract: reuses
+ * --dur-med and --ease defined above (no new duration/easing tokens).
+ * The global prefers-reduced-motion rule zeroes these transitions for
+ * users who request reduced motion. Desktop (>=768px) untouched.
+ * ======================================================================= */
+.m4-shell {
+  overflow-x: clip;
+}
+
+/* Off-canvas nav drawer (Sheet side="left" on mobile): opacity + translate. */
+.m4-drawer {
+  transition:
+    opacity var(--dur-med) var(--ease),
+    transform var(--dur-med) var(--ease);
+}
+
+/* Compressed topbar below the 768px drawer breakpoint: never overflow 360px. */
+.m4-topbar {
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .m4-topbar {
+    gap: 0.5rem;
+    padding-inline: 0.75rem;
+  }
+
+  .m4-topbar nav[aria-label="Breadcrumb"] {
+    min-width: 0;
+  }
+}

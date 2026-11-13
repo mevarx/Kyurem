@@ -284,7 +284,7 @@ export function Overview() {
             <ul className="task-list">
               {overview.recent_failed_tasks.map((task) => (
                 <li key={task.task_id} className="task-list-item">
-                  <Link className="task-id-link" to={`/tasks/${encodeURIComponent(task.task_id)}`}>
+                  <Link className="task-id-link min-w-0 break-all" to={`/tasks/${encodeURIComponent(task.task_id)}`} title={task.task_id}>
                     {task.task_id}
                   </Link>
                   <span className="task-list-meta">
@@ -462,9 +462,9 @@ function RankedBars({ rows }: { rows: RankedRow[] }) {
             <span className="avatar" aria-hidden="true">
               {row.key.slice(0, 2).toUpperCase()}
             </span>
-            {row.key}
+            <span className="min-w-0 truncate" title={row.key}>{row.key}</span>
           </span>
-          <span className="ranked-value">
+          <span className="ranked-value min-w-0 break-words text-right">
             {row.display}
             {row.sub ? <span className="ranked-sub mono"> · {row.sub}</span> : null}
           </span>

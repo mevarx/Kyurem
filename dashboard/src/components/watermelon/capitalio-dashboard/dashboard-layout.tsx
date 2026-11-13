@@ -13,7 +13,7 @@ export default function DashboardLayout({ children, onSearch }: DashboardLayoutP
   return (
     <SidebarProvider
       defaultOpen
-      className="capitalio-dashboard h-svh overflow-hidden no-scrollbar"
+      className="capitalio-dashboard m4-shell h-svh overflow-hidden no-scrollbar"
       style={
         {
           '--sidebar-width': '14rem',
