@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   BotIcon,
   CoinsIcon,
@@ -19,6 +19,7 @@ export function Layout() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const navigate = useNavigate();
   const { toggle } = useTheme();
+  const { pathname } = useLocation();
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -52,7 +53,9 @@ export function Layout() {
       </a>
       <DashboardLayout onSearch={() => setPaletteOpen(true)}>
         <main id="main-content" className="app-main" tabIndex={-1}>
-          <Outlet />
+          <div key={pathname} className="route-transition">
+            <Outlet />
+          </div>
         </main>
       </DashboardLayout>
       {paletteOpen ? (

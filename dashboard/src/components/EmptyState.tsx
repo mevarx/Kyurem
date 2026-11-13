@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 export interface EmptyStateProps {
   title: string;
@@ -50,30 +50,36 @@ export function EmptyState({
   const showBlocked = trimmedFilter !== "";
   const hint = showQuery && !description ? "Check the spelling, or try a broader word." : description;
   const clearText = clearLabel ?? (showBlocked ? `Remove \u201c${trimmedFilter}\u201d` : "Clear filters");
+  // Subtle staggered rise-in (~200ms, token easing). Reuses the existing
+  // `card-in` keyframes; the global reduced-motion rule collapses it.
+  const rise = (step: number): CSSProperties => ({
+    animation: "card-in var(--dur-med) var(--ease) both",
+    animationDelay: `${step * 40}ms`,
+  });
 
   return (
     <div className="state-card" role="status">
-      <span className="state-icon" aria-hidden="true">
+      <span className="state-icon" aria-hidden="true" style={rise(0)}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
           <path d={EMPTY_ICON_PATHS[resolvedIcon] ?? EMPTY_ICON_PATHS.inbox} />
         </svg>
       </span>
-      <p className="state-title">{title}</p>
+      <p className="state-title" style={rise(1)}>{title}</p>
       {showQuery ? (
-        <p className="state-mono" aria-label="Searched query">
+        <p className="state-mono" aria-label="Searched query" style={rise(2)}>
           &ldquo;{trimmedQuery}&rdquo;
         </p>
       ) : null}
       {showBlocked ? (
-        <p className="state-description">
+        <p className="state-description" style={rise(2)}>
           {blockedCount !== undefined
             ? `${blockedCount} ${blockedCount === 1 ? "match is" : "matches are"} hidden by the \u201c${trimmedFilter}\u201d filter.`
             : `Some matches may be hidden by the \u201c${trimmedFilter}\u201d filter.`}
         </p>
       ) : null}
-      {hint ? <p className="state-description">{hint}</p> : null}
+      {hint ? <p className="state-description" style={rise(2)}>{hint}</p> : null}
       {action || onClearFilters ? (
-        <div className="state-action">
+        <div className="state-action" style={rise(3)}>
           {action}
           {onClearFilters ? (
             <button type="button" className="button" onClick={onClearFilters}>

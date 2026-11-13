@@ -13,7 +13,11 @@ function initialValue(target: number): number {
 }
 
 /** Count up to `target` on first paint. Returns the target immediately when
- * reduced motion is preferred or the value is not finite. */
+ * reduced motion is preferred or the value is not finite.
+ *
+ * Re-targeting animates from the last rendered value instead of jumping, and
+ * a remount restarts from the initial value under the same easing — the final
+ * value is never flashed before the animation runs. */
 export function useCountUp(target: number, durationMs = 900): number {
   // Deterministic output under test runners (no rAF timing flakes).
   const isTest = import.meta.env.MODE === "test";

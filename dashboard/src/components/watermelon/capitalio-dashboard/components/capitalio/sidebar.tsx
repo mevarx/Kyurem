@@ -1,3 +1,4 @@
+import { motion, useReducedMotion } from 'motion/react'
 import { Collapsible } from '@base-ui/react/collapsible'
 import {
   Bot,
@@ -100,6 +101,7 @@ function isItemActive(pathname: string, href: string): boolean {
 function NavLinkButton({ item }: { item: NavItem }) {
   const { pathname } = useLocation()
   const { isMobile, setOpenMobile } = useSidebar()
+  const reduceMotion = useReducedMotion()
   const isActive = isItemActive(pathname, item.href)
   const Icon = item.icon
 
@@ -114,6 +116,7 @@ function NavLinkButton({ item }: { item: NavItem }) {
         tooltip={item.name}
         isActive={isActive}
         className={cn(
+          'sidebar-nav-item',
           'text-sm font-medium text-muted-foreground',
           '[&>svg]:text-subtle',
           'hover:bg-[var(--surface-raised)] hover:text-foreground hover:[&>svg]:text-foreground',
@@ -123,6 +126,14 @@ function NavLinkButton({ item }: { item: NavItem }) {
         )}
       >
         <NavLink to={item.href} end={item.href === '/'} onClick={handleClick}>
+          {isActive ? (
+            <motion.span
+              aria-hidden="true"
+              layoutId="sidebar-active-bar"
+              className="sidebar-active-bar"
+              transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 550, damping: 40 }}
+            />
+          ) : null}
           <Icon className="size-4 shrink-0" />
           <span className="truncate">{item.name}</span>
         </NavLink>

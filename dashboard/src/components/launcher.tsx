@@ -266,6 +266,7 @@ export function Launcher({
   };
 
   const spring = reduce ? { duration: 0 } : { type: "spring" as const, stiffness: 420, damping: 36 };
+  const panelTransition = reduce ? { duration: 0 } : { duration: 0.16, ease: 'easeOut' as const };
   const pageTitle = page ? pages[page]?.title : null;
 
   return (
@@ -275,11 +276,13 @@ export function Launcher({
         {isOpen ? (
           <motion.div
             className="overflow-hidden border bg-popover text-popover-foreground shadow-lg/5"
+            animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, transition: { duration: 0.12 } }}
+            initial={reduce ? false : { opacity: 0, y: 4 }}
             key="panel"
             layoutId={`${baseId}-shell`}
             style={{ borderRadius: radius * 1.6 }}
-            transition={spring}
+            transition={panelTransition}
           >
             <motion.div animate={{ opacity: 1 }} initial={reduce ? false : { opacity: 0 }} transition={{ delay: 0.06 }}>
               <div className="flex items-center gap-2 border-b px-3">

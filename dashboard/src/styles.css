@@ -2113,3 +2113,93 @@ select:focus {
     font-size: 1.9rem;
   }
 }
+
+/* ============================ M2 motion ================================ *
+ * Presentational route/nav/launcher motion. Reuses --dur-fast,
+ * --dur-med, and --ease defined above (no new duration/easing tokens).
+ * The global prefers-reduced-motion rule zeroes these animations and
+ * transitions for users who request reduced motion.
+ * ======================================================================= */
+@keyframes route-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes palette-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Keyed per route (Layout): fade + 4px rise, ~one --dur-med. */
+.route-transition {
+  animation: route-in var(--dur-med) var(--ease);
+}
+
+/* Topbar breadcrumb title swap on route change. */
+.topbar-title-swap {
+  animation: route-in var(--dur-fast) var(--ease);
+}
+
+/* Command-palette modal enter (Layout controlled mount): opacity + 4px rise. */
+.palette-modal {
+  animation: palette-rise var(--dur-fast) var(--ease);
+}
+
+/* Sidebar nav: keeps collapse (width/height/padding) transitions, adds 150ms
+   color hover transitions. The active bar glides via motion layoutId. */
+.sidebar-nav-item {
+  position: relative;
+  transition:
+    width var(--dur-fast) var(--ease),
+    height var(--dur-fast) var(--ease),
+    padding var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.sidebar-active-bar {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 1px;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--primary);
+}
+
+/* Topbar search trigger + icon-button (theme toggle) press feedback. */
+.topbar-search-trigger {
+  transition:
+    transform var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.topbar-search-trigger:active {
+  transform: scale(0.97);
+}
+
+.icon-button {
+  transition:
+    transform var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.icon-button:active {
+  transform: scale(0.97);
+}

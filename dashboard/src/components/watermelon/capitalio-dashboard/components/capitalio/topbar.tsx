@@ -33,7 +33,10 @@ export function DashboardTopbar({ onSearch }: { onSearch: () => void }) {
         <span className="hidden shrink-0 text-muted-foreground sm:inline" aria-hidden="true">
           /
         </span>
-        <span className="truncate text-[15px] font-semibold tracking-tight text-foreground">
+        <span
+          key={pathname}
+          className="topbar-title-swap truncate text-[15px] font-semibold tracking-tight text-foreground"
+        >
           {title}
         </span>
       </nav>
@@ -42,7 +45,7 @@ export function DashboardTopbar({ onSearch }: { onSearch: () => void }) {
         <button
           type="button"
           onClick={onSearch}
-          className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card px-0 text-sm text-muted-foreground transition-colors hover:text-foreground md:w-52 md:justify-start md:px-2.5"
+          className="topbar-search-trigger flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card px-0 text-sm text-muted-foreground transition-colors hover:text-foreground md:w-52 md:justify-start md:px-2.5"
         >
           <Search className="size-4 shrink-0" aria-hidden="true" />
           <span className="hidden truncate md:inline">Search</span>

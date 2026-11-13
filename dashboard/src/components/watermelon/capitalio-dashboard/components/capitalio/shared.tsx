@@ -23,14 +23,19 @@ type DashboardChartTooltipProps = {
 export function DashboardCard({
   children,
   className,
+  interactive = false,
 }: {
   children: React.ReactNode
   className?: string
+  /** Opt-in hover lift for cards that act as links or buttons. Defaults to static. */
+  interactive?: boolean
 }) {
   return (
     <article
       className={cn(
         'shadow-custom min-w-0 rounded-lg border border-border bg-card p-4 text-card-foreground',
+        interactive &&
+          'transition-[transform,box-shadow] duration-150 ease-out motion-safe:hover:-translate-y-px motion-safe:hover:shadow-[var(--shadow-float)]',
         className,
       )}
     >
@@ -64,13 +69,21 @@ export function DetailHeader({
 export function DetailTag({
   children,
   color = 'var(--chart-1)',
+  onClick,
 }: {
   children: React.ReactNode
   color?: string
+  /** Optional click handler; hover brightening only applies when set. */
+  onClick?: () => void
 }) {
   return (
     <span
-      className="inline-flex items-center gap-2 rounded-lg px-3 py-1 text-sm leading-5 text-foreground"
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-2 rounded-lg px-3 py-1 text-sm leading-5 text-foreground',
+        onClick &&
+          'cursor-pointer transition-[background-color,filter] duration-150 ease-out motion-safe:hover:brightness-125',
+      )}
       style={{
         backgroundColor: `color-mix(in oklab, ${color} 12%, transparent)`,
         border: `1px solid color-mix(in oklab, ${color} 25%, transparent)`,
@@ -103,7 +116,7 @@ export function DashboardChartTooltip({
   const header = items[0]?.payload?.name ?? label
 
   return (
-    <div className="rounded-lg border border-border bg-popover p-3 text-xs text-popover-foreground shadow-custom">
+    <div className="rounded-lg border border-border bg-popover p-3 text-xs text-popover-foreground shadow-custom motion-safe:animate-[fade-in_120ms_ease-out]">
       <div className="mb-2 text-xs font-medium text-muted-foreground">{header}</div>
       <div className="space-y-2">
         {items.map((item) => {

@@ -95,13 +95,17 @@ function GooDots() {
       </svg>
       <span className="absolute inset-0" style={{ filter: `url(#${filterId})` }}>
         {spots.map((x, i) => (
-          <motion.span
-            animate={reduce ? { opacity: [0.35, 1, 0.35] } : { scale: [1, 0.85, 1] }}
-            className="absolute top-1/2 size-2 rounded-full bg-current"
-            key={x}
-            style={{ left: x - 4, marginTop: -4 }}
-            transition={{ duration: 1.2, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut", delay: i * 0.2 }}
-          />
+          reduce ? (
+            <span className="absolute top-1/2 size-2 rounded-full bg-current" key={x} style={{ left: x - 4, marginTop: -4 }} />
+          ) : (
+            <motion.span
+              animate={{ scale: [1, 0.85, 1] }}
+              className="absolute top-1/2 size-2 rounded-full bg-current"
+              key={x}
+              style={{ left: x - 4, marginTop: -4 }}
+              transition={{ duration: 1.2, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut", delay: i * 0.2 }}
+            />
+          )
         ))}
         {!reduce && (
           <motion.span

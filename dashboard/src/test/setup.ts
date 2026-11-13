@@ -21,6 +21,9 @@ if (typeof globalThis.ResizeObserver === "undefined") {
 // jsdom lacks IntersectionObserver
 if (typeof globalThis.IntersectionObserver === "undefined") {
   globalThis.IntersectionObserver = class IntersectionObserverStub {
+    readonly root: Element | null = null;
+    readonly rootMargin = "";
+    readonly thresholds: readonly number[] = [];
     private callback: IntersectionObserverCallback;
     constructor(callback: IntersectionObserverCallback) {
       this.callback = callback;
@@ -30,6 +33,9 @@ if (typeof globalThis.IntersectionObserver === "undefined") {
     }
     unobserve(): void {}
     disconnect(): void {}
+    takeRecords(): IntersectionObserverEntry[] {
+      return [];
+    }
   };
 }
 

@@ -1,3 +1,4 @@
+import { motion, useReducedMotion } from "motion/react";
 import { useId } from "react";
 
 export interface SparklineProps {
@@ -9,8 +10,11 @@ export interface SparklineProps {
   height?: number;
 }
 
-/** Minimal SVG sparkline with gradient fill and a glowing end dot. */
+/** Minimal SVG sparkline with gradient fill and an end dot. The stroke draws
+ * in on mount (~600ms); the pulse loop was removed to keep motion restrained
+ * and reduced-motion safe. */
 export function Sparkline({ values, stroke = "var(--chart-1)", width = 220, height = 40 }: SparklineProps) {
+  const reduce = useReducedMotion();
   const id = useId().replace(/[^a-zA-Z0-9]/g, "");
   if (values.length < 2) {
     return (
@@ -40,11 +44,25 @@ export function Sparkline({ values, stroke = "var(--chart-1)", width = 220, heig
           <stop offset="100%" stopColor={stroke} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={area} fill={`url(#spark-${id})`} />
-      <path d={line} fill="none" stroke={stroke} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={endX} cy={endY} r="3" fill={stroke}>
-        <animate attributeName="r" values="2.4;3.4;2.4" dur="2s" repeatCount="indefinite" />
-      </circle>
+      <motion.path
+        d={area}
+        fill={`url(#spark-${id})`}
+        initial={reduce ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+      />
+      <motion.path
+        d={line}
+        fill="none"
+        stroke={stroke}
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        initial={reduce ? false : { pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+      />
+      <circle cx={endX} cy={endY} r="3" fill={stroke} />
     </svg>
   );
 }

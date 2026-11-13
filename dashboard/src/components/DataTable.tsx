@@ -68,7 +68,8 @@ export function DataTable<T>({
           {rows.map((row) => (
             <tr
               key={rowKey(row)}
-              className={onRowClick ? "is-clickable" : undefined}
+              className={onRowClick ? "is-clickable cursor-pointer" : undefined}
+              style={{ transition: "background-color 120ms var(--ease)" }}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
             >
               {columns.map((column) => (

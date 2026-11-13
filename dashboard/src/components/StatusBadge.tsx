@@ -9,7 +9,7 @@ export interface StatusBadgeProps {
 /** Small coloured pill used for task, card and breaker states. */
 export function StatusBadge({ label, tone = "neutral", title }: StatusBadgeProps) {
   return (
-    <span className={`badge badge-${tone}`} title={title ?? label}>
+    <span className={`badge badge-${tone} transition-[background-color,border-color] duration-150 ease-out`} title={title ?? label}>
       {label}
     </span>
   );

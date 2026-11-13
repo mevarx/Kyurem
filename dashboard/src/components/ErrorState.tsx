@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { ApiError, getApiBaseUrl } from "../api/client";
 import { errorMessage } from "../lib/format";
@@ -39,6 +39,23 @@ export interface ErrorStateProps {
   /** Destination of the app-variant dashboard action. */
   dashboardHref?: string;
 }
+
+/** Static (non-pulsing) status dot: token fill, no animation. */
+function StatusDot({ color }: { color: string }) {
+  const style: CSSProperties = {
+    display: "inline-block",
+    width: 8,
+    height: 8,
+    borderRadius: 9999,
+    background: color,
+    marginRight: 8,
+    verticalAlign: "1px",
+  };
+  return <span aria-hidden="true" style={style} />;
+}
+
+/** Subtle single-step card entrance (~200ms, token easing, reduced-motion safe). */
+const enter: CSSProperties = { animation: "fade-in var(--dur-med) var(--ease) both" };
 
 /** Static unplugged-cable illustration (unplugged pattern): token strokes only, no motion. */
 function UnpluggedScene() {
@@ -106,9 +123,12 @@ function GatewayError({
         checkConnection={probe}
         onPhaseChange={onPhaseChange}
       />
-      <div className="state-card" role="alert" style={{ marginTop: 12 }}>
+      <div className="state-card" role="alert" style={{ marginTop: 12, ...enter }}>
         <UnpluggedScene />
-        <p className="state-title">{heading}</p>
+        <p className="state-title">
+          <StatusDot color="var(--warning)" />
+          {heading}
+        </p>
         <p className="state-mono">{detail}</p>
         <div className="state-action">
           {onRetry ? (
@@ -171,13 +191,16 @@ function AppError({
   };
 
   return (
-    <div className="state-card" role="alert">
+    <div className="state-card" role="alert" style={enter}>
       <span className="state-icon state-icon-danger" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
         </svg>
       </span>
-      <p className="state-title">{heading}</p>
+      <p className="state-title">
+        <StatusDot color="var(--danger)" />
+        {heading}
+      </p>
       <p className="state-description">{description ?? "Your data is safe. Copy the details below if you report this."}</p>
       <div className="state-mono" style={{ textAlign: "left", width: "100%" }}>
         <span style={{ display: "block" }}>{message}</span>
