@@ -128,7 +128,10 @@ export function Agents() {
           <h1>Agents</h1>
           <p className="page-subtitle">Registry, cards and traffic of every known agent.</p>
         </div>
-        <TimeRangePicker value={range} onChange={setRange} idPrefix="agents-range" />
+        <div className="page-header-meta">
+          <DetailTag>{`${formatNumber(rows.length)} agents`}</DetailTag>
+          <TimeRangePicker value={range} onChange={setRange} idPrefix="agents-range" />
+        </div>
       </header>
 
       {query.isPending ? (
@@ -166,6 +169,7 @@ export function Agents() {
               rowKey={(agent) => agent.name}
               emptyTitle="No agents registered"
               emptyDescription="The gateway does not know any agent yet."
+              className="tabular"
             />
           </div>
         </DashboardCard>

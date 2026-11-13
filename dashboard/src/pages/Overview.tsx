@@ -52,7 +52,6 @@ export function Overview() {
   const throughputTotals = useMemo(() => taskChart.map((b) => b.total), [taskChart]);
   const spendSeries = useMemo(() => (data?.cost_over_time ?? []).map((b) => b.cost_usd ?? 0), [data]);
 
-  const successRate = data?.tasks_total ? (data.tasks_succeeded / data.tasks_total) : null;
 
   const lastVisit = useLastVisit();
   const recentDurations = useTasks({ limit: 100 }, { refetchInterval: LIVE_REFETCH_INTERVAL_MS });
@@ -101,7 +100,7 @@ export function Overview() {
 
       <section className="kpi-grid" aria-label="Key indicators">
         <KpiCard
-          label="Requests"
+          label="Throughput"
           value={formatNumber(overview?.tasks_total)}
           numeric={overview?.tasks_total ?? null}
           format={(v) => formatNumber(Math.round(v))}
@@ -110,14 +109,18 @@ export function Overview() {
           sparkValues={throughputTotals}
         />
         <KpiCard
-          label="Success rate"
-          value={successRate === null ? "unknown" : formatPercent(successRate)}
-          numeric={successRate === null ? null : successRate * 100}
+          label="Error rate"
+          value={formatPercent(overview?.error_rate)}
+          numeric={
+            overview?.error_rate === null || overview?.error_rate === undefined
+              ? null
+              : overview.error_rate * 100
+          }
           format={(v) => `${v.toFixed(1)}%`}
-          pill={<DeltaPill change={halfChange(taskChart.map((b) => b.succeeded))} suffix="volume" tone="success" />}
+          pill={<DeltaPill change={halfChange(failedSeries)} suffix="vs 1st half" tone="danger" />}
           hint={`${formatNumber(overview?.tasks_failed)} failed`}
-          sparkValues={taskChart.map((b) => (b.total === 0 ? 0 : b.succeeded / b.total))}
-          sparkStroke="var(--success)"
+          sparkValues={taskChart.map((b) => (b.total === 0 ? 0 : (b.failed / b.total) * 100))}
+          sparkStroke="var(--danger)"
         />
         <KpiCard
           label="p95 latency"
@@ -137,7 +140,7 @@ export function Overview() {
           sparkValues={[]}
         />
         <KpiCard
-          label="Spend"
+          label="Cost"
           value={formatCost(overview?.total_cost_usd)}
           numeric={overview?.total_cost_usd ?? null}
           format={(v) =>
@@ -149,8 +152,8 @@ export function Overview() {
         />
       </section>
 
-      <div className="panel-row">
-        <DashboardCard aria-label="Throughput">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        <DashboardCard aria-label="Throughput" className="min-w-0 xl:col-span-8">
           <DetailHeader title="Throughput" subtitle="Requests per bucket across the window">
             <DetailTag color="var(--chart-1)">
               {formatNumber(overview?.tasks_total)} tasks · {formatPercent(overview?.error_rate)} errors
@@ -215,7 +218,7 @@ export function Overview() {
           )}
           </DashboardCard>
 
-        <DashboardCard aria-label="Top agents">
+        <DashboardCard aria-label="Top agents" className="flex min-w-0 flex-col xl:col-span-4">
           <DetailHeader title="Top agents" subtitle="Ranked by spend in this window">
             <DetailTag>Ranked list</DetailTag>
           </DetailHeader>
@@ -241,8 +244,8 @@ export function Overview() {
         </DashboardCard>
       </div>
 
-      <div className="panel-row">
-        <DashboardCard aria-label="Top failing agents">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        <DashboardCard aria-label="Top failing agents" className="min-w-0 xl:col-span-4">
           <DetailHeader title="Top failing agents" subtitle="Where the errors concentrate">
             <DetailTag color="var(--destructive)">{formatNumber(overview?.tasks_failed)} failures</DetailTag>
           </DetailHeader>
@@ -269,7 +272,7 @@ export function Overview() {
           )}
         </DashboardCard>
 
-        <DashboardCard aria-label="Recent failed tasks">
+        <DashboardCard aria-label="Recent failed tasks" className="min-w-0 xl:col-span-8">
           <DetailHeader title="Recent failed tasks" subtitle="Newest failures first">
             <Link className="link-inline" to="/tasks">All tasks</Link>
           </DetailHeader>
@@ -298,8 +301,9 @@ export function Overview() {
         </DashboardCard>
       </div>
 
-      <div className="panel-row">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <LatencyHistogram
+          className="h-full min-w-0 max-w-none xl:col-span-8"
           bins={latencyBins.bins}
           binSize={latencyBins.binSize}
           caption={`Bucketed client-side from the latest ${recentDurations.data?.items.length ?? 0} task durations · markers are window p50/p95`}
@@ -307,7 +311,7 @@ export function Overview() {
           title="Task latency"
         />
         <SinceYouLeft
-          defaultPeriod="visit"
+          className="h-full min-w-0 max-w-none xl:col-span-4"
           metrics={[
             { id: "requests", label: "Requests", good: "up", format: (v) => formatNumber(Math.round(v)), series: { visit: throughputTotals } },
             { id: "success", label: "Success rate", good: "up", format: (v) => `${v.toFixed(1)}%`, series: { visit: successSeries } },
@@ -391,8 +395,32 @@ function KpiCard({
     numeric === null || !Number.isFinite(numeric) || !format ? value : format(animated);
   return (
     <div className="card kpi-card">
-      <span className="kpi-label">{label}</span>
-      <span className="kpi-value">{display}</span>
+      <span
+        className="kpi-label"
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          letterSpacing: "1.5px",
+          textTransform: "uppercase",
+          color: "var(--text-subtle)",
+        }}
+      >
+        {label}
+      </span>
+      <span
+        className="kpi-value"
+        style={{
+          color: "var(--accent-ink)",
+          fontFamily: "var(--font-sans)",
+          fontWeight: 700,
+          letterSpacing: "-1.5px",
+          fontSize: "2.5rem",
+          lineHeight: 1,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {display}
+      </span>
       <div className="kpi-foot">
         {pill}
         {hint ? <span className="kpi-hint">{hint}</span> : null}
@@ -451,10 +479,24 @@ function PageHeader({
   onRangeChange: (range: TimeRange) => void;
 }) {
   return (
-    <header className="page-header">
+    <header className="page-header pt-8">
       <div className="page-title-pair">
-        <span className="page-kicker">Operate</span>
-        <h1>Overview</h1>
+        <span
+          className="page-kicker"
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            letterSpacing: "1.5px",
+            textTransform: "uppercase",
+            color: "var(--text-subtle)",
+          }}
+        >
+          Operate
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <h1>Overview</h1>
+          <StatusBadge label="live" tone="good" title={`Refreshing every ${LIVE_REFETCH_INTERVAL_MS / 1000}s`} />
+        </div>
         <p className="page-subtitle">Tasks, traces, cost and policy across every agent in the selected window.</p>
       </div>
       <TimeRangePicker value={range} onChange={onRangeChange} idPrefix="overview-range" />

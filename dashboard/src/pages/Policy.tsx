@@ -140,7 +140,7 @@ export function Policy() {
       ) : (
         <>
           <DashboardCard aria-label="Policy summary">
-            <DetailHeader title="Summary" />
+            <DetailHeader title="Summary" subtitle="Read-only gateway authorization posture" />
             <dl className="detail-grid">
               <div>
                 <dt>Mode</dt>
@@ -168,7 +168,7 @@ export function Policy() {
           </DashboardCard>
 
           <DashboardCard aria-label="Policy rules">
-            <DetailHeader title="Rules" />
+            <DetailHeader title="Rules" subtitle="Read-only — the default applies where no rule matches" />
             {policy.rules.length === 0 ? (
               <p className="muted">No rules configured — the default applies.</p>
             ) : (
@@ -204,7 +204,7 @@ export function Policy() {
           </DashboardCard>
 
           <DashboardCard aria-label="Caller by callee matrix">
-            <DetailHeader title="Caller × callee matrix" />
+            <DetailHeader title="Caller × callee matrix" subtitle="Evaluated without a skill — read-only" />
             {policy.callers.length === 0 || policy.callees.length === 0 ? (
               <p className="muted">No callers or callees configured.</p>
             ) : (
@@ -312,7 +312,7 @@ export function Policy() {
       ) : null}
 
       <DashboardCard aria-label="Recent decisions">
-        <DetailHeader title="Recent decisions" subtitle="Newest audit events first" />
+        <DetailHeader title="Recent decisions" subtitle="Read-only audit log — newest events first" />
         <div className="filter-bar" style={{ marginTop: 14, marginBottom: 4 }}>
           <div className="field" style={{ flexGrow: 0, minWidth: 150 }}>
             <label htmlFor="decision-kind">Kind</label>
@@ -359,13 +359,13 @@ export function Policy() {
                     <div className="chip-row">
                       <StatusBadge label={item.decision} tone={tone} />
                       <StatusBadge label={item.kind} tone="neutral" />
-                      <span className="timeline-meta">
+                      <span className="timeline-meta mono">
                         {item.caller} → {item.callee}
                         {item.skill ? ` · ${item.skill}` : ""}
                         {item.mode ? ` · ${item.mode}` : ""}
                       </span>
                     </div>
-                    <span className="timeline-meta">{formatDateTime(item.timestamp)}</span>
+                    <span className="timeline-meta mono tabular">{formatDateTime(item.timestamp)}</span>
                     <span className="muted">{item.reason || item.rule || "—"}</span>
                   </div>
                 </li>

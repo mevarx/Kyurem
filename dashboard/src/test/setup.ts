@@ -18,6 +18,21 @@ if (typeof globalThis.ResizeObserver === "undefined") {
   };
 }
 
+// jsdom lacks IntersectionObserver
+if (typeof globalThis.IntersectionObserver === "undefined") {
+  globalThis.IntersectionObserver = class IntersectionObserverStub {
+    private callback: IntersectionObserverCallback;
+    constructor(callback: IntersectionObserverCallback) {
+      this.callback = callback;
+    }
+    observe(): void {
+      this.callback([{ isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver);
+    }
+    unobserve(): void {}
+    disconnect(): void {}
+  };
+}
+
 // jsdom does not implement matchMedia, which the sidebar's mobile hook
 // relies on. The stub is enough for rendering.
 if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {

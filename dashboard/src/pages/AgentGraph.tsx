@@ -9,6 +9,7 @@ import { TableSkeleton } from "../components/Skeleton";
 import {
   DashboardCard,
   DetailHeader,
+  DetailTag,
 } from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
 import { StatusBadge } from "../components/StatusBadge";
 import { TimeRangePicker } from "../components/TimeRangePicker";
@@ -49,7 +50,10 @@ export function AgentGraph() {
           <h1>Agent graph</h1>
           <p className="page-subtitle">Who called whom, how often, and where it went wrong.</p>
         </div>
-        <TimeRangePicker value={range} onChange={setRange} idPrefix="graph-range" />
+        <div className="page-header-meta">
+          <DetailTag>{`${formatNumber(graphQuery.data?.nodes.length ?? 0)} nodes`}</DetailTag>
+          <TimeRangePicker value={range} onChange={setRange} idPrefix="graph-range" />
+        </div>
       </header>
 
       {graphQuery.isPending ? (
@@ -76,7 +80,7 @@ export function AgentGraph() {
               selectedAgent={selected}
               onSelectAgent={(name) => setSelected(name)}
             />
-            <p className="graph-legend">
+            <p className="graph-legend mono tabular">
               <span className="graph-legend-item">
                 <span className="graph-legend-line" aria-hidden="true" /> calls
               </span>
@@ -91,7 +95,9 @@ export function AgentGraph() {
           </DashboardCard>
 
           <DashboardCard aria-label="Agent details" className="graph-side-panel">
-            <DetailHeader title="Agent" subtitle="Select a node to inspect" />
+            <DetailHeader title="Agent" subtitle={selected ? "Selected node inspector" : "Select a node to inspect"}>
+              {selected ? <DetailTag>{selected}</DetailTag> : null}
+            </DetailHeader>
             {selected === null ? (
               <EmptyState title="No agent selected" description="Click a node to inspect the agent." />
             ) : (

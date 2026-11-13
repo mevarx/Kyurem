@@ -64,7 +64,7 @@ export function Settings() {
       ) : (
         <>
           <DashboardCard aria-label="Gateway">
-            <DetailHeader title="Gateway" />
+            <DetailHeader title="Gateway" subtitle="Service identity and build versions" />
             <dl className="detail-grid">
               <div>
                 <dt>Service</dt>
@@ -98,7 +98,7 @@ export function Settings() {
           </DashboardCard>
 
           <DashboardCard aria-label="Telemetry">
-            <DetailHeader title="Telemetry" />
+            <DetailHeader title="Telemetry" subtitle="Export pipeline counters" />
             <dl className="detail-grid">
               <div>
                 <dt>Exporting</dt>
@@ -165,7 +165,7 @@ export function Settings() {
           </DashboardCard>
 
           <DashboardCard aria-label="Storage">
-            <DetailHeader title="Storage" />
+            <DetailHeader title="Storage" subtitle="Persistence driver and database" />
             <dl className="detail-grid">
               <div>
                 <dt>Driver</dt>
@@ -181,7 +181,7 @@ export function Settings() {
       )}
 
       <DashboardCard aria-label="Dashboard preferences">
-        <DetailHeader title="Dashboard" />
+        <DetailHeader title="Dashboard" subtitle="Appearance and API credentials" />
         <dl className="detail-grid">
           <div>
             <dt>API base URL</dt>
@@ -226,7 +226,7 @@ export function Settings() {
       </DashboardCard>
 
       <DashboardCard aria-label="Keyboard shortcuts">
-        <DetailHeader title="Keyboard shortcuts" />
+        <DetailHeader title="Keyboard shortcuts" subtitle="Command menu and shortcut panel" />
         <ShortcutSheet
           groups={[
             {

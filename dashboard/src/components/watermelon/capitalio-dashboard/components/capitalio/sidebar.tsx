@@ -1,13 +1,13 @@
 import { Collapsible } from '@base-ui/react/collapsible'
 import {
-  Activity,
   Bot,
   ChevronDown,
   Coins,
-  List,
-  Network,
+  LayoutDashboard,
+  ListTodo,
   Settings as SettingsIcon,
   ShieldCheck,
+  Workflow,
 } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useSettings } from '@/api/hooks'
@@ -43,9 +43,9 @@ type NavSection = {
 const operateSection: NavSection = {
   label: 'Operate',
   items: [
-    { name: 'Overview', href: '/', icon: Activity },
-    { name: 'Tasks', href: '/tasks', icon: List },
-    { name: 'Agent graph', href: '/graph', icon: Network },
+    { name: 'Overview', href: '/', icon: LayoutDashboard },
+    { name: 'Tasks', href: '/tasks', icon: ListTodo },
+    { name: 'Agent graph', href: '/graph', icon: Workflow },
   ],
 }
 
@@ -62,13 +62,30 @@ const manageSection: NavSection = {
 }
 
 function Brand() {
+  const settingsQuery = useSettings({ refetchInterval: 30_000 })
+  const liveLabel = settingsQuery.isPending
+    ? 'Connecting'
+    : settingsQuery.isError
+      ? 'Offline'
+      : 'Live'
+  const liveDot = settingsQuery.isPending
+    ? 'bg-subtle'
+    : settingsQuery.isError
+      ? 'bg-danger'
+      : 'bg-success'
   return (
     <NavLink to="/" className="flex min-w-0 flex-1 items-center gap-3">
-      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-primary/40 bg-primary text-lg font-bold text-primary-foreground">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-lg font-bold text-primary-foreground">
         K
       </div>
       <span className="flex min-w-0 flex-col leading-tight">
-        <span className="truncate text-lg font-medium text-foreground">Kyurem</span>
+        <span className="flex items-center gap-2">
+          <span className="truncate text-[15px] font-semibold tracking-tight text-foreground">Kyurem</span>
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-card px-1.5 py-px font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+            <span className={cn('size-1.5 shrink-0 rounded-full', liveDot)} aria-hidden="true" />
+            {liveLabel}
+          </span>
+        </span>
         <span className="font-mono text-[11px] text-subtle">a2a gateway</span>
       </span>
     </NavLink>
@@ -97,10 +114,10 @@ function NavLinkButton({ item }: { item: NavItem }) {
         tooltip={item.name}
         isActive={isActive}
         className={cn(
-          'text-muted-foreground',
+          'text-sm font-medium text-muted-foreground',
           '[&>svg]:text-subtle',
-          'hover:bg-sidebar-accent hover:text-accent-foreground hover:[&>svg]:text-accent-foreground',
-          'data-[active=true]:bg-sidebar-accent data-[active=true]:text-accent-foreground',
+          'hover:bg-[var(--surface-raised)] hover:text-foreground hover:[&>svg]:text-foreground',
+          'data-[active=true]:bg-[var(--surface-raised)] data-[active=true]:text-foreground',
           'data-[active=true]:[&>svg]:text-primary',
           isActive && 'active-sidebar-item',
         )}
@@ -170,7 +187,6 @@ function GatewayStatusCard() {
           className="size-2 shrink-0 rounded-full"
           style={{
             backgroundColor: reachable ? 'var(--success)' : 'var(--danger)',
-            boxShadow: reachable ? '0 0 8px var(--success)' : undefined,
           }}
           aria-hidden="true"
         />
@@ -202,7 +218,7 @@ export function DashboardSidebar() {
         <SidebarNavSection section={manageSection} />
       </SidebarContent>
 
-      <SidebarFooter className="gap-3 px-4 pt-0 pb-5">
+      <SidebarFooter className="gap-3 px-4 pt-0 pb-6">
         <GatewayStatusCard />
       </SidebarFooter>
     </Sidebar>

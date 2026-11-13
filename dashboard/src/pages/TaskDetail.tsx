@@ -8,6 +8,7 @@ import { ToolReceiptSpike, type ToolReceiptCall } from "../components/tool-recei
 import {
   DashboardCard,
   DetailHeader,
+  DetailTag,
 } from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
@@ -64,10 +65,11 @@ export function TaskDetail() {
       <BackLink />
 
       <header className="page-header">
-        <div>
+        <div className="page-title-pair">
+          <span className="page-kicker">Task</span>
           <h1 className="mono">{task.task_id}</h1>
           <p className="page-subtitle">
-            Trace <code>{task.trace_id}</code> · started {formatDateTime(task.started_at)}
+            Trace <code className="mono">{task.trace_id}</code> · started {formatDateTime(task.started_at)}
           </p>
         </div>
         <StatusBadge label={task.status} tone={taskStatusTone(task.status)} />
@@ -76,32 +78,40 @@ export function TaskDetail() {
       <section className="stat-grid stat-grid-compact" aria-label="Task summary">
         <div className="stat-card">
           <span className="stat-label">Duration</span>
-          <span className="stat-value">{formatDuration(task.duration_ms)}</span>
+          <span className="stat-value mono">{formatDuration(task.duration_ms)}</span>
         </div>
         <div className="stat-card">
           <span className="stat-label">Cost</span>
-          <span className="stat-value">{formatCost(task.cost_usd)}</span>
+          <span className="stat-value mono">{formatCost(task.cost_usd)}</span>
         </div>
         <div className="stat-card">
           <span className="stat-label">Agents</span>
-          <span className="stat-value">{formatNumber(task.agents.length)}</span>
+          <span className="stat-value mono">{formatNumber(task.agents.length)}</span>
         </div>
         <div className="stat-card">
           <span className="stat-label">Spans</span>
-          <span className="stat-value">{formatNumber(task.span_count)}</span>
+          <span className="stat-value mono">{formatNumber(task.span_count)}</span>
         </div>
         <div className="stat-card">
           <span className="stat-label">Tokens</span>
-          <span className="stat-value">
-            {task.tokens_known ? "known" : "unknown"}
-          </span>
+          <span className="stat-value mono">{task.tokens_known ? "known" : "unknown"}</span>
         </div>
       </section>
 
+      <div className="flex flex-wrap gap-2" aria-label="Task meta">
+        <DetailTag>{task.root_caller ?? "unknown"}</DetailTag>
+        <DetailTag>
+          <span className="mono">{formatDuration(task.duration_ms)}</span>
+        </DetailTag>
+        <DetailTag>
+          <span className="mono">{formatCost(task.cost_usd)}</span>
+        </DetailTag>
+      </div>
+
       {task.error_message ? (
         <DashboardCard aria-label="Task error">
-          <DetailHeader title="Error" />
-          <p>
+          <DetailHeader title="Error" subtitle={task.error_type ?? "Task failed"} />
+          <p className="mono">
             <strong>{task.error_type ?? "unknown"}</strong>: {task.error_message}
           </p>
         </DashboardCard>
@@ -111,18 +121,18 @@ export function TaskDetail() {
 
       <div className="panel-row">
         <DashboardCard aria-label="Span tree">
-          <DetailHeader title="Span tree" />
+          <DetailHeader title="Span tree" subtitle={`${formatNumber(spans.length)} spans`} />
           <SpanTree spans={spans} highlightSpanIds={affectedSpanIds} />
         </DashboardCard>
 
         <DashboardCard aria-label="Timeline">
-          <DetailHeader title="Timeline" />
+          <DetailHeader title="Timeline" subtitle="Span waterfall" />
           <SpanWaterfall spans={spans} />
         </DashboardCard>
       </div>
 
       <DashboardCard aria-label="Cost breakdown">
-        <DetailHeader title="Cost breakdown" />
+        <DetailHeader title="Cost breakdown" subtitle={formatCost(cost?.total_usd ?? null)} />
         <CostTable report={cost} caption="Cost breakdown of this task" />
       </DashboardCard>
 

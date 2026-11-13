@@ -25,28 +25,24 @@ export function DashboardTopbar({ onSearch }: { onSearch: () => void }) {
   const { section, title } = titleFor(pathname)
 
   return (
-    <header className="flex shrink-0 flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between md:px-8">
-      <div className="flex min-w-0 items-center gap-3">
-        <SidebarTrigger className="size-8.5 shrink-0 md:hidden [&_svg]:size-5!" />
+    <header className="flex h-14 w-full shrink-0 items-center gap-2 border-b border-border bg-background px-4 md:h-16 md:gap-3 md:px-8">
+      <SidebarTrigger className="size-9 shrink-0 md:hidden [&_svg]:size-5!" />
 
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <nav className="flex min-w-0 items-center gap-2 text-sm" aria-label="Breadcrumb">
-            <span className="hidden shrink-0 text-muted-foreground sm:inline">{section}</span>
-            <span className="hidden shrink-0 text-muted-foreground sm:inline" aria-hidden="true">
-              /
-            </span>
-            <span className="truncate text-lg leading-none font-semibold text-foreground md:text-xl">
-              {title}
-            </span>
-          </nav>
-        </div>
-      </div>
+      <nav className="flex min-w-0 flex-1 items-center gap-2 text-sm" aria-label="Breadcrumb">
+        <span className="hidden shrink-0 text-muted-foreground sm:inline">{section}</span>
+        <span className="hidden shrink-0 text-muted-foreground sm:inline" aria-hidden="true">
+          /
+        </span>
+        <span className="truncate text-[15px] font-semibold tracking-tight text-foreground">
+          {title}
+        </span>
+      </nav>
 
-      <div className="flex min-w-0 items-center gap-2 md:shrink-0">
+      <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
           onClick={onSearch}
-          className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-card px-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground md:w-52 md:flex-none"
+          className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card px-0 text-sm text-muted-foreground transition-colors hover:text-foreground md:w-52 md:justify-start md:px-2.5"
         >
           <Search className="size-4 shrink-0" aria-hidden="true" />
           <span className="hidden truncate md:inline">Search</span>
@@ -60,11 +56,7 @@ export function DashboardTopbar({ onSearch }: { onSearch: () => void }) {
           className="flex shrink-0 items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 font-mono text-xs text-muted-foreground"
           title="Dashboard polls the gateway every 5 seconds"
         >
-          <span
-            className="size-2 shrink-0 rounded-full"
-            style={{ backgroundColor: 'var(--chart-4)' }}
-            aria-hidden="true"
-          />
+          <span className="size-2 shrink-0 rounded-full bg-success" aria-hidden="true" />
           <span className="hidden sm:inline">Live · 5s</span>
         </span>
 

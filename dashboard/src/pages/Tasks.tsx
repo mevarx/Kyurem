@@ -109,7 +109,7 @@ export function Tasks() {
       render: (task) => (
         <span className="task-id-cell">
           <Link
-            className="task-link"
+            className="task-link mono"
             to={`/tasks/${encodeURIComponent(task.task_id)}`}
             onClick={(event) => event.stopPropagation()}
           >
@@ -140,7 +140,7 @@ export function Tasks() {
       header: "Duration",
       align: "right",
       render: (task) => (
-        <span className="duration-cell">
+        <span className="duration-cell mono">
           <span className="duration-bar" aria-hidden="true">
             <span
               style={{
@@ -157,14 +157,14 @@ export function Tasks() {
       header: "Agents",
       align: "right",
       hideOnMobile: true,
-      render: (task) => formatNumber(task.agents.length),
+      render: (task) => <span className="mono">{formatNumber(task.agents.length)}</span>,
     },
     {
       key: "cost",
       header: "Cost",
       align: "right",
       hideOnMobile: true,
-      render: (task) => formatCost(task.cost_usd),
+      render: (task) => <span className="mono">{formatCost(task.cost_usd)}</span>,
     },
     {
       key: "started_at",
@@ -182,7 +182,14 @@ export function Tasks() {
           <h1>Tasks</h1>
           <p className="page-subtitle">Every task the gateway proxied, newest first.</p>
         </div>
-        <TimeRangePicker value={range} onChange={setRange} idPrefix="tasks-range" />
+        <div className="flex flex-wrap items-center gap-2">
+          <DetailTag>
+            <span className="mono">
+              {query.isPending ? "…" : `${formatNumber(total)} task${total === 1 ? "" : "s"}`}
+            </span>
+          </DetailTag>
+          <TimeRangePicker value={range} onChange={setRange} idPrefix="tasks-range" />
+        </div>
       </header>
 
       <section className="filter-toolbar" aria-label="Task filters">
@@ -287,6 +294,9 @@ export function Tasks() {
               />
             </div>
             <div className="pagination px-3 pb-1">
+              <span className="mono" aria-live="polite">
+                Page {page + 1} of {pageCount}
+              </span>
               <button
                 type="button"
                 className="button"

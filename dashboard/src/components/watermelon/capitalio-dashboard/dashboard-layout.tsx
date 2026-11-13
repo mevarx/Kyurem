@@ -16,7 +16,7 @@ export default function DashboardLayout({ children, onSearch }: DashboardLayoutP
       className="capitalio-dashboard h-svh overflow-hidden no-scrollbar"
       style={
         {
-          '--sidebar-width': '13.75rem',
+          '--sidebar-width': '14rem',
         } as CSSProperties
       }
     >

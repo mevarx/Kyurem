@@ -21,6 +21,7 @@ import {
   DashboardCard,
   DashboardChartTooltip,
   DetailHeader,
+  DetailTag,
 } from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
 import { TimeRangePicker } from "../components/TimeRangePicker";
 import { downloadCsv, toCsv } from "../lib/csv";
@@ -112,7 +113,10 @@ export function Costs() {
           <h1>Costs</h1>
           <p className="page-subtitle">What the selected window cost — and who spent it.</p>
         </div>
-        <TimeRangePicker value={range} onChange={setRange} idPrefix="costs-range" />
+        <div className="page-header-meta">
+          <DetailTag>{`grouped by ${groupBy}`}</DetailTag>
+          <TimeRangePicker value={range} onChange={setRange} idPrefix="costs-range" />
+        </div>
       </header>
 
       <section className="filter-toolbar" aria-label="Cost controls">
@@ -238,7 +242,10 @@ export function Costs() {
 
           <DashboardCard aria-label="Breakdown" className="overflow-hidden p-0">
             <div className="p-4 pb-0">
-              <DetailHeader title="Breakdown" subtitle={`Per ${groupBy}, with tokens and spans`} />
+              <DetailHeader title="Breakdown" subtitle={`Per ${groupBy}, with tokens and spans`}>
+                <DetailTag>{`${formatNumber(report.spans)} spans`}</DetailTag>
+                <DetailTag color="var(--muted-foreground)">{`${formatNumber(report.unknown_spans)} unknown cost`}</DetailTag>
+              </DetailHeader>
             </div>
             <div className="p-3">
               <CostTable report={report} groupLabel={groupBy} />
@@ -251,8 +258,8 @@ export function Costs() {
               <ul className="task-list">
                 {report.buckets.map((bucket) => (
                   <li key={bucket.key} className="task-list-item">
-                    <Link to={`/tasks/${encodeURIComponent(bucket.key)}`}>{bucket.key}</Link>
-                    <span className="task-list-meta">
+                    <Link to={`/tasks/${encodeURIComponent(bucket.key)}`} className="mono">{bucket.key}</Link>
+                    <span className="task-list-meta mono tabular">
                       <span>{formatCost(bucket.cost_usd)}</span>
                       <span>{formatNumber(bucket.spans)} spans</span>
                     </span>
@@ -261,10 +268,13 @@ export function Costs() {
               </ul>
             </DashboardCard>
           ) : (
-            <p className="muted">
-              {formatNumber(report.spans)} spans counted · {formatNumber(report.unknown_spans)} spans without usage
-              data. Switch the grouping to “Task” to see the same numbers per task.
-            </p>
+            <DashboardCard aria-label="Window totals">
+              <DetailHeader title="Window totals" subtitle="Spans counted in this window" />
+              <p className="muted mono tabular">
+                {formatNumber(report.spans)} spans counted · {formatNumber(report.unknown_spans)} spans without usage
+                data. Switch the grouping to “Task” to see the same numbers per task.
+              </p>
+            </DashboardCard>
           )}
         </>
       )}
