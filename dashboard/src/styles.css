@@ -154,7 +154,7 @@
   --ring: #0e7490;
 
   --accent: rgb(14 116 144 / 10%);
-  --accent-foreground: #0e7490;
+  --accent-foreground: #0b5567;
   --muted: rgb(15 23 42 / 4%);
   --secondary: #f9fafc;
   --secondary-foreground: #0b1220;
@@ -162,7 +162,7 @@
   --popover-foreground: #0b1220;
 
   --success: #047857;
-  --success-foreground: #047857;
+  --success-foreground: #065f46;
   --success-bg: rgb(4 120 87 / 12%);
   --success-border: rgb(4 120 87 / 25%);
   --warning: #92400e;
@@ -671,7 +671,7 @@ a {
 .pill-success {
   background: var(--success-bg);
   border-color: var(--success-border);
-  color: var(--success);
+  color: var(--success-foreground);
 }
 
 .badge-bad,
@@ -2020,6 +2020,15 @@ select:focus {
 }
 
 .graph-edge-label {
+  /* Absolutely positioned so the pill shrink-wraps instead of filling the
+     edge-label portal layer (a block child would span the whole canvas and
+     hide the edge). The translate(-50%, -50%) anchor then lands on the edge. */
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: max-content;
+  max-width: 240px;
+  white-space: nowrap;
   padding: 2px 8px;
   border-radius: var(--radius-pill);
   border: 1px solid var(--border-strong);

@@ -6,7 +6,6 @@ import {
   Controls,
   EdgeLabelRenderer,
   Handle,
-  MiniMap,
   Position,
   ReactFlow,
   getBezierPath,
@@ -89,7 +88,7 @@ const AgentNode = memo(function AgentNode({ data, selected }: NodeProps<AgentFlo
           tone={isUnknownState(verification) ? "neutral" : "good"}
           title="Card signature verification"
         />
-        {data.breakerState ? (
+        {data.breakerState && !isUnknownState(data.breakerState) ? (
           <StatusBadge
             label={`breaker: ${data.breakerState}`}
             tone={breakerStateTone(data.breakerState)}
@@ -318,7 +317,6 @@ export function AgentGraphCanvas({
       >
         <Background gap={22} size={1.2} />
         <Controls />
-        <MiniMap pannable zoomable nodeColor="var(--chart-1)" maskColor="var(--background)" />
       </ReactFlow>
     </div>
   );

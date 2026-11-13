@@ -487,10 +487,15 @@ function KpiCard({
           fontFamily: "var(--font-sans)",
           fontWeight: 700,
           letterSpacing: "-1.5px",
-          fontSize: "clamp(1.75rem, 1rem + 2vw, 2.5rem)",
+          // Long values (e.g. "$0.000027") shrink the display size instead of
+          // wrapping mid-number; short values keep the full premium scale.
+          fontSize:
+            display.length > 6
+              ? "clamp(1.25rem, 0.9rem + 1.1vw, 1.9rem)"
+              : "clamp(1.75rem, 1rem + 2vw, 2.5rem)",
           lineHeight: 1,
           fontVariantNumeric: "tabular-nums",
-          overflowWrap: "anywhere",
+          whiteSpace: "nowrap",
         }}
       >
         {display}

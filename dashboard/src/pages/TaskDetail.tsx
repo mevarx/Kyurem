@@ -35,15 +35,14 @@ export function TaskDetail() {
   const eventsForMemo = detail?.events;
   const receiptCalls = useMemo(() => toReceiptCalls(spansForMemo ?? []), [spansForMemo]);
   const logLines = useMemo(() => toLogLines(eventsForMemo ?? []), [eventsForMemo]);
-  const bottleneck = useMemo(
-    () =>
-      !spansForMemo || spansForMemo.length === 0
-        ? null
-        : spansForMemo.reduce((slowest, span) =>
-            (span.duration_ms ?? 0) > (slowest.duration_ms ?? 0) ? span : slowest,
-          ),
-    [spansForMemo],
-  );
+  // A "bottleneck" is only meaningful when several spans compete and the
+  // slowest one actually took time; otherwise the tag is noise.
+  const bottleneck = useMemo(() => {
+    const list = spansForMemo ?? [];
+    if (list.length < 2) return null;
+    const slowest = list.reduce((a, b) => ((b.duration_ms ?? 0) > (a.duration_ms ?? 0) ? b : a));
+    return (slowest.duration_ms ?? 0) > 0 ? slowest : null;
+  }, [spansForMemo]);
 
   if (query.isPending) {
     return (
