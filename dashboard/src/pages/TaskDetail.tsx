@@ -59,7 +59,13 @@ export function TaskDetail() {
   const affectedSpanIds = root_cause?.affected_span_ids ?? [];
   const receiptCalls = toReceiptCalls(spans);
   const logLines = toLogLines(events ?? []);
-
+  const isFailed = task.status === "failed";
+  const bottleneck =
+    spans.length === 0
+      ? null
+      : spans.reduce((slowest, span) =>
+          (span.duration_ms ?? 0) > (slowest.duration_ms ?? 0) ? span : slowest,
+        );
   return (
     <div className="page">
       <BackLink />
@@ -74,6 +80,7 @@ export function TaskDetail() {
         </div>
         <StatusBadge label={task.status} tone={taskStatusTone(task.status)} />
       </header>
+      {isFailed && root_cause ? <RootCausePanel rootCause={root_cause} spans={spans} /> : null}
 
       <section className="stat-grid stat-grid-compact" aria-label="Task summary">
         <div className="stat-card">
@@ -98,6 +105,7 @@ export function TaskDetail() {
         </div>
       </section>
 
+
       <div className="flex flex-wrap gap-2" aria-label="Task meta">
         <DetailTag>{task.root_caller ?? "unknown"}</DetailTag>
         <DetailTag>
@@ -106,6 +114,12 @@ export function TaskDetail() {
         <DetailTag>
           <span className="mono">{formatCost(task.cost_usd)}</span>
         </DetailTag>
+        {bottleneck ? (
+          <DetailTag color="var(--warning)">
+            bottleneck: {bottleneck.name} ·{" "}
+            <span className="mono">{formatDuration(bottleneck.duration_ms)}</span>
+          </DetailTag>
+        ) : null}
       </div>
 
       {task.error_message ? (
@@ -117,7 +131,7 @@ export function TaskDetail() {
         </DashboardCard>
       ) : null}
 
-      <RootCausePanel rootCause={root_cause} spans={spans} />
+      {isFailed && root_cause ? null : <RootCausePanel rootCause={root_cause} spans={spans} />}
 
       <div className="panel-row">
         <DashboardCard aria-label="Span tree">

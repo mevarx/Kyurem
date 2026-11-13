@@ -260,6 +260,10 @@ export function Overview() {
                   ratio: maxBy(data?.top_failing_agents ?? [], (a) => a.errors),
                   value: agent.errors,
                   bad: true,
+                  sub:
+                    (overview?.tasks_failed ?? 0) > 0
+                      ? `${formatPercent(agent.errors / (overview?.tasks_failed ?? 1))} of failures`
+                      : undefined,
                 }))}
               />
               <div className="card-footer">
@@ -286,8 +290,8 @@ export function Overview() {
                   <span className="task-list-meta">
                     <StatusBadge label={task.status} tone={taskStatusTone(task.status)} />
                     <span>{task.root_caller ?? "unknown"}</span>
-                    <span>{formatDuration(task.duration_ms)}</span>
-                    <span>{formatCost(task.cost_usd)}</span>
+                    <span className="mono">{formatDuration(task.duration_ms)}</span>
+                    <span className="mono">{formatCost(task.cost_usd)}</span>
                   </span>
                   {task.error_message ? (
                     <span className="task-list-error">{task.error_message}</span>
@@ -444,6 +448,8 @@ interface RankedRow {
   value: number;
   accent?: boolean;
   bad?: boolean;
+  /** Optional secondary line, e.g. share of total failures. */
+  sub?: string;
 }
 
 function RankedBars({ rows }: { rows: RankedRow[] }) {
@@ -458,7 +464,10 @@ function RankedBars({ rows }: { rows: RankedRow[] }) {
             </span>
             {row.key}
           </span>
-          <span className="ranked-value">{row.display}</span>
+          <span className="ranked-value">
+            {row.display}
+            {row.sub ? <span className="ranked-sub mono"> · {row.sub}</span> : null}
+          </span>
           <span className="ranked-bar-track" aria-hidden="true">
             <span
               className={`ranked-bar-fill${row.bad ? " ranked-bar-fill-bad" : row.accent ? " ranked-bar-fill-accent" : ""}`}

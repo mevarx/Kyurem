@@ -82,15 +82,17 @@ export function AgentGraph() {
             />
             <p className="graph-legend mono tabular">
               <span className="graph-legend-item">
-                <span className="graph-legend-line" aria-hidden="true" /> calls
+                <span className="graph-legend-line" style={{ borderColor: "var(--chart-1)" }} aria-hidden="true" />{" "}
+                healthy
               </span>
               <span className="graph-legend-item">
                 <span className="graph-legend-line graph-legend-line-warn" aria-hidden="true" /> errors &gt; 0
               </span>
               <span className="graph-legend-item">
-                <span className="graph-legend-line graph-legend-line-bad" aria-hidden="true" /> error rate ≥ 25%
+                <span className="graph-legend-line graph-legend-line-bad" aria-hidden="true" /> erroring · error rate
+                ≥ 25%
               </span>
-              <span>Hover an edge for p95 latency and cost.</span>
+              <span>Width ∝ calls · labels show calls · p95 · hover an edge for errors and cost.</span>
             </p>
           </DashboardCard>
 

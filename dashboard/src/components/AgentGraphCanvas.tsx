@@ -42,6 +42,7 @@ export type AgentEdgeData = {
   cost: number | null;
   from: string;
   to: string;
+  highlighted?: boolean;
 };
 
 type AgentFlowNode = Node<AgentNodeData, "agent">;
@@ -54,13 +55,36 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
   const cardStatus = data.cardStatus ?? "unknown";
   const verification = data.verification ?? "unknown";
   return (
-    <div className={`graph-node${selected ? " graph-node-selected" : ""}`}>
+    <div
+      className={`graph-node transition-transform duration-150 ease-out hover:-translate-y-0.5${
+        selected ? " graph-node-selected" : ""
+      }`}
+      style={selected ? { boxShadow: "0 0 0 2px var(--ring), 0 0 14px var(--accent)" } : undefined}
+    >
       <Handle type="target" position={Position.Left} />
       <div className="graph-node-head">
-        <span className="graph-node-name">{data.name}</span>
+        <span className="graph-node-name" title={data.name}>
+          {data.name}
+        </span>
         <StatusBadge label={cardStatus} tone={cardStatusTone(cardStatus)} title="Agent card status" />
       </div>
+      <div className="graph-node-stats">
+        <span className="tabular-nums" title={`${formatNumber(data.calls)} total calls`}>
+          {formatNumber(data.calls)} calls
+        </span>
+        <span className="tabular-nums" title={`p95 latency ${formatDuration(data.p95)}`}>
+          p95 {formatDuration(data.p95)}
+        </span>
+        <span className="tabular-nums" title={`Total cost ${formatCost(data.cost)}`}>
+          {formatCost(data.cost)}
+        </span>
+      </div>
       <div className="graph-node-badges">
+        <StatusBadge
+          label={`${formatPercent(data.errorRate)} errors`}
+          tone={errorRateTone(data.errorRate)}
+          title={`${formatNumber(data.errors)} errors (${formatPercent(data.errorRate)})`}
+        />
         <StatusBadge
           label={`verify: ${verification}`}
           tone={isUnknownState(verification) ? "neutral" : "good"}
@@ -73,16 +97,6 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
             title="Circuit breaker state"
           />
         ) : null}
-        <StatusBadge
-          label={`${formatPercent(data.errorRate)} errors`}
-          tone={errorRateTone(data.errorRate)}
-          title="Error rate"
-        />
-      </div>
-      <div className="graph-node-stats">
-        <span>{formatNumber(data.calls)} calls</span>
-        <span>p95 {formatDuration(data.p95)}</span>
-        <span>{formatCost(data.cost)}</span>
       </div>
       <Handle type="source" position={Position.Right} />
     </div>
@@ -116,6 +130,9 @@ function AgentEdge({
   });
   const errorRate = data?.errorRate ?? 0;
   const calls = data?.calls ?? 0;
+  const p95 = data?.p95 ?? 0;
+  const highlighted = data?.highlighted ?? false;
+  const baseWidth = Math.min(6, 1.5 + calls / 10);
   const tooltip = data
     ? `${data.from} → ${data.to}: ${formatNumber(data.calls)} calls, ${formatNumber(
         data.errors,
@@ -131,7 +148,7 @@ function AgentEdge({
         className="graph-edge"
         style={{
           stroke: edgeColor(errorRate),
-          strokeWidth: Math.min(6, 1.5 + calls / 10),
+          strokeWidth: highlighted ? Math.min(8, baseWidth + 1.5) : baseWidth,
         }}
       >
         {tooltip ? <title>{tooltip}</title> : null}
@@ -141,10 +158,12 @@ function AgentEdge({
           className="graph-edge-label"
           style={{
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            borderColor: highlighted ? "var(--ring)" : undefined,
+            color: highlighted ? "var(--foreground)" : undefined,
           }}
           title={tooltip}
         >
-          {formatNumber(calls)}
+          {formatNumber(calls)} · p95 {formatDuration(p95)}
         </div>
       </EdgeLabelRenderer>
     </>
@@ -180,7 +199,7 @@ export function AgentGraphCanvas({
   const flow = useMemo(() => {
     const graph = new dagre.graphlib.Graph();
     graph.setDefaultEdgeLabel(() => ({}));
-    graph.setGraph({ rankdir: "LR", nodesep: 40, ranksep: 160 });
+    graph.setGraph({ rankdir: "LR", nodesep: 40, ranksep: 184 });
 
     const agentNames = new Set(nodes.map((node) => node.name));
     for (const edge of edges) {
@@ -224,6 +243,7 @@ export function AgentGraphCanvas({
         cost: edge.cost_usd ?? null,
         from: edge.from,
         to: edge.to,
+        highlighted: edge.from === selectedAgent || edge.to === selectedAgent,
       },
     }));
 
