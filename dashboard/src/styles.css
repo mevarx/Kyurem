@@ -10,7 +10,7 @@
  * --accent, --border, --sidebar-*) are canonical because every primitive
  * consumes them. Family suffixes: `-foreground` = text/icon on the base
  * token; `-bg` = ~12% tint wash; `-border` = ~25% border; `-ink` =
- * theme-readable brand-ink alias (yellow in dark, olive in light).
+ * theme-readable brand-ink alias (icy cyan in dark, deep teal in light).
  * Status pairs: `--destructive*` is the shadcn alias of `--danger*`;
  * both are kept so Tailwind (`bg-destructive`, `text-destructive-…`)
  * and hand CSS (`var(--danger)`) keep working — same values, do not fork.
@@ -47,64 +47,64 @@
   --font-mono: "JetBrains Mono", "Geist Mono", "SFMono-Regular", Consolas, monospace;
 
   /* Surfaces */
-  --background: #0a0a0a;
-  --card: #1a1a1a;
-  --popover: #242424;
-  --surface-raised: #242424;
-  --surface-sunken: #000000;
+  --background: #0a0c11;
+  --card: #12151c;
+  --popover: #181c24;
+  --surface-raised: #181c24;
+  --surface-sunken: #06080b;
 
   /* Lines */
-  --border: #2a2a2a;
-  --border-strong: #3a3a3a;
-  --input: #3a3a3a;
+  --border: #232834;
+  --border-strong: #2e3542;
+  --input: #2e3542;
 
   /* Text */
-  --foreground: #ffffff;
-  --muted-foreground: #cccccc;
-  --text-subtle: #888888;
+  --foreground: #f2f5f9;
+  --muted-foreground: #b6c0ce;
+  --text-subtle: #7c8798;
 
   /* Brand */
-  --primary: #faff69;
-  --primary-foreground: #0a0a0a;
-  --ring: #faff69;
+  --primary: #22d3ee;
+  --primary-foreground: #04141a;
+  --ring: #22d3ee;
 
   /* Hover / active surface pair (shadcn semantics) */
-  --accent: rgb(250 255 105 / 12%);
-  --accent-foreground: #ffffff;
+  --accent: rgb(34 211 238 / 12%);
+  --accent-foreground: #f2f5f9;
   --muted: rgb(255 255 255 / 6%);
-  --secondary: #1a1a1a;
-  --secondary-foreground: #ffffff;
-  --card-foreground: #ffffff;
-  --popover-foreground: #ffffff;
+  --secondary: #12151c;
+  --secondary-foreground: #f2f5f9;
+  --card-foreground: #f2f5f9;
+  --popover-foreground: #f2f5f9;
 
   /* Status: fg + ~12% tint + ~25% border */
-  --success: #22c55e;
-  --success-foreground: #86efac;
-  --success-bg: rgb(34 197 94 / 12%);
-  --success-border: rgb(34 197 94 / 25%);
+  --success: #34d399;
+  --success-foreground: #6ee7b7;
+  --success-bg: rgb(52 211 153 / 12%);
+  --success-border: rgb(52 211 153 / 25%);
   --warning: #f59e0b;
   --warning-foreground: #fcd34d;
   --warning-bg: rgb(245 158 11 / 12%);
   --warning-border: rgb(245 158 11 / 25%);
-  --danger: #ef4444;
-  --danger-bg: rgb(239 68 68 / 12%);
-  --danger-border: rgb(239 68 68 / 25%);
-  --info: #3b82f6;
-  --info-foreground: #93c5fd;
-  --info-bg: rgb(59 130 246 / 12%);
-  --info-border: rgb(59 130 246 / 25%);
-  --destructive: #ef4444;
-  --destructive-foreground: #fecaca;
+  --danger: #fb7185;
+  --danger-bg: rgb(251 113 133 / 12%);
+  --danger-border: rgb(251 113 133 / 25%);
+  --info: #38bdf8;
+  --info-foreground: #7dd3fc;
+  --info-bg: rgb(56 189 248 / 12%);
+  --info-border: rgb(56 189 248 / 25%);
+  --destructive: #fb7185;
+  --destructive-foreground: #fecdd3;
 
   /* Charts */
-  --chart-1: var(--primary);
-  --chart-2: #c4b5fd;
+  --chart-1: #22d3ee;
+  --chart-2: #a78bfa;
   --chart-3: #f59e0b;
-  --chart-4: #22c55e;
-  --chart-5: #ef4444;
+  --chart-4: #34d399;
+  --chart-5: #fb7185;
 
   /* Sidebar */
-  --sidebar: #0a0a0a;
+  --sidebar: #0a0c11;
   --sidebar-foreground: var(--muted-foreground);
   --sidebar-accent: var(--accent);
   --sidebar-accent-foreground: var(--accent-foreground);
@@ -124,22 +124,22 @@
   --dur-med: 220ms;
 
   /* ---- aliases (exact-value twins kept by design: --bg/--surface/--surface-overlay/--text
-     mirror canonical names; --accent-ink = readable brand ink, yellow on dark) ---- */
+     mirror canonical names; --accent-ink = readable brand ink, cyan on dark) ---- */
   --bg: var(--background);
   --surface: var(--card);
   --surface-overlay: var(--popover);
   --text: var(--foreground);
-  --accent-ink: #faff69;
+  --accent-ink: #22d3ee;
 }
 
 [data-theme="light"] {
   color-scheme: light;
 
-  --background: #f4f6fa;
+  --background: #f5f7fa;
   --card: #ffffff;
   --popover: #ffffff;
-  --surface-raised: #f8fafc;
-  --surface-sunken: #e9edf4;
+  --surface-raised: #f9fafc;
+  --surface-sunken: #e8ecf2;
 
   --border: rgb(15 23 42 / 9%);
   --border-strong: rgb(15 23 42 / 16%);
@@ -149,41 +149,41 @@
   --muted-foreground: #475569;
   --text-subtle: #64748b;
 
-  --primary: #faff69;
-  --primary-foreground: #0a0a0a;
-  --ring: #5f6400;
+  --primary: #0e7490;
+  --primary-foreground: #ffffff;
+  --ring: #0e7490;
 
-  --accent: rgb(95 100 0 / 12%);
-  --accent-foreground: #3f4300;
+  --accent: rgb(14 116 144 / 10%);
+  --accent-foreground: #0e7490;
   --muted: rgb(15 23 42 / 4%);
-  --secondary: #f8fafc;
+  --secondary: #f9fafc;
   --secondary-foreground: #0b1220;
   --card-foreground: #0b1220;
   --popover-foreground: #0b1220;
 
-  --success: #166534;
-  --success-foreground: #166534;
-  --success-bg: rgb(22 101 52 / 12%);
-  --success-border: rgb(22 101 52 / 25%);
+  --success: #047857;
+  --success-foreground: #047857;
+  --success-bg: rgb(4 120 87 / 12%);
+  --success-border: rgb(4 120 87 / 25%);
   --warning: #92400e;
   --warning-foreground: #92400e;
   --warning-bg: rgb(146 64 14 / 12%);
   --warning-border: rgb(146 64 14 / 25%);
-  --danger: #b91c1c;
-  --danger-bg: rgb(185 28 28 / 12%);
-  --danger-border: rgb(185 28 28 / 25%);
-  --info: #075985;
-  --info-foreground: #075985;
-  --info-bg: rgb(7 89 133 / 12%);
-  --info-border: rgb(7 89 133 / 25%);
-  --destructive: #b91c1c;
-  --destructive-foreground: #b91c1c;
+  --danger: #be123c;
+  --danger-bg: rgb(190 18 60 / 12%);
+  --danger-border: rgb(190 18 60 / 25%);
+  --info: #0369a1;
+  --info-foreground: #0369a1;
+  --info-bg: rgb(3 105 161 / 12%);
+  --info-border: rgb(3 105 161 / 25%);
+  --destructive: #be123c;
+  --destructive-foreground: #be123c;
 
-  --chart-1: #5f6400;
+  --chart-1: #0e7490;
   --chart-2: #6d28d9;
   --chart-3: #92400e;
-  --chart-4: #166534;
-  --chart-5: #991b1b;
+  --chart-4: #047857;
+  --chart-5: #be123c;
 
   /* Sidebar */
   --sidebar: #ffffff;
@@ -193,8 +193,9 @@
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
   --sidebar-border: var(--border);
-  /* Deliberate asymmetry: --ring (olive #5f6400) instead of --primary (#faff69),
-     which is near-invisible as a focus ring on white surfaces. */
+  /* Deliberate asymmetry: --sidebar-ring resolves through --ring (deep teal
+     #0e7490 ink) rather than --primary's surface usage, so the focus ring stays
+     high-contrast on white instead of a low-contrast tint. */
   --sidebar-ring: var(--ring);
 
   --shadow-float: 0 12px 32px rgb(15 23 42 / 14%);
@@ -203,7 +204,7 @@
   --surface: var(--card);
   --surface-overlay: var(--popover);
   --text: var(--foreground);
-  --accent-ink: #5f6400;
+  --accent-ink: #0e7490;
 }
 
 /* Tailwind bridge: exposes each token as a utility (`bg-card`,

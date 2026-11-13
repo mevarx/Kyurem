@@ -24,6 +24,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar'
 import { cn } from '@/lib/utils'
@@ -75,11 +76,16 @@ function Brand({ onNavigate }: { onNavigate?: () => void }) {
       ? 'bg-danger'
       : 'bg-success'
   return (
-    <NavLink to="/" className="flex min-w-0 flex-1 items-center gap-3" onClick={onNavigate}>
-      <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-lg font-bold text-primary-foreground">
+    <NavLink
+      to="/"
+      className="flex min-w-0 flex-1 items-center gap-3 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0"
+      onClick={onNavigate}
+      title="Kyurem home"
+    >
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-lg font-bold text-primary-foreground group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:text-base">
         K
       </div>
-      <span className="flex min-w-0 flex-col leading-tight">
+      <span className="flex min-w-0 flex-col leading-tight group-data-[collapsible=icon]:hidden">
         <span className="flex items-center gap-2">
           <span className="truncate text-[15px] font-semibold tracking-tight text-foreground">Kyurem</span>
           <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-card px-1.5 py-px font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
@@ -135,7 +141,7 @@ function NavLinkButton({ item }: { item: NavItem }) {
             />
           ) : null}
           <Icon className="size-4 shrink-0" />
-          <span className="truncate">{item.name}</span>
+          <span className="truncate group-data-[collapsible=icon]:hidden">{item.name}</span>
         </NavLink>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -158,9 +164,9 @@ function SidebarNavSection({ section }: { section: NavSection }) {
   if (section.collapsible) {
     return (
       <Collapsible.Root defaultOpen={section.defaultOpen ?? true}>
-        <SidebarGroup>
+        <SidebarGroup className="group-data-[collapsible=icon]:p-0">
           {section.label ? (
-            <Collapsible.Trigger className="flex w-full cursor-pointer items-center justify-between px-2 py-2 text-xs font-semibold tracking-wider text-subtle uppercase transition-colors hover:text-muted-foreground [&>svg]:size-3.5! [&>svg]:transition-transform [&>svg]:duration-200 [&>svg]:ease-out data-panel-open:[&>svg]:rotate-180">
+            <Collapsible.Trigger className="flex w-full cursor-pointer items-center justify-between px-2 py-2 text-xs font-semibold tracking-wider text-subtle uppercase transition-colors group-data-[collapsible=icon]:hidden hover:text-muted-foreground [&>svg]:size-3.5! [&>svg]:transition-transform [&>svg]:duration-200 [&>svg]:ease-out data-panel-open:[&>svg]:rotate-180">
               {section.label}
               <ChevronDown className="shrink-0" />
             </Collapsible.Trigger>
@@ -174,9 +180,9 @@ function SidebarNavSection({ section }: { section: NavSection }) {
   }
 
   return (
-    <SidebarGroup>
+    <SidebarGroup className="group-data-[collapsible=icon]:p-0">
       {section.label ? (
-        <SidebarGroupLabel className="px-2 py-2 text-xs font-semibold tracking-wider text-subtle uppercase">
+        <SidebarGroupLabel className="px-2 py-2 text-xs font-semibold tracking-wider text-subtle uppercase group-data-[collapsible=icon]:hidden">
           {section.label}
         </SidebarGroupLabel>
       ) : null}
@@ -191,9 +197,20 @@ function GatewayStatusCard() {
   const version = settingsQuery.data?.version
   const uptime = settingsQuery.data?.uptime_seconds
 
+  const statusLabel = settingsQuery.isPending
+    ? 'Connecting…'
+    : reachable
+      ? 'Gateway live'
+      : 'Unreachable'
+
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
-      <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+    <div
+      role="status"
+      aria-label={`Gateway status: ${statusLabel}`}
+      title={statusLabel}
+      className="rounded-lg border border-border bg-card p-3 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0"
+    >
+      <div className="flex items-center gap-2 text-xs font-semibold text-foreground group-data-[collapsible=icon]:gap-0">
         <span
           className="size-2 shrink-0 rounded-full"
           style={{
@@ -201,9 +218,9 @@ function GatewayStatusCard() {
           }}
           aria-hidden="true"
         />
-        {settingsQuery.isPending ? 'Connecting…' : reachable ? 'Gateway live' : 'Unreachable'}
+        <span className="group-data-[collapsible=icon]:hidden">{statusLabel}</span>
       </div>
-      <dl className="mt-2 space-y-1 font-mono text-[11px] text-muted-foreground">
+      <dl className="mt-2 space-y-1 font-mono text-[11px] text-muted-foreground group-data-[collapsible=icon]:hidden">
         <div className="flex justify-between gap-2">
           <dt className="text-subtle">Version</dt>
           <dd className="truncate">{version ?? '—'}</dd>
@@ -223,19 +240,23 @@ export function DashboardSidebar() {
     if (isMobile) setOpenMobile(false)
   }
   return (
-    <Sidebar className="border-none! p-0.5 capitalio-dashboard">
-      <SidebarHeader className="mb-4 flex-row items-start gap-2 px-4 pt-6 pb-0">
+    <Sidebar collapsible="icon" className="border-none! p-0.5 capitalio-dashboard">
+      <SidebarHeader className="mb-4 flex-row items-start gap-2 px-4 pt-6 pb-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-1.5">
         <Brand onNavigate={closeOnNavigate} />
       </SidebarHeader>
 
-      <SidebarContent className="gap-2 px-4 pb-4">
+      <SidebarContent className="gap-2 px-4 pb-4 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">
         <SidebarNavSection section={operateSection} />
         <SidebarNavSection section={manageSection} />
       </SidebarContent>
 
-      <SidebarFooter className="gap-3 px-4 pt-0 pb-6">
+      <SidebarFooter className="gap-3 px-4 pt-0 pb-6 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">
         <GatewayStatusCard />
       </SidebarFooter>
+
+      {isMobile ? null : (
+        <SidebarRail aria-label="Resize sidebar" title="Resize sidebar" />
+      )}
     </Sidebar>
   )
 }

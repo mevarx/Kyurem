@@ -94,7 +94,10 @@ export function AgentGraph() {
                 <span className="graph-legend-line graph-legend-line-bad" aria-hidden="true" /> erroring · error rate
                 ≥ 25%
               </span>
-              <span className="min-w-0 break-words">Width ∝ calls · labels show calls · p95 · hover an edge for errors and cost.</span>
+              <span className="min-w-0 break-words">
+                Arrows show call direction · width ∝ calls · labels show calls · p95 · hover an edge for errors and
+                cost.
+              </span>
             </p>
           </DashboardCard>
 

@@ -102,11 +102,21 @@ const AgentNode = memo(function AgentNode({ data, selected }: NodeProps<AgentFlo
   );
 });
 
-function edgeColor(errorRate: number): string {
-  if (errorRate >= 0.25) return "var(--danger)";
-  if (errorRate > 0) return "var(--warning)";
+type EdgeTone = "healthy" | "warn" | "bad";
+
+function edgeTone(errorRate: number): EdgeTone {
+  if (errorRate >= 0.25) return "bad";
+  if (errorRate > 0) return "warn";
+  return "healthy";
+}
+
+function edgeColor(tone: EdgeTone): string {
+  if (tone === "bad") return "var(--danger)";
+  if (tone === "warn") return "var(--warning)";
   return "var(--chart-1)";
 }
+
+const EDGE_TONES: EdgeTone[] = ["healthy", "warn", "bad"];
 
 const AgentEdge = memo(function AgentEdge({
   id,
@@ -117,7 +127,6 @@ const AgentEdge = memo(function AgentEdge({
   sourcePosition,
   targetPosition,
   data,
-  markerEnd,
 }: EdgeProps<AgentFlowEdge>) {
   const [path, labelX, labelY] = getBezierPath({
     sourceX,
@@ -131,6 +140,7 @@ const AgentEdge = memo(function AgentEdge({
   const calls = data?.calls ?? 0;
   const p95 = data?.p95 ?? 0;
   const highlighted = data?.highlighted ?? false;
+  const tone = edgeTone(errorRate);
   const baseWidth = Math.min(6, 1.5 + calls / 10);
   const tooltip = data
     ? `${data.from} → ${data.to}: ${formatNumber(data.calls)} calls, ${formatNumber(
@@ -143,10 +153,10 @@ const AgentEdge = memo(function AgentEdge({
       <BaseEdge
         id={id}
         path={path}
-        markerEnd={markerEnd}
+        markerEnd={`url(#kyurem-arrow-${tone})`}
         className="graph-edge"
         style={{
-          stroke: edgeColor(errorRate),
+          stroke: edgeColor(tone),
           strokeWidth: highlighted ? Math.min(8, baseWidth + 1.5) : baseWidth,
         }}
       >
@@ -269,6 +279,31 @@ export function AgentGraphCanvas({
 
   return (
     <div className="graph-canvas" role="group" aria-label="Agent call graph">
+      <svg
+        className="graph-arrow-defs"
+        aria-hidden="true"
+        focusable="false"
+        width="0"
+        height="0"
+        style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }}
+      >
+        <defs>
+          {EDGE_TONES.map((tone) => (
+            <marker
+              key={tone}
+              id={`kyurem-arrow-${tone}`}
+              markerWidth={10}
+              markerHeight={10}
+              refX={9}
+              refY={5}
+              orient="auto-start-reverse"
+              markerUnits="userSpaceOnUse"
+            >
+              <path d="M 0 0 L 10 5 L 0 10 Z" style={{ fill: edgeColor(tone) }} />
+            </marker>
+          ))}
+        </defs>
+      </svg>
       <ReactFlow
         nodes={flow.nodes}
         edges={flow.edges}

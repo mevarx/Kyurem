@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Search } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -24,7 +24,7 @@ function titleFor(pathname: string): { section: string; title: string } {
 export function DashboardTopbar({ onSearch }: { onSearch: () => void }) {
   const { pathname } = useLocation()
   const { section, title } = titleFor(pathname)
-  const { openMobile } = useSidebar()
+  const { open, openMobile, toggleSidebar } = useSidebar()
   const triggerRef = React.useRef<HTMLButtonElement>(null)
   const wasOpenRef = React.useRef(false)
   React.useEffect(() => {
@@ -40,6 +40,21 @@ export function DashboardTopbar({ onSearch }: { onSearch: () => void }) {
         aria-expanded={openMobile}
         className="size-9 shrink-0 md:hidden [&_svg]:size-5!"
       />
+
+      <button
+        type="button"
+        onClick={toggleSidebar}
+        aria-label="Toggle sidebar"
+        aria-expanded={open}
+        title="Toggle sidebar (Ctrl+B)"
+        className="hidden size-9 shrink-0 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden md:inline-flex"
+      >
+        {open ? (
+          <PanelLeftClose className="size-4 shrink-0" aria-hidden="true" />
+        ) : (
+          <PanelLeftOpen className="size-4 shrink-0" aria-hidden="true" />
+        )}
+      </button>
 
       <nav className="flex min-w-0 flex-1 items-center gap-2 text-sm" aria-label="Breadcrumb">
         <span className="hidden shrink-0 text-muted-foreground sm:inline">{section}</span>

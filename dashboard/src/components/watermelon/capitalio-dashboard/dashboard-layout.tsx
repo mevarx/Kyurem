@@ -1,8 +1,19 @@
-import type { CSSProperties, ReactNode } from 'react'
+import { useCallback, useState, type CSSProperties, type ReactNode } from 'react'
 import { DashboardSidebar } from './components/capitalio/sidebar'
 import { DashboardTopbar } from './components/capitalio/topbar'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import './dashboard.css'
+
+const SIDEBAR_STORAGE_KEY = 'kyurem.sidebar'
+
+function readStoredSidebarOpen(): boolean {
+  if (typeof window === 'undefined') return true
+  try {
+    return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) !== 'collapsed'
+  } catch {
+    return true
+  }
+}
 
 type DashboardLayoutProps = {
   children: ReactNode
@@ -10,9 +21,21 @@ type DashboardLayoutProps = {
 }
 
 export default function DashboardLayout({ children, onSearch }: DashboardLayoutProps) {
+  const [sidebarOpen, setSidebarOpen] = useState(readStoredSidebarOpen)
+
+  const handleSidebarOpenChange = useCallback((open: boolean) => {
+    setSidebarOpen(open)
+    try {
+      window.localStorage.setItem(SIDEBAR_STORAGE_KEY, open ? 'expanded' : 'collapsed')
+    } catch {
+      // Storage can be unavailable (private mode, disabled cookies); the toggle still works.
+    }
+  }, [])
+
   return (
     <SidebarProvider
-      defaultOpen
+      open={sidebarOpen}
+      onOpenChange={handleSidebarOpenChange}
       className="capitalio-dashboard m4-shell h-svh overflow-hidden no-scrollbar"
       style={
         {
