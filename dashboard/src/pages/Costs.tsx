@@ -16,7 +16,7 @@ import { CreditGauge } from "../components/credit-gauge";
 import { DonutLegend } from "../components/donut-legend";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
-import { TableSkeleton } from "../components/Skeleton";
+import { Skeleton, TableSkeleton } from "../components/Skeleton";
 import {
   DashboardCard,
   DashboardChartTooltip,
@@ -25,7 +25,7 @@ import {
 } from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
 import { TimeRangePicker } from "../components/TimeRangePicker";
 import { downloadCsv, toCsv } from "../lib/csv";
-import { formatCost, formatNumber } from "../lib/format";
+import { formatCost, formatNumber, formatTokens } from "../lib/format";
 import { DEFAULT_TIME_RANGE, toApiWindow, type TimeRange } from "../lib/time";
 
 const GROUP_OPTIONS: Array<{ value: CostGroupBy; label: string }> = [
@@ -118,6 +118,73 @@ export function Costs() {
           <TimeRangePicker value={range} onChange={setRange} idPrefix="costs-range" />
         </div>
       </header>
+
+      {/* Totals sit above the controls: the headline number is the window cost. Errors are
+          handled by ErrorState below, so no card may present a zeroed total here. */}
+      {query.isError ? null : (
+        <section className="stat-grid" aria-label="Cost totals" aria-busy={query.isPending}>
+          {query.isPending ? (
+            <>
+              <div className="stat-card">
+                <span className="stat-label">Total cost</span>
+                <Skeleton style={{ height: 38, width: "70%" }} />
+              </div>
+              <div className="stat-card">
+                <span className="stat-label">Input tokens</span>
+                <Skeleton style={{ height: 22, width: "55%" }} />
+              </div>
+              <div className="stat-card">
+                <span className="stat-label">Output tokens</span>
+                <Skeleton style={{ height: 22, width: "55%" }} />
+              </div>
+              <div className="stat-card">
+                <span className="stat-label">Unknown usage</span>
+                <Skeleton style={{ height: 22, width: "80%" }} />
+              </div>
+              <span className="sr-only">Loading cost totals…</span>
+            </>
+          ) : (
+            <>
+              <div className="stat-card">
+                <span className="stat-label">Total cost</span>
+                <span
+                  className="stat-value mono"
+                  style={{
+                    fontSize: "clamp(1.75rem, 1rem + 2.2vw, 2.75rem)",
+                    lineHeight: 1.05,
+                    letterSpacing: "-0.02em",
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  {formatCost(report?.total_usd ?? null)}
+                </span>
+              </div>
+              <div className="stat-card">
+                <span className="stat-label">Input tokens</span>
+                <span className="stat-value mono">{formatTokens(report?.input_tokens ?? null)}</span>
+              </div>
+              <div className="stat-card">
+                <span className="stat-label">Output tokens</span>
+                <span className="stat-value mono">{formatTokens(report?.output_tokens ?? null)}</span>
+              </div>
+              <div className="stat-card">
+                <span className="stat-label">Unknown usage</span>
+                {report === undefined ? (
+                  <span className="stat-value mono">unknown</span>
+                ) : report.unknown_spans > 0 ? (
+                  <DetailTag color="var(--muted-foreground)">
+                    <span className="mono">
+                      {`${formatNumber(report.unknown_spans)} of ${formatNumber(report.spans)} spans without usage`}
+                    </span>
+                  </DetailTag>
+                ) : (
+                  <span className="stat-value mono">complete</span>
+                )}
+              </div>
+            </>
+          )}
+        </section>
+      )}
 
       <section className="filter-toolbar max-sm:flex-col max-sm:items-stretch" aria-label="Cost controls">
         <div className="field" style={{ flexGrow: 0, minWidth: 150 }}>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { useSettings } from "../api/hooks";
 import { getApiBaseUrl, getStoredToken, setStoredToken } from "../api/client";
 import { ErrorState } from "../components/ErrorState";
@@ -19,6 +20,7 @@ export function Settings() {
   const queryClient = useQueryClient();
   const [token, setToken] = useState(() => getStoredToken());
   const [tokenSaved, setTokenSaved] = useState(false);
+  const [tokenVisible, setTokenVisible] = useState(false);
 
   const saveToken = () => {
     setStoredToken(token);
@@ -36,6 +38,7 @@ export function Settings() {
   };
 
   const settings = query.data;
+  const checking = query.isPending || query.isFetching;
 
   return (
     <div className="page">
@@ -96,7 +99,43 @@ export function Settings() {
               </div>
             </dl>
           </DashboardCard>
+        </>
+      )}
 
+      <DashboardCard aria-label="API connection">
+        <DetailHeader title="API connection" subtitle="Resolved endpoint, credentials and live reachability" />
+        <dl className="detail-grid">
+          <div>
+            <dt>Base URL</dt>
+            <dd>
+              <code>{getApiBaseUrl()}</code>
+            </dd>
+          </div>
+          <div>
+            <dt>Auth mode</dt>
+            <dd>{getStoredToken() ? "bearer token" : "none (loopback)"}</dd>
+          </div>
+          <div>
+            <dt>Reachability</dt>
+            <dd>
+              <StatusBadge
+                label={checking ? "checking" : query.isError ? "unreachable" : "reachable"}
+                tone={checking ? "neutral" : query.isError ? "bad" : "good"}
+              />
+            </dd>
+          </div>
+        </dl>
+        {query.isError && !query.isFetching ? (
+          <div className="button-row">
+            <button type="button" className="button" onClick={() => void query.refetch()}>
+              Retry
+            </button>
+          </div>
+        ) : null}
+      </DashboardCard>
+
+      {settings ? (
+        <>
           <DashboardCard aria-label="Telemetry">
             <DetailHeader title="Telemetry" subtitle="Export pipeline counters" />
             <dl className="detail-grid">
@@ -178,7 +217,7 @@ export function Settings() {
             </dl>
           </DashboardCard>
         </>
-      )}
+      ) : null}
 
       <DashboardCard aria-label="Dashboard preferences">
         <DetailHeader title="Dashboard" subtitle="Appearance and API credentials" />
@@ -193,17 +232,30 @@ export function Settings() {
 
         <div className="field">
           <label htmlFor="api-token">API token</label>
-          <input
-            id="api-token"
-            type="password"
-            autoComplete="off"
-            placeholder="Bearer token for the management API"
-            value={token}
-            onChange={(event) => {
-              setToken(event.target.value);
-              setTokenSaved(false);
-            }}
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              id="api-token"
+              type={tokenVisible ? "text" : "password"}
+              autoComplete="off"
+              placeholder="Bearer token for the management API"
+              value={token}
+              style={{ flex: 1, minWidth: 0 }}
+              onChange={(event) => {
+                setToken(event.target.value);
+                setTokenSaved(false);
+              }}
+            />
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={tokenVisible ? "Hide token" : "Show token"}
+              aria-pressed={tokenVisible}
+              title={tokenVisible ? "Hide token" : "Show token"}
+              onClick={() => setTokenVisible((visible) => !visible)}
+            >
+              {tokenVisible ? <EyeOffIcon aria-hidden="true" /> : <EyeIcon aria-hidden="true" />}
+            </button>
+          </div>
           <p className="field-hint">
             Stored in this browser only (localStorage). Leave empty when the gateway runs unauthenticated on
             loopback.

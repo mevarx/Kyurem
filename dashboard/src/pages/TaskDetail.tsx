@@ -21,6 +21,10 @@ import { TableSkeleton } from "../components/Skeleton";
 import { formatCost, formatDateTime, formatDuration, formatNumber } from "../lib/format";
 import { taskStatusTone } from "../lib/status";
 
+/** Disclosure header row: reads like the card header, keyboard-focusable, marker hidden. */
+const SECTION_SUMMARY_CLASS =
+  "block cursor-pointer list-none rounded-md outline-none transition-colors duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card [&::-webkit-details-marker]:hidden";
+
 /** Everything the gateway knows about a single task. */
 export function TaskDetail() {
   const { taskId = "" } = useParams<{ taskId: string }>();
@@ -178,30 +182,51 @@ export function TaskDetail() {
 
       <div className="panel-row">
         <DashboardCard aria-label="Tool calls" className="min-w-0">
-          <DetailHeader title="Tool calls" subtitle="Per-span time; the gateway does not expose per-span cost" />
-          {receiptCalls.length === 0 ? (
-            <EmptyState title="No spans recorded" description="The gateway returned no spans for this task." />
-          ) : (
-            <ToolReceiptSpike calls={receiptCalls} currency="$" />
-          )}
+          <details className="group min-w-0" open>
+            <summary className={SECTION_SUMMARY_CLASS}>
+              <DetailHeader
+                title="Tool calls"
+                subtitle="Per-span time; the gateway does not expose per-span cost"
+              >
+                <DisclosureChevron />
+              </DetailHeader>
+            </summary>
+            {receiptCalls.length === 0 ? (
+              <EmptyState title="No spans recorded" description="The gateway returned no spans for this task." />
+            ) : (
+              <ToolReceiptSpike calls={receiptCalls} currency="$" />
+            )}
+          </details>
         </DashboardCard>
 
         <DashboardCard aria-label="Task payload" className="min-w-0">
-          <DetailHeader title="Task payload" subtitle="Raw task record" />
-          <JsonExplorer data={taskPayload(task)} title="task" />
+          <details className="group min-w-0">
+            <summary className={SECTION_SUMMARY_CLASS}>
+              <DetailHeader title="Task payload" subtitle="Raw task record">
+                <DisclosureChevron />
+              </DetailHeader>
+            </summary>
+            <JsonExplorer data={taskPayload(task)} title="task" />
+          </details>
         </DashboardCard>
       </div>
 
       <DashboardCard aria-label="Span events" className="min-w-0">
-        <DetailHeader title="Span events" subtitle="Searchable stream; repeated bursts fold together" />
-        {logLines.length === 0 ? (
-          <EmptyState
-            title="No events recorded"
-            description="The gateway recorded no policy or lifecycle events for this task."
-          />
-        ) : (
-          <LogStream initialLines={logLines} title="events" />
-        )}
+        <details className="group min-w-0" open>
+          <summary className={SECTION_SUMMARY_CLASS}>
+            <DetailHeader title="Span events" subtitle="Searchable stream; repeated bursts fold together">
+              <DisclosureChevron />
+            </DetailHeader>
+          </summary>
+          {logLines.length === 0 ? (
+            <EmptyState
+              title="No events recorded"
+              description="The gateway recorded no policy or lifecycle events for this task."
+            />
+          ) : (
+            <LogStream initialLines={logLines} title="events" />
+          )}
+        </details>
       </DashboardCard>
     </div>
   );
@@ -212,6 +237,26 @@ function BackLink() {
     <Link className="back-link" to="/tasks">
       ← All tasks
     </Link>
+  );
+}
+
+/** Disclosure affordance; rotation is state-only, so reduced motion stays legible. */
+function DisclosureChevron() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="size-4 shrink-0 text-muted-foreground transition-transform duration-150 ease-out [@media(hover:hover)]:group-hover:text-foreground group-open:rotate-180 motion-reduce:transition-none"
+      fill="none"
+      viewBox="0 0 16 16"
+    >
+      <path
+        d="m4 6 4 4 4-4"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </svg>
   );
 }
 

@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState, type CSSProperties } from "react";
+import { useIsMobile } from "../hooks/use-mobile";
 import { StatusBadge } from "../components/StatusBadge";
 import { DataTable } from "../components/DataTable";
 import { EmptyState } from "../components/EmptyState";
@@ -22,6 +23,28 @@ const KIND_OPTIONS: Array<{ value: DecisionKind | ""; label: string }> = [
   { value: "auth", label: "Auth" },
 ];
 
+/* Sticky caller column: keeps row labels readable while the matrix scrolls
+   sideways. Solid --card background prevents cells bleeding through. */
+const matrixStickyCellStyle: CSSProperties = {
+  position: "sticky",
+  left: 0,
+  background: "var(--card)",
+  borderRight: "1px solid var(--border)",
+  overflow: "hidden",
+};
+
+/** Corner cell pins on both axes, above the sticky column and header row. */
+const matrixCornerCellStyle: CSSProperties = {
+  ...matrixStickyCellStyle,
+  zIndex: 3,
+};
+
+/** Row headers pin horizontally, below the sticky header row (z-index 2). */
+const matrixRowHeaderStyle: CSSProperties = {
+  ...matrixStickyCellStyle,
+  zIndex: 1,
+};
+
 /** Risk score for review ordering: denies first, then warnings. */
 function decisionRisk(decision: Decision["decision"]): number {
   if (decision === "deny") return 90;
@@ -40,6 +63,23 @@ function triageId(item: Decision): string {
 export function Policy() {
   const policyQuery = usePolicy();
   const [kind, setKind] = useState<DecisionKind | "">("");
+  const matrixScrollHintId = `${useId()}-matrix-scroll-hint`;
+  // Compact density on phones so 3+ callees fit before the matrix scrolls.
+  const isMobile = useIsMobile();
+  const matrixDensityStyle: CSSProperties | undefined = isMobile
+    ? { padding: "6px 8px" }
+    : undefined;
+  const matrixLabelStyle: CSSProperties = {
+    maxWidth: isMobile ? "5.5rem" : undefined,
+  };
+  const matrixCornerStyle: CSSProperties = {
+    ...matrixCornerCellStyle,
+    ...(matrixDensityStyle ?? {}),
+  };
+  const matrixRowStyle: CSSProperties = {
+    ...matrixRowHeaderStyle,
+    ...(matrixDensityStyle ?? {}),
+  };
   const decisionsQuery = useDecisions(kind, 100);
 
   const policy = policyQuery.data;
@@ -208,14 +248,27 @@ export function Policy() {
             {policy.callers.length === 0 || policy.callees.length === 0 ? (
               <p className="muted">No callers or callees configured.</p>
             ) : (
-              <div className="table-wrapper" tabIndex={0}>
-                <table className="data-table">
+              <div
+                className="table-wrapper"
+                role="region"
+                aria-label="Policy matrix, scroll horizontally to see all callees"
+                aria-describedby={matrixScrollHintId}
+                tabIndex={0}
+              >
+                <p id={matrixScrollHintId} className="sr-only">
+                  Scroll horizontally to see all callees.
+                </p>
+                <table className="data-table min-w-max">
                   <caption className="sr-only">Policy matrix</caption>
                   <thead>
                     <tr>
-                      <th scope="col">caller \ callee</th>
+                      <th scope="col" style={matrixCornerStyle}>
+                        <span className="block truncate" style={matrixLabelStyle}>
+                          caller \ callee
+                        </span>
+                      </th>
                       {policy.callees.map((callee) => (
-                        <th key={callee} scope="col">
+                        <th key={callee} scope="col" style={matrixDensityStyle}>
                           {callee}
                         </th>
                       ))}
@@ -224,11 +277,15 @@ export function Policy() {
                   <tbody>
                     {policy.callers.map((caller) => (
                       <tr key={caller}>
-                        <th scope="row">{caller}</th>
+                        <th scope="row" style={matrixRowStyle}>
+                          <span className="block truncate" style={matrixLabelStyle}>
+                            {caller}
+                          </span>
+                        </th>
                         {policy.callees.map((callee) => {
                           const cell = matrixByCaller.get(caller)?.get(callee);
                           return (
-                            <td key={callee}>
+                            <td key={callee} style={matrixDensityStyle}>
                               {cell ? (
                                 <StatusBadge
                                   label={cell.decision}

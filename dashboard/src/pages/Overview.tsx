@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { LIVE_REFETCH_INTERVAL_MS, useOverview, useTasks } from "../api/hooks";
+import { LIVE_REFETCH_INTERVAL_MS, useCosts, useOverview, useSettings, useTasks } from "../api/hooks";
 import type { Overview as OverviewData } from "../api/types";
 import {
   DashboardCard,
@@ -27,7 +27,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { TimeRangePicker } from "../components/TimeRangePicker";
 import { useCountUp } from "../lib/useCountUp";
 import { useLastVisit } from "../lib/lastVisit";
-import { formatCost, formatDateTime, formatDuration, formatNumber, formatPercent, formatTime } from "../lib/format";
+import { formatCost, formatDateTime, formatDuration, formatNumber, formatPercent, formatTime, formatTokens, formatUptime } from "../lib/format";
 import { taskStatusTone } from "../lib/status";
 import { DEFAULT_TIME_RANGE, toApiWindow, type TimeRange } from "../lib/time";
 
@@ -36,6 +36,11 @@ export function Overview() {
   const [range, setRange] = useState<TimeRange>(DEFAULT_TIME_RANGE);
   const query = useOverview(toApiWindow(range), { refetchInterval: LIVE_REFETCH_INTERVAL_MS });
   const data = query.data;
+  const costs = useCosts(toApiWindow(range), "agent");
+  const tokenHint =
+    costs.data?.input_tokens != null && costs.data.output_tokens != null
+      ? `in ${formatTokens(costs.data.input_tokens)} / out ${formatTokens(costs.data.output_tokens)} tokens`
+      : "tokens unknown";
 
   const taskChart = useMemo(
     () =>
@@ -126,6 +131,8 @@ export function Overview() {
     <div className="page">
       <PageHeader range={range} onRangeChange={setRange} />
 
+      <GatewayHealthStrip />
+
       <section className="kpi-grid" aria-label="Key indicators">
         <KpiCard
           label="Throughput"
@@ -175,7 +182,7 @@ export function Overview() {
             formatCost(overview?.total_cost_usd === null || overview?.total_cost_usd === undefined ? null : v)
           }
           pill={<DeltaPill change={halfChange(spendSeries)} suffix="vs 1st half" tone="warning" />}
-          hint="Selected window"
+          hint={`Selected window · ${tokenHint}`}
           sparkValues={spendSeries}
         />
       </section>
@@ -382,6 +389,60 @@ const DeltaPill = memo(function DeltaPill({
     </span>
   );
 });
+
+/**
+ * One-line gateway posture strip: reachability, version, uptime, storage
+ * driver and telemetry export state. Renders placeholders while settings
+ * load and only marks the gateway unreachable when the request failed.
+ */
+function GatewayHealthStrip() {
+  const query = useSettings();
+  const settings = query.data;
+
+  return (
+    <section
+      aria-label="Gateway health"
+      className="card flex flex-wrap items-center gap-x-5 gap-y-2 text-sm"
+    >
+      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        Gateway
+      </span>
+      {query.isError ? (
+        <StatusBadge label="gateway unreachable" tone="bad" />
+      ) : !settings ? (
+        <>
+          <StatusBadge label="checking gateway" tone="neutral" />
+          <span aria-hidden="true" className="h-3 w-28 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+          <span aria-hidden="true" className="h-3 w-16 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+          <span aria-hidden="true" className="h-3 w-24 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+          <span aria-hidden="true" className="h-3 w-20 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+        </>
+      ) : (
+        <>
+          <StatusBadge label="gateway reachable" tone="good" />
+          <DetailTag>v{settings.version}</DetailTag>
+          {settings.uptime_seconds != null ? (
+            <span className="text-muted-foreground">
+              uptime{" "}
+              <span className="mono text-foreground">{formatUptime(settings.uptime_seconds)}</span>
+            </span>
+          ) : null}
+          <span className="text-muted-foreground">
+            storage{" "}
+            <span className="mono text-foreground">{settings.storage.driver}</span>
+          </span>
+          <span className="flex items-center gap-2 text-muted-foreground">
+            telemetry
+            <StatusBadge
+              label={settings.telemetry.exporting ? "on" : "off"}
+              tone={settings.telemetry.exporting ? "good" : "warn"}
+            />
+          </span>
+        </>
+      )}
+    </section>
+  );
+}
 
 function KpiCard({
   label,

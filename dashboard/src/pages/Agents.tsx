@@ -38,66 +38,35 @@ export function Agents() {
       ),
     },
     {
-      key: "aliases",
-      header: "Aliases",
-      hideOnMobile: true,
-      render: (agent) => (agent.aliases.length > 0 ? agent.aliases.join(", ") : "unknown"),
-    },
-    {
-      key: "upstreams",
-      header: "Upstreams",
-      hideOnMobile: true,
+      key: "health",
+      header: "Health",
       render: (agent) => (
-        <ul className="plain-list">
-          {agent.upstreams.length > 0 ? (
-            agent.upstreams.map((upstream) => <li key={upstream}>{upstream}</li>)
-          ) : (
-            <li className="muted">unknown</li>
-          )}
-        </ul>
+        <div className="flex flex-wrap items-center gap-1">
+          <StatusBadge
+            label={`card ${agent.card_status}`}
+            tone={cardStatusTone(agent.card_status)}
+            title={`Card status: ${agent.card_status}`}
+          />
+          <StatusBadge
+            label={agent.verification}
+            tone={isUnknownState(agent.verification) ? "neutral" : "good"}
+            title="Card signature verification"
+          />
+          {agent.breaker_state && agent.breaker_state !== "unknown" ? (
+            <StatusBadge
+              label={`breaker ${agent.breaker_state}`}
+              tone={breakerStateTone(agent.breaker_state)}
+              title={`Circuit breaker: ${agent.breaker_state}`}
+            />
+          ) : null}
+        </div>
       ),
     },
     {
-      key: "card_status",
-      header: "Card",
-      hideOnMobile: true,
-      render: (agent) => (
-        <StatusBadge label={agent.card_status} tone={cardStatusTone(agent.card_status)} />
-      ),
-    },
-    {
-      key: "verification",
-      header: "Verification",
-      hideOnMobile: true,
-      render: (agent) => (
-        <StatusBadge
-          label={agent.verification}
-          tone={isUnknownState(agent.verification) ? "neutral" : "good"}
-          title="Card signature verification"
-        />
-      ),
-    },
-    {
-      key: "breaker_state",
-      header: "Breaker",
-      render: (agent) => (
-        <StatusBadge
-          label={agent.breaker_state ?? "unknown"}
-          tone={breakerStateTone(agent.breaker_state)}
-        />
-      ),
-    },
-    {
-      key: "last_seen",
-      header: "Last seen",
-      hideOnMobile: true,
-      render: (agent) => formatRelativeTime(agent.last_seen),
-    },
-    {
-      key: "spans",
+      // The registry reports spanned work per agent; label it as such.
+      key: "calls",
       header: "Spans",
       align: "right",
-      hideOnMobile: true,
       render: (agent) => formatNumber(agent.spans),
     },
     {
@@ -126,6 +95,43 @@ export function Agents() {
       align: "right",
       hideOnMobile: true,
       render: (agent) => formatCost(agent.cost_usd),
+    },
+    {
+      key: "last_seen",
+      header: "Last seen",
+      hideOnMobile: true,
+      render: (agent) => formatRelativeTime(agent.last_seen),
+    },
+    {
+      key: "aliases",
+      header: "Aliases",
+      hideOnMobile: true,
+      render: (agent) =>
+        agent.aliases.length > 0 ? (
+          <span className="flex flex-wrap items-center gap-1">
+            {agent.aliases.map((alias) => (
+              <span key={alias} className="badge badge-neutral">
+                {alias}
+              </span>
+            ))}
+          </span>
+        ) : (
+          "unknown"
+        ),
+    },
+    {
+      key: "upstreams",
+      header: "Upstreams",
+      hideOnMobile: true,
+      render: (agent) => (
+        <ul className="plain-list mono break-all">
+          {agent.upstreams.length > 0 ? (
+            agent.upstreams.map((upstream) => <li key={upstream}>{upstream}</li>)
+          ) : (
+            <li className="muted">unknown</li>
+          )}
+        </ul>
+      ),
     },
   ];
 
