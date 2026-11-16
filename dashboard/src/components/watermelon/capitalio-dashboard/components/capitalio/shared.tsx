@@ -1,0 +1,144 @@
+import type { ComponentProps } from 'react'
+import { cn } from '@/lib/utils'
+
+type DashboardTooltipPayload = {
+  name?: string
+  value?: number | string
+  color?: string
+  dataKey?: string | number
+  payload?: {
+    name?: string
+    fill?: string
+  }
+}
+
+type DashboardChartTooltipProps = {
+  active?: boolean
+  label?: string | number
+  payload?: readonly DashboardTooltipPayload[]
+  names?: Record<string, string>
+  colors?: Record<string, string>
+  valueFormatter?: (value: number | string, dataKey: string) => React.ReactNode
+}
+
+export function DashboardCard({
+  children,
+  className,
+  interactive = false,
+  ...props
+}: ComponentProps<'article'> & {
+  children: React.ReactNode
+  className?: string
+  /** Opt-in hover lift for cards that act as links or buttons. Defaults to static. */
+  interactive?: boolean
+}) {
+  return (
+    <article
+      {...props}
+      className={cn(
+        'dashboard-card shadow-custom min-w-0 rounded-xl border border-border bg-card p-5 text-card-foreground',
+        interactive &&
+          'transition-[transform,box-shadow] duration-150 ease-out motion-safe:hover:-translate-y-px motion-safe:hover:shadow-[var(--shadow-float)]',
+        className,
+      )}
+    >
+      {children}
+    </article>
+  )
+}
+
+export function DetailHeader({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string
+  subtitle?: string
+  children?: React.ReactNode
+}) {
+  return (
+    <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0 flex-1">
+        <h2 className="truncate text-sm font-semibold leading-5">{title}</h2>
+        {subtitle ? (
+          <div className="mt-1 text-xs leading-5 text-muted-foreground">{subtitle}</div>
+        ) : null}
+      </div>
+      {children ? <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">{children}</div> : null}
+    </div>
+  )
+}
+
+export function DetailTag({
+  children,
+  color = 'var(--chart-1)',
+  onClick,
+}: {
+  children: React.ReactNode
+  color?: string
+  /** Optional click handler; hover brightening only applies when set. */
+  onClick?: () => void
+}) {
+  return (
+    <span
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs leading-5 text-muted-foreground',
+        onClick &&
+          'cursor-pointer transition-[background-color,filter] duration-150 ease-out motion-safe:hover:brightness-125',
+      )}
+      style={{
+        backgroundColor: `color-mix(in oklab, ${color} 5%, transparent)`,
+        border: `1px solid color-mix(in oklab, ${color} 14%, transparent)`,
+      }}
+    >
+      <span
+        aria-hidden="true"
+        className="size-1.5 shrink-0 rounded-full"
+        style={{ backgroundColor: color }}
+      />
+      {children}
+    </span>
+  )
+}
+
+export function DashboardChartTooltip({
+  active,
+  label,
+  payload,
+  names,
+  colors,
+  valueFormatter,
+}: DashboardChartTooltipProps) {
+  const items = payload?.filter((item) => item.value !== undefined && item.value !== null) ?? []
+
+  if (!active || items.length === 0) {
+    return null
+  }
+
+  const header = items[0]?.payload?.name ?? label
+
+  return (
+    <div className="rounded-lg border border-border bg-popover p-3 text-xs text-popover-foreground shadow-custom motion-safe:animate-[fade-in_120ms_ease-out]">
+      <div className="mb-2 text-xs font-medium text-muted-foreground">{header}</div>
+      <div className="space-y-2">
+        {items.map((item) => {
+          const dataKey = String(item.dataKey ?? item.name ?? '')
+          const color = colors?.[dataKey] ?? item.color ?? item.payload?.fill ?? 'var(--foreground)'
+          const name = names?.[dataKey] ?? item.name ?? dataKey
+          const value = valueFormatter ? valueFormatter(item.value ?? '', dataKey) : item.value
+
+          return (
+            <div key={dataKey} className="grid grid-cols-[1fr_auto] items-center gap-4 leading-none">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="size-3 shrink-0 rounded-xs" style={{ backgroundColor: color }} />
+                <span className="truncate text-xs">{name}</span>
+              </div>
+              <span className="text-right font-medium text-xs">{value}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}

@@ -1,33 +1,80 @@
+import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useTaskDetail } from "../api/hooks";
-import type { Event } from "../api/types";
+import type { Event, Span, Task } from "../api/types";
 import { CostTable } from "../components/CostTable";
-import { DataTable, type DataTableColumn } from "../components/DataTable";
+import { JsonExplorer } from "../components/json-explorer";
+import { LogStream, type LogLine, type LogLevel } from "../components/log-stream";
+import { ToolReceiptSpike, type ToolReceiptCall } from "../components/tool-receipt";
+import {
+  DashboardCard,
+  DetailHeader,
+  DetailTag,
+} from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
-import { LoadingState } from "../components/LoadingState";
 import { RootCausePanel } from "../components/RootCausePanel";
 import { SpanTree } from "../components/SpanTree";
 import { SpanWaterfall } from "../components/SpanWaterfall";
 import { StatusBadge } from "../components/StatusBadge";
+import { TableSkeleton } from "../components/Skeleton";
 import { formatCost, formatDateTime, formatDuration, formatNumber } from "../lib/format";
 import { taskStatusTone } from "../lib/status";
+
+/** Disclosure header row: reads like the card header, keyboard-focusable, marker hidden. */
+const SECTION_SUMMARY_CLASS =
+  "block cursor-pointer list-none rounded-md outline-none transition-colors duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card [&::-webkit-details-marker]:hidden";
 
 /** Everything the gateway knows about a single task. */
 export function TaskDetail() {
   const { taskId = "" } = useParams<{ taskId: string }>();
   const query = useTaskDetail(taskId);
 
+  const detail = query.data;
+  const spansForMemo = detail?.spans;
+  const eventsForMemo = detail?.events;
+  const receiptCalls = useMemo(() => toReceiptCalls(spansForMemo ?? []), [spansForMemo]);
+  const logLines = useMemo(() => toLogLines(eventsForMemo ?? []), [eventsForMemo]);
+  // A "bottleneck" is only meaningful when several spans compete and the
+  // slowest one actually took time; otherwise the tag is noise.
+  const bottleneck = useMemo(() => {
+    const list = spansForMemo ?? [];
+    if (list.length < 2) return null;
+    const slowest = list.reduce((a, b) => ((b.duration_ms ?? 0) > (a.duration_ms ?? 0) ? b : a));
+    return (slowest.duration_ms ?? 0) > 0 ? slowest : null;
+  }, [spansForMemo]);
+
   if (query.isPending) {
     return (
       <div className="page">
         <BackLink />
-        <LoadingState label="Loading task…" />
+        <DashboardCard aria-label="Task loading">
+          <TableSkeleton rows={8} />
+        </DashboardCard>
       </div>
     );
   }
 
   if (query.isError) {
+    const err: unknown = query.error;
+    const isNotFound =
+      (typeof err === "object" &&
+        err !== null &&
+        (("status" in err && err.status === 404) ||
+          ("code" in err && err.code === "not_found"))) ||
+      (err instanceof Error && /not found/i.test(err.message));
+    if (isNotFound) {
+      return (
+        <div className="page">
+          <BackLink />
+          <EmptyState
+            title="Task not found"
+            description={`The gateway returned no task for id ${taskId}.`}
+            icon="search"
+          />
+        </div>
+      );
+    }
     return (
       <div className="page">
         <BackLink />
@@ -36,7 +83,6 @@ export function TaskDetail() {
     );
   }
 
-  const detail = query.data;
   if (!detail) {
     return (
       <div className="page">
@@ -46,110 +92,141 @@ export function TaskDetail() {
     );
   }
 
-  const { task, spans, root_cause, cost, events } = detail;
+  const { task, spans, root_cause, cost } = detail;
   const affectedSpanIds = root_cause?.affected_span_ids ?? [];
-
-  const eventColumns: DataTableColumn<Event>[] = [
-    { key: "time", header: "Time", render: (event) => formatDateTime(event.time) },
-    { key: "name", header: "Event", render: (event) => event.name },
-    { key: "span_id", header: "Span", render: (event) => <code>{event.span_id}</code> },
-    {
-      key: "attributes",
-      header: "Attributes",
-      render: (event) => {
-        const entries = Object.entries(event.attributes ?? {});
-        if (entries.length === 0) return <span className="muted">none</span>;
-        return (
-          <ul className="event-attributes">
-            {entries.map(([key, value]) => (
-              <li key={key}>
-                <code>{key}</code>: {value}
-              </li>
-            ))}
-          </ul>
-        );
-      },
-    },
-  ];
-
+  const isFailed = task.status === "failed";
   return (
     <div className="page">
       <BackLink />
 
       <header className="page-header">
-        <div>
-          <h1 className="mono">{task.task_id}</h1>
-          <p className="page-subtitle">
-            Trace <code>{task.trace_id}</code> · started {formatDateTime(task.started_at)}
+        <div className="page-title-pair min-w-0">
+          <span className="page-kicker">Task</span>
+          <h1 className="mono min-w-0 truncate break-all" title={task.task_id}>{task.task_id}</h1>
+          <p className="page-subtitle min-w-0 break-words">
+            Trace <code className="mono break-all">{task.trace_id}</code> · started {formatDateTime(task.started_at)}
           </p>
         </div>
         <StatusBadge label={task.status} tone={taskStatusTone(task.status)} />
       </header>
+      {isFailed && root_cause ? <RootCausePanel rootCause={root_cause} spans={spans} /> : null}
 
       <section className="stat-grid stat-grid-compact" aria-label="Task summary">
         <div className="stat-card">
           <span className="stat-label">Duration</span>
-          <span className="stat-value">{formatDuration(task.duration_ms)}</span>
+          <span className="stat-value mono">{formatDuration(task.duration_ms)}</span>
         </div>
         <div className="stat-card">
           <span className="stat-label">Cost</span>
-          <span className="stat-value">{formatCost(task.cost_usd)}</span>
+          <span className="stat-value mono">{formatCost(task.cost_usd)}</span>
         </div>
         <div className="stat-card">
           <span className="stat-label">Agents</span>
-          <span className="stat-value">{formatNumber(task.agents.length)}</span>
+          <span className="stat-value mono">{formatNumber(task.agents.length)}</span>
         </div>
         <div className="stat-card">
           <span className="stat-label">Spans</span>
-          <span className="stat-value">{formatNumber(task.span_count)}</span>
+          <span className="stat-value mono">{formatNumber(task.span_count)}</span>
         </div>
         <div className="stat-card">
           <span className="stat-label">Tokens</span>
-          <span className="stat-value">
-            {task.tokens_known ? "known" : "unknown"}
-          </span>
+          <span className="stat-value mono">{task.tokens_known ? "known" : "unknown"}</span>
         </div>
       </section>
 
-      {task.error_message ? (
-        <section className="panel panel-error">
-          <h2>Error</h2>
-          <p>
-            <strong>{task.error_type ?? "unknown"}</strong>: {task.error_message}
-          </p>
-        </section>
-      ) : null}
 
-      <RootCausePanel rootCause={root_cause} spans={spans} />
-
-      <div className="panel-row">
-        <section className="panel" aria-labelledby="span-tree">
-          <h2 id="span-tree">Span tree</h2>
-          <SpanTree spans={spans} highlightSpanIds={affectedSpanIds} />
-        </section>
-
-        <section className="panel" aria-labelledby="span-waterfall">
-          <h2 id="span-waterfall">Timeline</h2>
-          <SpanWaterfall spans={spans} />
-        </section>
+      <div className="flex flex-wrap gap-2" aria-label="Task meta">
+        <DetailTag>{task.root_caller ?? "unknown"}</DetailTag>
+        <DetailTag>
+          <span className="mono">{formatDuration(task.duration_ms)}</span>
+        </DetailTag>
+        <DetailTag>
+          <span className="mono">{formatCost(task.cost_usd)}</span>
+        </DetailTag>
+        {bottleneck ? (
+          <DetailTag color="var(--warning)">
+            bottleneck: {bottleneck.name} ·{" "}
+            <span className="mono">{formatDuration(bottleneck.duration_ms)}</span>
+          </DetailTag>
+        ) : null}
       </div>
 
-      <section className="panel" aria-labelledby="task-cost">
-        <h2 id="task-cost">Cost breakdown</h2>
-        <CostTable report={cost} caption="Cost breakdown of this task" />
-      </section>
+      {task.error_message ? (
+        <DashboardCard aria-label="Task error">
+          <DetailHeader title="Error" subtitle={task.error_type ?? "Task failed"} />
+          <p className="mono min-w-0 break-words">
+            <strong className="break-all">{task.error_type ?? "unknown"}</strong>: {task.error_message}
+          </p>
+        </DashboardCard>
+      ) : null}
 
-      <section className="panel" aria-labelledby="task-events">
-        <h2 id="task-events">Span events</h2>
-        <DataTable
-          caption="Events recorded for this task"
-          columns={eventColumns}
-          rows={events ?? []}
-          rowKey={(event) => `${event.span_id}-${event.time}-${event.name}`}
-          emptyTitle="No events recorded"
-          emptyDescription="The gateway recorded no policy or lifecycle events for this task."
-        />
-      </section>
+      {isFailed && root_cause ? null : <RootCausePanel rootCause={root_cause} spans={spans} />}
+
+      <div className="panel-row">
+        <DashboardCard aria-label="Span tree" className="min-w-0">
+          <DetailHeader title="Span tree" subtitle={`${formatNumber(spans.length)} spans`} />
+          <SpanTree spans={spans} highlightSpanIds={affectedSpanIds} />
+        </DashboardCard>
+
+        <DashboardCard aria-label="Timeline" className="min-w-0">
+          <DetailHeader title="Timeline" subtitle="Span waterfall" />
+          <SpanWaterfall spans={spans} />
+        </DashboardCard>
+      </div>
+
+      <DashboardCard aria-label="Cost breakdown" className="min-w-0">
+        <DetailHeader title="Cost breakdown" subtitle={formatCost(cost?.total_usd ?? null)} />
+        <CostTable report={cost} caption="Cost breakdown of this task" />
+      </DashboardCard>
+
+      <div className="panel-row">
+        <DashboardCard aria-label="Tool calls" className="min-w-0">
+          <details className="group min-w-0" open>
+            <summary className={SECTION_SUMMARY_CLASS}>
+              <DetailHeader
+                title="Tool calls"
+                subtitle="Per-span time; the gateway does not expose per-span cost"
+              >
+                <DisclosureChevron />
+              </DetailHeader>
+            </summary>
+            {receiptCalls.length === 0 ? (
+              <EmptyState title="No spans recorded" description="The gateway returned no spans for this task." />
+            ) : (
+              <ToolReceiptSpike calls={receiptCalls} currency="$" />
+            )}
+          </details>
+        </DashboardCard>
+
+        <DashboardCard aria-label="Task payload" className="min-w-0">
+          <details className="group min-w-0">
+            <summary className={SECTION_SUMMARY_CLASS}>
+              <DetailHeader title="Task payload" subtitle="Raw task record">
+                <DisclosureChevron />
+              </DetailHeader>
+            </summary>
+            <JsonExplorer data={taskPayload(task)} title="task" />
+          </details>
+        </DashboardCard>
+      </div>
+
+      <DashboardCard aria-label="Span events" className="min-w-0">
+        <details className="group min-w-0" open>
+          <summary className={SECTION_SUMMARY_CLASS}>
+            <DetailHeader title="Span events" subtitle="Searchable stream; repeated bursts fold together">
+              <DisclosureChevron />
+            </DetailHeader>
+          </summary>
+          {logLines.length === 0 ? (
+            <EmptyState
+              title="No events recorded"
+              description="The gateway recorded no policy or lifecycle events for this task."
+            />
+          ) : (
+            <LogStream initialLines={logLines} title="events" />
+          )}
+        </details>
+      </DashboardCard>
     </div>
   );
 }
@@ -160,4 +237,70 @@ function BackLink() {
       ← All tasks
     </Link>
   );
+}
+
+/** Disclosure affordance; rotation is state-only, so reduced motion stays legible. */
+function DisclosureChevron() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="size-4 shrink-0 text-muted-foreground transition-transform duration-150 ease-out [@media(hover:hover)]:group-hover:text-foreground group-open:rotate-180 motion-reduce:transition-none"
+      fill="none"
+      viewBox="0 0 16 16"
+    >
+      <path
+        d="m4 6 4 4 4-4"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
+/** Map spans to thermal receipts: time always, cost/tokens only when the span carries them. */
+function toReceiptCalls(spans: Span[]): ToolReceiptCall[] {
+  return spans.map((span) => {
+    const code = (span.status_code ?? "").toUpperCase();
+    const failed = Boolean(span.error_type) || code === "ERROR" || code === "STATUS_CODE_ERROR";
+    return {
+      id: span.span_id,
+      name: span.name,
+      summary: span.service_name ?? span.agent ?? span.caller ?? undefined,
+      status: failed ? "error" : "success",
+      durationMs: span.duration_ms,
+      args: span.attributes,
+      error: span.status_message ?? span.error_type ?? undefined,
+    };
+  });
+}
+
+/** Map gateway events to log lines; access-decision and error names surface as errors. */
+function toLogLines(events: Event[]): LogLine[] {
+  return events.map((event, index) => {
+    const name = event.name.toLowerCase();
+    const level: LogLevel =
+      name.includes("error") || name.includes("fail") || name.includes("deny")
+        ? "error"
+        : name.includes("warn") || name.includes("policy")
+          ? "warn"
+          : "info";
+    return {
+      id: `${event.span_id}-${event.time}-${index}`,
+      ts: Date.parse(event.time),
+      level,
+      service: event.span_id.slice(0, 8),
+      message: event.name,
+    };
+  });
+}
+
+/** Task record as explorer data; unknown shapes degrade to a string. */
+function taskPayload(task: Task) {
+  try {
+    return JSON.parse(JSON.stringify(task)) as Parameters<typeof JsonExplorer>[0]["data"];
+  } catch {
+    return String(task?.task_id ?? "task");
+  }
 }

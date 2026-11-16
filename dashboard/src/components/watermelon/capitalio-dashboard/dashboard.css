@@ -1,0 +1,42 @@
+/* Shell details shared by the dashboard and its mobile navigation sheet. */
+.shadow-custom {
+  box-shadow: 0 2px 5px color-mix(in oklab, var(--foreground) 3%, transparent);
+}
+.kyurem-brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  color: var(--primary);
+}
+.kyurem-sidebar [data-slot="sidebar-inner"] {
+  background: var(--card);
+}
+.kyurem-sidebar .sidebar-nav-item {
+  min-height: 36px;
+  border-radius: 7px;
+  padding-inline: 11px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.kyurem-sidebar .sidebar-nav-item[data-active="true"] {
+  background: var(--accent);
+  color: var(--primary);
+}
+.kyurem-sidebar .sidebar-active-bar {
+  width: 2px;
+  top: 10px;
+  bottom: 10px;
+}
+.kyurem-gateway-card {
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 2%, transparent);
+}
+.m4-topbar {
+  position: relative;
+  z-index: 3;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kyurem-sidebar .sidebar-nav-item { transition: none; }
+}

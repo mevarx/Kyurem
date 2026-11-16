@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
+import { cn } from "../lib/utils";
 import { EmptyState } from "./EmptyState";
 
 export interface DataTableColumn<T> {
@@ -8,6 +9,8 @@ export interface DataTableColumn<T> {
   render: (row: T) => ReactNode;
   align?: "left" | "right";
   width?: string;
+  /** Hide this column on narrow screens to keep the table legible. */
+  hideOnMobile?: boolean;
 }
 
 export interface DataTableProps<T> {
@@ -16,7 +19,11 @@ export interface DataTableProps<T> {
   columns: DataTableColumn<T>[];
   rows: T[];
   rowKey: (row: T) => string;
-  /** Optional mouse convenience: clicking a row triggers the callback. */
+  /**
+   * Optional convenience: clicking a row triggers the callback. Clickable rows
+   * are also focusable and activate with Enter/Space; the row's primary action
+   * stays reachable by keyboard via the in-row link as well.
+   */
   onRowClick?: (row: T) => void;
   /** Message shown when there are no rows. */
   emptyTitle?: string;
@@ -36,12 +43,22 @@ export function DataTable<T>({
   emptyDescription,
   className,
 }: DataTableProps<T>) {
+  const scrollHintId = `${useId()}-scroll-hint`;
   if (rows.length === 0) {
     return <EmptyState title={emptyTitle} description={emptyDescription} />;
   }
 
   return (
-    <div className={`table-wrapper${className ? ` ${className}` : ""}`}>
+    <div
+      className={`table-wrapper${className ? ` ${className}` : ""}`}
+      tabIndex={0}
+      role="region"
+      aria-label={caption}
+      aria-describedby={scrollHintId}
+    >
+      <p id={scrollHintId} className="sr-only">
+        Scroll horizontally to see all columns.
+      </p>
       <table className="data-table">
         <caption className="sr-only">{caption}</caption>
         <thead>
@@ -51,7 +68,10 @@ export function DataTable<T>({
                 key={column.key}
                 scope="col"
                 style={column.width ? { width: column.width } : undefined}
-                className={column.align === "right" ? "align-right" : undefined}
+                className={cn(
+                  column.align === "right" && "align-right",
+                  column.hideOnMobile && "col-hide-sm",
+                )}
               >
                 {column.header}
               </th>
@@ -62,13 +82,28 @@ export function DataTable<T>({
           {rows.map((row) => (
             <tr
               key={rowKey(row)}
-              className={onRowClick ? "is-clickable" : undefined}
+              className={onRowClick ? "is-clickable cursor-pointer" : undefined}
+              style={{ transition: "background-color 120ms var(--ease)" }}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
+              tabIndex={onRowClick ? 0 : undefined}
+              onKeyDown={
+                onRowClick
+                  ? (event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onRowClick(row);
+                      }
+                    }
+                  : undefined
+              }
             >
               {columns.map((column) => (
                 <td
                   key={column.key}
-                  className={column.align === "right" ? "align-right" : undefined}
+                  className={cn(
+                    column.align === "right" && "align-right",
+                    column.hideOnMobile && "col-hide-sm",
+                  )}
                 >
                   {column.render(row)}
                 </td>

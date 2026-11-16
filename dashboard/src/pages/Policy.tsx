@@ -1,8 +1,16 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState, type CSSProperties } from "react";
+import { useIsMobile } from "../hooks/use-mobile";
 import { StatusBadge } from "../components/StatusBadge";
 import { DataTable } from "../components/DataTable";
+import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
-import { LoadingState } from "../components/LoadingState";
+import { TableSkeleton } from "../components/Skeleton";
+import {
+  DashboardCard,
+  DetailHeader,
+} from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
+import { GoNoGo, type GoNoGoDecision } from "../components/go-no-go";
+import { TriageDesk, type TriageItem } from "../components/triage-desk";
 import { useDecisions, usePolicy } from "../api/hooks";
 import type { Decision, DecisionKind, PolicyMatrixCell, PolicyRule } from "../api/types";
 import { decisionTone, policyModeTone } from "../lib/status";
@@ -15,13 +23,113 @@ const KIND_OPTIONS: Array<{ value: DecisionKind | ""; label: string }> = [
   { value: "auth", label: "Auth" },
 ];
 
+/* Sticky caller column: keeps row labels readable while the matrix scrolls
+   sideways. Solid --card background prevents cells bleeding through. */
+const matrixStickyCellStyle: CSSProperties = {
+  position: "sticky",
+  left: 0,
+  background: "var(--card)",
+  borderRight: "1px solid var(--border)",
+  overflow: "hidden",
+};
+
+/** Corner cell pins on both axes, above the sticky column and header row. */
+const matrixCornerCellStyle: CSSProperties = {
+  ...matrixStickyCellStyle,
+  zIndex: 3,
+};
+
+/** Row headers pin horizontally, below the sticky header row (z-index 2). */
+const matrixRowHeaderStyle: CSSProperties = {
+  ...matrixStickyCellStyle,
+  zIndex: 1,
+};
+
+/** Risk score for review ordering: denies first, then warnings. */
+function decisionRisk(decision: Decision["decision"]): number {
+  if (decision === "deny") return 90;
+  if (decision === "warn") return 60;
+  return 10;
+}
+
+function triageId(item: Decision): string {
+  return `${item.timestamp}-${item.kind}-${item.caller}-${item.callee}`;
+}
+
+/* access-pass is intentionally unwired: the API exposes no access-grant
+   flow (decisions are a read-only audit log), so once/hour/always
+   durations plus revoke would imply a grant that cannot be enforced. */
 /** Authorization policy, the caller x callee matrix and the decision audit log. */
 export function Policy() {
   const policyQuery = usePolicy();
   const [kind, setKind] = useState<DecisionKind | "">("");
+  const matrixScrollHintId = `${useId()}-matrix-scroll-hint`;
+  // Compact density on phones so 3+ callees fit before the matrix scrolls.
+  const isMobile = useIsMobile();
+  const matrixDensityStyle: CSSProperties | undefined = isMobile
+    ? { padding: "6px 8px" }
+    : undefined;
+  const matrixLabelStyle: CSSProperties = {
+    maxWidth: isMobile ? "5.5rem" : undefined,
+  };
+  const matrixCornerStyle: CSSProperties = {
+    ...matrixCornerCellStyle,
+    ...(matrixDensityStyle ?? {}),
+  };
+  const matrixRowStyle: CSSProperties = {
+    ...matrixRowHeaderStyle,
+    ...(matrixDensityStyle ?? {}),
+  };
   const decisionsQuery = useDecisions(kind, 100);
 
   const policy = policyQuery.data;
+  const decisions = useMemo(() => decisionsQuery.data?.items ?? [], [decisionsQuery.data]);
+
+  // Riskiest-first review queue over failing decisions; allows stay green
+  // and are excluded so the queue complements the full audit log below.
+  const triageItems = useMemo<TriageItem[]>(
+    () =>
+      decisions
+        .filter((item) => item.decision !== "allow")
+        .map((item) => {
+          const route = `${item.caller} → ${item.callee}`;
+          const note = item.reason || item.rule || "";
+          return {
+            id: triageId(item),
+            title: `${item.decision} · ${route}`,
+            agent: item.caller,
+            kind: item.kind,
+            risk: decisionRisk(item.decision),
+            body: [
+              { text: `${item.kind} decision ${item.decision} on ${route}` },
+              ...(item.skill ? [{ text: ` via skill ${item.skill}` }] : []),
+              ...(note
+                ? [
+                    {
+                      text: ` — ${note}`,
+                      risk: (item.decision === "deny" ? "high" : "medium") as "high" | "medium",
+                      note,
+                    },
+                  ]
+                : [{ text: ` · mode ${item.mode ?? "unknown"}` }]),
+            ],
+          };
+        }),
+    [decisions],
+  );
+
+  // Most urgent failing decision for the approve/undo review card.
+  const pendingDecision = useMemo(
+    () =>
+      decisions.find((item) => item.decision === "deny") ??
+      decisions.find((item) => item.decision === "warn") ??
+      null,
+    [decisions],
+  );
+  const pendingId = pendingDecision ? triageId(pendingDecision) : null;
+  const [outcome, setOutcome] = useState<{ id: string; decision: GoNoGoDecision } | null>(null);
+  const visibleOutcome = outcome && outcome.id === pendingId ? outcome : null;
+  const [lastResolution, setLastResolution] = useState<string | null>(null);
 
   const matrixByCaller = useMemo(() => {
     if (!policy) return new Map<string, Map<string, PolicyMatrixCell>>();
@@ -40,7 +148,8 @@ export function Policy() {
   return (
     <div className="page">
       <header className="page-header">
-        <div>
+        <div className="page-title-pair">
+          <span className="page-kicker">Manage</span>
           <h1>Policy &amp; audit</h1>
           <p className="page-subtitle">
             Authorization rules, the caller × callee matrix and recent decisions.
@@ -55,7 +164,9 @@ export function Policy() {
       </header>
 
       {policyQuery.isPending ? (
-        <LoadingState label="Loading policy…" />
+        <DashboardCard aria-label="Policy loading">
+          <TableSkeleton rows={4} />
+        </DashboardCard>
       ) : policyQuery.isError ? (
         <ErrorState
           error={policyQuery.error}
@@ -63,11 +174,13 @@ export function Policy() {
           title="Could not load policy"
         />
       ) : !policy ? (
-        <LoadingState />
+        <DashboardCard aria-label="Policy loading">
+          <TableSkeleton rows={4} />
+        </DashboardCard>
       ) : (
         <>
-          <section className="panel" aria-labelledby="policy-summary">
-            <h2 id="policy-summary">Summary</h2>
+          <DashboardCard aria-label="Policy summary">
+            <DetailHeader title="Summary" subtitle="Read-only gateway authorization posture" />
             <dl className="detail-grid">
               <div>
                 <dt>Mode</dt>
@@ -92,10 +205,10 @@ export function Policy() {
                 <dd>{policy.callees.length}</dd>
               </div>
             </dl>
-          </section>
+          </DashboardCard>
 
-          <section className="panel" aria-labelledby="policy-rules">
-            <h2 id="policy-rules">Rules</h2>
+          <DashboardCard aria-label="Policy rules">
+            <DetailHeader title="Rules" subtitle="Read-only — the default applies where no rule matches" />
             {policy.rules.length === 0 ? (
               <p className="muted">No rules configured — the default applies.</p>
             ) : (
@@ -128,21 +241,34 @@ export function Policy() {
                 ]}
               />
             )}
-          </section>
+          </DashboardCard>
 
-          <section className="panel" aria-labelledby="policy-matrix">
-            <h2 id="policy-matrix">Caller × callee matrix</h2>
+          <DashboardCard aria-label="Caller by callee matrix">
+            <DetailHeader title="Caller × callee matrix" subtitle="Evaluated without a skill — read-only" />
             {policy.callers.length === 0 || policy.callees.length === 0 ? (
               <p className="muted">No callers or callees configured.</p>
             ) : (
-              <div className="table-wrapper">
-                <table className="data-table">
+              <div
+                className="table-wrapper"
+                role="region"
+                aria-label="Policy matrix, scroll horizontally to see all callees"
+                aria-describedby={matrixScrollHintId}
+                tabIndex={0}
+              >
+                <p id={matrixScrollHintId} className="sr-only">
+                  Scroll horizontally to see all callees.
+                </p>
+                <table className="data-table min-w-max">
                   <caption className="sr-only">Policy matrix</caption>
                   <thead>
                     <tr>
-                      <th scope="col">caller \ callee</th>
+                      <th scope="col" style={matrixCornerStyle}>
+                        <span className="block truncate" style={matrixLabelStyle}>
+                          caller \ callee
+                        </span>
+                      </th>
                       {policy.callees.map((callee) => (
-                        <th key={callee} scope="col">
+                        <th key={callee} scope="col" style={matrixDensityStyle}>
                           {callee}
                         </th>
                       ))}
@@ -151,11 +277,15 @@ export function Policy() {
                   <tbody>
                     {policy.callers.map((caller) => (
                       <tr key={caller}>
-                        <th scope="row">{caller}</th>
+                        <th scope="row" style={matrixRowStyle}>
+                          <span className="block truncate" style={matrixLabelStyle}>
+                            {caller}
+                          </span>
+                        </th>
                         {policy.callees.map((callee) => {
                           const cell = matrixByCaller.get(caller)?.get(callee);
                           return (
-                            <td key={callee}>
+                            <td key={callee} style={matrixDensityStyle}>
                               {cell ? (
                                 <StatusBadge
                                   label={cell.decision}
@@ -177,14 +307,71 @@ export function Policy() {
               Cells are evaluated without a skill; skill-scoped rules appear in
               the rule list above.
             </p>
-          </section>
+          </DashboardCard>
         </>
       )}
 
-      <section className="panel" aria-labelledby="decision-log">
-        <h2 id="decision-log">Recent decisions</h2>
-        <div className="filter-bar">
-          <div className="field">
+      {!decisionsQuery.isPending && !decisionsQuery.isError && triageItems.length > 0 ? (
+        <>
+          <DashboardCard aria-label="Decision review queue">
+            <DetailHeader
+              title="Review queue"
+              subtitle="Riskiest failing decisions first — complements the full audit log below"
+            />
+            <div className="mt-4 flex justify-center">
+              <TriageDesk
+                key={`${kind}-${triageItems.length}-${triageItems[0]?.id ?? "empty"}`}
+                items={triageItems}
+                onResolve={(item, action) =>
+                  setLastResolution(`${item.title} → ${action} (local review; audit log unchanged)`)
+                }
+                title="Needs review"
+              />
+            </div>
+            {lastResolution ? <p className="muted mt-3 text-center">{lastResolution}</p> : null}
+          </DashboardCard>
+
+          {pendingDecision && pendingId ? (
+            <DashboardCard aria-label="Decision approval">
+              <DetailHeader
+                title="Approve or deny"
+                subtitle="Local acknowledgement — the decisions log is read-only and gateway policy is unchanged"
+              />
+              <div className="mt-4 flex justify-center">
+                <GoNoGo
+                  key={pendingId}
+                  onDecision={(decision) => setOutcome({ id: pendingId, decision })}
+                  onUndo={() => setOutcome(null)}
+                  request={{
+                    agent: pendingDecision.caller,
+                    action: `access ${pendingDecision.callee}${pendingDecision.skill ? ` with ${pendingDecision.skill}` : ""}`,
+                    risk: pendingDecision.decision === "deny" ? "high" : "medium",
+                    preview: {
+                      type: "command",
+                      command: `${pendingDecision.kind} → ${pendingDecision.decision}`,
+                      cwd: `${pendingDecision.caller} → ${pendingDecision.callee}`,
+                    },
+                    reason:
+                      pendingDecision.reason ||
+                      pendingDecision.rule ||
+                      `mode: ${pendingDecision.mode ?? "unknown"} · ${formatDateTime(pendingDecision.timestamp)}`,
+                  }}
+                />
+              </div>
+              {visibleOutcome ? (
+                <p className="muted mt-3 text-center">
+                  Marked {visibleOutcome.decision} locally — recorded in this view only.
+                </p>
+              ) : null}
+            </DashboardCard>
+          ) : null}
+        </>
+      ) : null}
+
+      <DashboardCard aria-label="Recent decisions">
+        <DetailHeader title="Recent decisions" subtitle="Read-only audit log — newest events first" />
+        <div className="filter-bar" style={{ marginTop: 14, marginBottom: 4 }}>
+          <div className="field" style={{ flexGrow: 0, minWidth: 150 }}>
             <label htmlFor="decision-kind">Kind</label>
             <select
               id="decision-kind"
@@ -203,64 +390,47 @@ export function Policy() {
         </div>
 
         {decisionsQuery.isPending ? (
-          <LoadingState label="Loading decisions…" />
+          <TableSkeleton rows={6} />
         ) : decisionsQuery.isError ? (
           <ErrorState
             error={decisionsQuery.error}
             onRetry={() => void decisionsQuery.refetch()}
             title="Could not load decisions"
           />
-        ) : (
-          <DataTable<Decision>
-            caption="Recent decisions"
-            rows={decisionsQuery.data?.items ?? []}
-            rowKey={(item) => `${item.timestamp}-${item.caller}-${item.callee}`}
-            emptyTitle="No decisions recorded"
-            emptyDescription="The decision ring is process-local and starts empty after a restart."
-            columns={[
-              {
-                key: "time",
-                header: "Time",
-                render: (item) => formatDateTime(item.timestamp),
-              },
-              {
-                key: "kind",
-                header: "Kind",
-                render: (item) => (
-                  <StatusBadge label={item.kind} tone="neutral" />
-                ),
-              },
-              { key: "caller", header: "Caller", render: (item) => item.caller },
-              { key: "callee", header: "Callee", render: (item) => item.callee },
-              {
-                key: "skill",
-                header: "Skill",
-                render: (item) => item.skill || "—",
-              },
-              {
-                key: "decision",
-                header: "Decision",
-                render: (item) => (
-                  <StatusBadge
-                    label={item.decision}
-                    tone={decisionTone(item.decision)}
-                  />
-                ),
-              },
-              {
-                key: "mode",
-                header: "Mode",
-                render: (item) => item.mode || "—",
-              },
-              {
-                key: "reason",
-                header: "Reason",
-                render: (item) => item.reason || item.rule || "—",
-              },
-            ]}
+        ) : (decisionsQuery.data?.items?.length ?? 0) === 0 ? (
+          <EmptyState
+            title="No decisions recorded"
+            description="The decision ring is process-local and starts empty after a restart."
+            icon="shield"
           />
+        ) : (
+          <ol className="timeline">
+            {(decisionsQuery.data?.items ?? []).map((item) => {
+              const tone = decisionTone(item.decision);
+              const dotClass =
+                tone === "good" ? "timeline-dot-good" : tone === "bad" ? "timeline-dot-bad" : tone === "warn" ? "timeline-dot-warn" : "";
+              return (
+                <li key={`${item.timestamp}-${item.caller}-${item.callee}`} className="timeline-item">
+                  <span className={`timeline-dot ${dotClass}`.trim()} aria-hidden="true" />
+                  <div className="timeline-body">
+                    <div className="chip-row">
+                      <StatusBadge label={item.decision} tone={tone} />
+                      <StatusBadge label={item.kind} tone="neutral" />
+                      <span className="timeline-meta mono">
+                        {item.caller} → {item.callee}
+                        {item.skill ? ` · ${item.skill}` : ""}
+                        {item.mode ? ` · ${item.mode}` : ""}
+                      </span>
+                    </div>
+                    <span className="timeline-meta mono tabular">{formatDateTime(item.timestamp)}</span>
+                    <span className="muted">{item.reason || item.rule || "—"}</span>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
         )}
-      </section>
+      </DashboardCard>
     </div>
   );
 }

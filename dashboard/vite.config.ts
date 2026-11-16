@@ -1,5 +1,7 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import path from "node:path";
 
 const apiOrigin = process.env.KYUREM_API_ORIGIN ?? "http://127.0.0.1:8082";
 const apiProxy = {
@@ -13,7 +15,12 @@ const apiProxy = {
 // `/api` prefix is proxied to the gateway's management listener so that the
 // browser sees a single origin (same as the compose stack does in production).
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "src"),
+    },
+  },
   server: {
     port: 5173,
     proxy: apiProxy,

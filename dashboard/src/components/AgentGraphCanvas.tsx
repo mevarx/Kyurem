@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import dagre from "dagre";
 import {
   Background,
@@ -6,7 +6,6 @@ import {
   Controls,
   EdgeLabelRenderer,
   Handle,
-  MiniMap,
   Position,
   ReactFlow,
   getBezierPath,
@@ -16,8 +15,9 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import type { AgentInfo, GraphEdge, GraphNode } from "../api/types";
+import { useTheme } from "../lib/useTheme";
 import { formatCost, formatDuration, formatNumber, formatPercent } from "../lib/format";
-import { breakerStateTone, cardStatusTone, errorRateTone, isUnknownState } from "../lib/status";
+import { breakerStateTone, cardStatusTone, errorRateTone, isUnknownState, verificationTone } from "../lib/status";
 import { StatusBadge } from "./StatusBadge";
 
 export type AgentNodeData = {
@@ -41,60 +41,83 @@ export type AgentEdgeData = {
   cost: number | null;
   from: string;
   to: string;
+  highlighted?: boolean;
 };
 
 type AgentFlowNode = Node<AgentNodeData, "agent">;
 type AgentFlowEdge = Edge<AgentEdgeData, "agent">;
 
-const NODE_WIDTH = 220;
+const NODE_WIDTH = 240;
 const NODE_HEIGHT = 96;
-
-function AgentNode({ data }: NodeProps<AgentFlowNode>) {
+const AgentNode = memo(function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
   const cardStatus = data.cardStatus ?? "unknown";
   const verification = data.verification ?? "unknown";
   return (
-    <div className="graph-node">
+    <div
+      className={`graph-node transition-transform duration-150 ease-out hover:-translate-y-0.5${
+        selected ? " graph-node-selected" : ""
+      }`}
+      style={selected ? { boxShadow: "0 0 0 2px var(--ring), 0 0 14px var(--accent)" } : undefined}
+    >
       <Handle type="target" position={Position.Left} />
       <div className="graph-node-head">
-        <span className="graph-node-name">{data.name}</span>
+        <span className="graph-node-name" title={data.name}>
+          {data.name}
+        </span>
         <StatusBadge label={cardStatus} tone={cardStatusTone(cardStatus)} title="Agent card status" />
+      </div>
+      <div className="graph-node-stats">
+        <span className="tabular-nums" title={`${formatNumber(data.calls)} total calls`}>
+          {formatNumber(data.calls)} calls
+        </span>
+        <span className="tabular-nums" title={`p95 latency ${formatDuration(data.p95)}`}>
+          p95 {formatDuration(data.p95)}
+        </span>
+        <span className="tabular-nums" title={`Total cost ${formatCost(data.cost)}`}>
+          {formatCost(data.cost)}
+        </span>
       </div>
       <div className="graph-node-badges">
         <StatusBadge
+          label={`${formatPercent(data.errorRate)} errors`}
+          tone={errorRateTone(data.errorRate)}
+          title={`${formatNumber(data.errors)} errors (${formatPercent(data.errorRate)})`}
+        />
+        <StatusBadge
           label={`verify: ${verification}`}
-          tone={isUnknownState(verification) ? "neutral" : "good"}
+          tone={verificationTone(verification)}
           title="Card signature verification"
         />
-        {data.breakerState ? (
+        {data.breakerState && !isUnknownState(data.breakerState) ? (
           <StatusBadge
             label={`breaker: ${data.breakerState}`}
             tone={breakerStateTone(data.breakerState)}
             title="Circuit breaker state"
           />
         ) : null}
-        <StatusBadge
-          label={`${formatPercent(data.errorRate)} errors`}
-          tone={errorRateTone(data.errorRate)}
-          title="Error rate"
-        />
-      </div>
-      <div className="graph-node-stats">
-        <span>{formatNumber(data.calls)} calls</span>
-        <span>p95 {formatDuration(data.p95)}</span>
-        <span>{formatCost(data.cost)}</span>
       </div>
       <Handle type="source" position={Position.Right} />
     </div>
   );
+});
+
+type EdgeTone = "healthy" | "warn" | "bad";
+
+function edgeTone(errorRate: number): EdgeTone {
+  if (errorRate >= 0.25) return "bad";
+  if (errorRate > 0) return "warn";
+  return "healthy";
 }
 
-function edgeColor(errorRate: number): string {
-  if (errorRate >= 0.25) return "#d64545";
-  if (errorRate > 0) return "#d99b28";
-  return "#5b8c5a";
+function edgeColor(tone: EdgeTone): string {
+  if (tone === "bad") return "var(--danger)";
+  if (tone === "warn") return "var(--warning)";
+  return "var(--chart-1)";
 }
 
-function AgentEdge({
+const EDGE_TONES: EdgeTone[] = ["healthy", "warn", "bad"];
+
+const AgentEdge = memo(function AgentEdge({
   id,
   sourceX,
   sourceY,
@@ -103,7 +126,6 @@ function AgentEdge({
   sourcePosition,
   targetPosition,
   data,
-  markerEnd,
 }: EdgeProps<AgentFlowEdge>) {
   const [path, labelX, labelY] = getBezierPath({
     sourceX,
@@ -115,6 +137,10 @@ function AgentEdge({
   });
   const errorRate = data?.errorRate ?? 0;
   const calls = data?.calls ?? 0;
+  const p95 = data?.p95 ?? 0;
+  const highlighted = data?.highlighted ?? false;
+  const tone = edgeTone(errorRate);
+  const baseWidth = Math.min(6, 1.5 + calls / 10);
   const tooltip = data
     ? `${data.from} → ${data.to}: ${formatNumber(data.calls)} calls, ${formatNumber(
         data.errors,
@@ -126,10 +152,11 @@ function AgentEdge({
       <BaseEdge
         id={id}
         path={path}
-        markerEnd={markerEnd}
+        markerEnd={`url(#kyurem-arrow-${tone})`}
+        className="graph-edge"
         style={{
-          stroke: edgeColor(errorRate),
-          strokeWidth: Math.min(6, 1 + calls / 10),
+          stroke: edgeColor(tone),
+          strokeWidth: highlighted ? Math.min(8, baseWidth + 1.5) : baseWidth,
         }}
       >
         {tooltip ? <title>{tooltip}</title> : null}
@@ -139,15 +166,18 @@ function AgentEdge({
           className="graph-edge-label"
           style={{
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            borderColor: highlighted ? "var(--ring)" : undefined,
+            color: highlighted ? "var(--foreground)" : undefined,
+            zIndex: 10,
           }}
           title={tooltip}
         >
-          {formatNumber(calls)}
+          {formatNumber(calls)} · p95 {formatDuration(p95)}
         </div>
       </EdgeLabelRenderer>
     </>
   );
-}
+});
 
 const nodeTypes = { agent: AgentNode };
 const edgeTypes = { agent: AgentEdge };
@@ -173,11 +203,12 @@ export function AgentGraphCanvas({
     for (const agent of agents) map.set(agent.name, agent);
     return map;
   }, [agents]);
+  const { theme } = useTheme();
 
   const flow = useMemo(() => {
     const graph = new dagre.graphlib.Graph();
     graph.setDefaultEdgeLabel(() => ({}));
-    graph.setGraph({ rankdir: "LR", nodesep: 40, ranksep: 160 });
+    graph.setGraph({ rankdir: "LR", nodesep: 40, ranksep: 184 });
 
     const agentNames = new Set(nodes.map((node) => node.name));
     for (const edge of edges) {
@@ -221,6 +252,7 @@ export function AgentGraphCanvas({
         cost: edge.cost_usd ?? null,
         from: edge.from,
         to: edge.to,
+        highlighted: edge.from === selectedAgent || edge.to === selectedAgent,
       },
     }));
 
@@ -246,6 +278,31 @@ export function AgentGraphCanvas({
 
   return (
     <div className="graph-canvas" role="group" aria-label="Agent call graph">
+      <svg
+        className="graph-arrow-defs"
+        aria-hidden="true"
+        focusable="false"
+        width="0"
+        height="0"
+        style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }}
+      >
+        <defs>
+          {EDGE_TONES.map((tone) => (
+            <marker
+              key={tone}
+              id={`kyurem-arrow-${tone}`}
+              markerWidth={10}
+              markerHeight={10}
+              refX={9}
+              refY={5}
+              orient="auto-start-reverse"
+              markerUnits="userSpaceOnUse"
+            >
+              <path d="M 0 0 L 10 5 L 0 10 Z" style={{ fill: edgeColor(tone) }} />
+            </marker>
+          ))}
+        </defs>
+      </svg>
       <ReactFlow
         nodes={flow.nodes}
         edges={flow.edges}
@@ -255,10 +312,11 @@ export function AgentGraphCanvas({
         fitView
         minZoom={0.2}
         maxZoom={2}
+        colorMode={theme}
+        proOptions={{ hideAttribution: true }}
       >
-        <Background />
+        <Background gap={22} size={1.2} />
         <Controls />
-        <MiniMap pannable zoomable />
       </ReactFlow>
     </div>
   );

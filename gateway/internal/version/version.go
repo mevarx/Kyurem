@@ -7,7 +7,7 @@ package version
 import "runtime/debug"
 
 // Version is overridden by tagged release builds; dev builds keep a clear default.
-var Version = "0.1.0-dev"
+var Version = "0.2.0"
 
 // SpecVersion is the A2A protocol specification version the gateway is
 // built against. Must be kept in sync with the a2a-go SDK's a2a.Version.

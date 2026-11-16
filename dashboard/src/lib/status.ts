@@ -27,11 +27,13 @@ const BREAKER_TONES: Record<string, BadgeTone> = {
   unknown: "neutral",
 };
 
+// Explicit outcomes from gateway/internal/trust/trust.go; unfamiliar states stay neutral.
 const VERIFICATION_TONES: Record<string, BadgeTone> = {
   verified: "good",
   unverified: "bad",
   unsigned: "warn",
   unchecked: "neutral",
+  unknown: "neutral",
 };
 
 const DECISION_TONES: Record<string, BadgeTone> = {

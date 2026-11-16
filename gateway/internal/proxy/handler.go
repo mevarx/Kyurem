@@ -33,8 +33,7 @@ import (
 type ctxKey int
 
 const (
-	ctxOutboundURL ctxKey = iota
-	ctxHandoff
+	ctxHandoff ctxKey = iota
 	ctxFailurePlan
 )
 

@@ -1,11 +1,16 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { useSettings } from "../api/hooks";
 import { getApiBaseUrl, getStoredToken, setStoredToken } from "../api/client";
 import { ErrorState } from "../components/ErrorState";
-import { LoadingState } from "../components/LoadingState";
+import { TableSkeleton } from "../components/Skeleton";
+import {
+  DashboardCard,
+  DetailHeader,
+} from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
+import { ShortcutSheet } from "../components/shortcut-sheet";
 import { StatusBadge } from "../components/StatusBadge";
-import { ThemeToggle } from "../components/ThemeToggle";
 import { formatNumber, formatUptime } from "../lib/format";
 
 /** Gateway status, telemetry counters, storage and dashboard preferences. */
@@ -14,6 +19,7 @@ export function Settings() {
   const queryClient = useQueryClient();
   const [token, setToken] = useState(() => getStoredToken());
   const [tokenSaved, setTokenSaved] = useState(false);
+  const [tokenVisible, setTokenVisible] = useState(false);
 
   const saveToken = () => {
     setStoredToken(token);
@@ -31,30 +37,36 @@ export function Settings() {
   };
 
   const settings = query.data;
+  const checking = query.isPending || query.isFetching;
 
   return (
     <div className="page">
       <header className="page-header">
-        <div>
+        <div className="page-title-pair">
+          <span className="page-kicker">Manage</span>
           <h1>Settings</h1>
-          <p className="page-subtitle">Gateway status and dashboard preferences.</p>
+          <p className="page-subtitle">Gateway status, API access and keyboard shortcuts.</p>
         </div>
         <StatusBadge
-          label={query.isError ? "gateway unreachable" : "gateway reachable"}
-          tone={query.isError ? "bad" : "good"}
+          label={query.isPending ? "checking gateway" : query.isError ? "settings unavailable" : "gateway reachable"}
+          tone={query.isPending ? "neutral" : query.isError ? "bad" : "good"}
         />
       </header>
 
       {query.isPending ? (
-        <LoadingState label="Loading gateway status…" />
+        <DashboardCard aria-label="Gateway status loading">
+          <TableSkeleton rows={5} />
+        </DashboardCard>
       ) : query.isError ? (
-        <ErrorState error={query.error} onRetry={() => void query.refetch()} title="Could not reach the gateway" />
+        <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : !settings ? (
-        <LoadingState />
+        <DashboardCard aria-label="Gateway status loading">
+          <TableSkeleton rows={5} />
+        </DashboardCard>
       ) : (
         <>
-          <section className="panel" aria-labelledby="gateway-info">
-            <h2 id="gateway-info">Gateway</h2>
+          <DashboardCard aria-label="Gateway">
+            <DetailHeader title="Gateway" subtitle="Service identity and build versions" />
             <dl className="detail-grid">
               <div>
                 <dt>Service</dt>
@@ -85,10 +97,46 @@ export function Settings() {
                 <dd>{formatNumber(settings.agents)}</dd>
               </div>
             </dl>
-          </section>
+          </DashboardCard>
+        </>
+      )}
 
-          <section className="panel" aria-labelledby="telemetry-counters">
-            <h2 id="telemetry-counters">Telemetry</h2>
+      <DashboardCard aria-label="API connection">
+        <DetailHeader title="API connection" subtitle="Resolved endpoint, credentials and live reachability" />
+        <dl className="detail-grid">
+          <div>
+            <dt>Base URL</dt>
+            <dd>
+              <code>{getApiBaseUrl()}</code>
+            </dd>
+          </div>
+          <div>
+            <dt>Auth mode</dt>
+            <dd>{getStoredToken() ? "bearer token" : "none (loopback)"}</dd>
+          </div>
+          <div>
+            <dt>Reachability</dt>
+            <dd>
+              <StatusBadge
+                label={checking ? "checking" : query.isError ? "unreachable" : "reachable"}
+                tone={checking ? "neutral" : query.isError ? "bad" : "good"}
+              />
+            </dd>
+          </div>
+        </dl>
+        {query.isError && !query.isFetching ? (
+          <div className="button-row">
+            <button type="button" className="button" onClick={() => void query.refetch()}>
+              Retry
+            </button>
+          </div>
+        ) : null}
+      </DashboardCard>
+
+      {settings ? (
+        <>
+          <DashboardCard aria-label="Telemetry">
+            <DetailHeader title="Telemetry" subtitle="Export pipeline counters" />
             <dl className="detail-grid">
               <div>
                 <dt>Exporting</dt>
@@ -152,10 +200,10 @@ export function Settings() {
                 ))}
               </ul>
             )}
-          </section>
+          </DashboardCard>
 
-          <section className="panel" aria-labelledby="storage-info">
-            <h2 id="storage-info">Storage</h2>
+          <DashboardCard aria-label="Storage">
+            <DetailHeader title="Storage" subtitle="Persistence driver and database" />
             <dl className="detail-grid">
               <div>
                 <dt>Driver</dt>
@@ -166,12 +214,12 @@ export function Settings() {
                 <dd>{settings.storage.database ?? "unknown"}</dd>
               </div>
             </dl>
-          </section>
+          </DashboardCard>
         </>
-      )}
+      ) : null}
 
-      <section className="panel" aria-labelledby="dashboard-preferences">
-        <h2 id="dashboard-preferences">Dashboard</h2>
+      <DashboardCard aria-label="Dashboard preferences">
+        <DetailHeader title="Dashboard" subtitle="Appearance and API credentials" />
         <dl className="detail-grid">
           <div>
             <dt>API base URL</dt>
@@ -183,17 +231,30 @@ export function Settings() {
 
         <div className="field">
           <label htmlFor="api-token">API token</label>
-          <input
-            id="api-token"
-            type="password"
-            autoComplete="off"
-            placeholder="Bearer token for the management API"
-            value={token}
-            onChange={(event) => {
-              setToken(event.target.value);
-              setTokenSaved(false);
-            }}
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              id="api-token"
+              type={tokenVisible ? "text" : "password"}
+              autoComplete="off"
+              placeholder="Bearer token for the management API"
+              value={token}
+              style={{ flex: 1, minWidth: 0 }}
+              onChange={(event) => {
+                setToken(event.target.value);
+                setTokenSaved(false);
+              }}
+            />
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={tokenVisible ? "Hide token" : "Show token"}
+              aria-pressed={tokenVisible}
+              title={tokenVisible ? "Hide token" : "Show token"}
+              onClick={() => setTokenVisible((visible) => !visible)}
+            >
+              {tokenVisible ? <EyeOffIcon aria-hidden="true" /> : <EyeIcon aria-hidden="true" />}
+            </button>
+          </div>
           <p className="field-hint">
             Stored in this browser only (localStorage). Leave empty when the gateway runs unauthenticated on
             loopback.
@@ -209,11 +270,36 @@ export function Settings() {
           {tokenSaved ? <span className="muted">Token saved.</span> : null}
         </div>
 
-        <div className="theme-row">
-          <span className="stat-label">Theme</span>
-          <ThemeToggle />
-        </div>
-      </section>
+      </DashboardCard>
+
+      <DashboardCard aria-label="Keyboard shortcuts">
+        <DetailHeader title="Keyboard shortcuts" subtitle="Command menu and shortcut panel" />
+        <ShortcutSheet
+          className="mt-4"
+          groups={[
+            {
+              title: "Command menu",
+              shortcuts: [
+                { label: "Open command menu", keys: [["mod", "K"]], keywords: ["palette", "search", "go to"] },
+                { label: "Run highlighted action", keys: [["enter"]], keywords: ["select", "confirm"] },
+                { label: "Move selection up", keys: [["up"]], keywords: ["navigate", "arrows"] },
+                { label: "Move selection down", keys: [["down"]], keywords: ["navigate", "arrows"] },
+                { label: "Close menu", keys: [["esc"]], keywords: ["dismiss", "exit"] },
+              ],
+            },
+            {
+              title: "Shortcut panel",
+              shortcuts: [
+                { label: "Open this panel", keys: [["?"]], keywords: ["help", "shortcuts"] },
+                { label: "Filter shortcuts", keys: [["type"]], keywords: ["search", "find"] },
+                { label: "Close panel", keys: [["esc"]], keywords: ["dismiss", "exit"] },
+              ],
+            },
+          ]}
+        >
+          <p className="muted px-4 py-4">Focus this card, then press ? to see shortcuts. The command menu works anywhere.</p>
+        </ShortcutSheet>
+      </DashboardCard>
     </div>
   );
 }

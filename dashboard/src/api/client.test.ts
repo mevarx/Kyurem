@@ -98,3 +98,21 @@ describe("api client", () => {
     );
   });
 });
+
+
+describe("transport failures", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it("classifies a rejected fetch as a connection error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    await expect(apiFetch("/api/v1/tasks")).rejects.toMatchObject({ status: 0, code: "network_error" });
+  });
+  it("preserves cancellation instead of classifying it as a connection failure", async () => {
+    const error = new DOMException("Cancelled", "AbortError");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(error));
+    await expect(apiFetch("/api/v1/tasks")).rejects.toBe(error);
+  });
+  it("preserves a gateway 500 message and code", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ error: { code: "query_failed", message: "database unavailable" } }, 500)));
+    await expect(apiFetch("/api/v1/tasks")).rejects.toMatchObject({ status: 500, code: "query_failed", message: "database unavailable" });
+  });
+});

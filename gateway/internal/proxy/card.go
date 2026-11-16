@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -73,8 +72,36 @@ func matchesConditional(r *http.Request, etag string) bool {
 	if etag == "" {
 		return false
 	}
-	if inm := r.Header.Get("If-None-Match"); inm != "" && strings.Contains(inm, etag) {
-		return true
+	inm := r.Header.Get("If-None-Match")
+	for len(inm) > 0 {
+		inm = strings.TrimLeft(inm, " \t")
+		quoted := false
+		separator := -1
+		for i := 0; i < len(inm); i++ {
+			if inm[i] == '"' {
+				quoted = !quoted
+			} else if inm[i] == ',' && !quoted {
+				separator = i
+				break
+			}
+		}
+		member := inm
+		if separator >= 0 {
+			member, inm = inm[:separator], inm[separator+1:]
+		} else {
+			inm = ""
+		}
+		member = strings.TrimSpace(member)
+		if member == "*" {
+			return true
+		}
+		candidate := member
+		if strings.HasPrefix(candidate, "W/") {
+			candidate = candidate[2:]
+		}
+		if candidate == etag {
+			return true
+		}
 	}
 	return false
 }
@@ -163,5 +190,3 @@ func cardETag(res *registry.CardResult) string {
 	}
 	return `"kyurem-` + shortHash(res.Raw) + `"`
 }
-
-var _ = errors.New // reserved: card paths gain error classification in M2

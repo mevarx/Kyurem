@@ -83,3 +83,8 @@ Kyurem Product Requirements Document.md
 # Repository-local scratch and external conformance clones
 .tmp/
 demo/bin/conformance-results/
+
+dashboard/theme-audit/
+
+# Local design-direction reference (never commit; see chat history)
+/DESIGN.md

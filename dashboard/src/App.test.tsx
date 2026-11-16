@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./App";
@@ -180,8 +180,10 @@ describe("dashboard routes", () => {
   it("renders the overview", async () => {
     renderAt("/");
     expect(await screen.findByRole("heading", { name: "Overview" })).toBeInTheDocument();
-    expect(await screen.findByText("128")).toBeInTheDocument();
-    expect(await screen.findByText("unknown")).toBeInTheDocument();
+    const indicators = await screen.findByRole("region", { name: "Key indicators" });
+    expect(await within(indicators).findByText("128")).toBeInTheDocument();
+    const costCard = within(indicators).getByText("Cost").closest(".overview-kpi") as HTMLElement;
+    expect(within(costCard).getByText("unknown", { exact: true })).toBeInTheDocument();
   });
 
   it("renders the task list", async () => {

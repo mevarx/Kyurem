@@ -61,6 +61,8 @@ The gateway is stateless and streams request and response bodies. Telemetry expo
 | **Trust and policy** | Bearer or mTLS callers; agent card signatures verified against operator-configured keys; deny-overrides rules; bounded audit records. |
 | **Resilience** | Bounded retry budget, same-binding failover and per-upstream circuit breakers. |
 
+![Kyurem dashboard overview with sample data](docs/images/dashboard.png)
+
 ## Quick start
 
 **Requirements:** Go 1.26+. The Python agents and failover walkthrough also need Python 3.11+ with [`uv`](https://docs.astral.sh/uv/) and Node 22. Docker is required only for the telemetry stack.
@@ -100,7 +102,7 @@ References: [`config/kyurem.example.yaml`](config/kyurem.example.yaml), [`config
 
 ## Behavior notes
 
-**Trust and policy.** Signer-provided key URLs are never fetched. Skill filters are warn-only: A2A requests carry no authoritative skill selection, so enforce-mode skill rules are rejected at validation.
+**Trust and policy.** Signer-provided key URLs are never fetched. Skill filters are warn-only: A2A requests carry no authoritative skill selection, so enforce-mode skill rules are rejected at validation. The management API exposes the configured rules and caller-to-callee matrix at `/api/v1/policy`, and recent trust, policy and authentication decisions at `/api/v1/decisions`.
 
 **Failure handling.** Defaults: two total attempts per call and ten additional attempts per agent per minute. A breaker opens after five consecutive upstream network or 5xx failures, stays open for 30 seconds, then allows one probe. Only 502, 503 and 504 are retried. Retryable requests are body-less GET, HEAD and OPTIONS, and POSTs with an `Idempotency-Key` whose body fits within `max_retry_body_bytes`; the upstream must deduplicate the key. SSE responses and other non-replayable calls are never replayed. Retry and failover steps appear as events on the handoff trace.
 
@@ -128,7 +130,7 @@ Every tier drained to zero active streams. The 10k tier passed 9 of 9 runs at th
 
 ## Releases
 
-Pushing a version tag such as `v0.1.0` triggers the release workflow, which builds binaries for Linux, macOS and Windows (amd64 and arm64 where supported) and publishes multi-architecture (linux/amd64, linux/arm64) images to GHCR:
+Pushing a version tag such as `v0.2.0` triggers the release workflow, which builds binaries for Linux, macOS and Windows (amd64 and arm64 where supported) and publishes multi-architecture (linux/amd64, linux/arm64) images to GHCR:
 
 `ghcr.io/mevarx/kyurem-gateway` · `kyurem-dashboard` · `kyurem-demo` · `kyurem-python-demo`
 
@@ -162,7 +164,7 @@ gateway/             Go gateway (cmd/kyurem and internal packages)
 
 ## Status and limitations
 
-Milestones M1 to M7 are delivered; see [`docs/milestones.md`](docs/milestones.md). Open items: broader ACTS coverage beyond the smoke profile, dashboard policy editing (policy currently lives in configuration files), and the first tagged release.
+Milestones M1 to M7 are delivered, and Kyurem v0.2.0 is the current tagged release; see [`docs/milestones.md`](docs/milestones.md) and the [v0.2.0 release notes](docs/releases/v0.2.0.md). Open items: broader ACTS coverage beyond the smoke profile and dashboard policy editing (policy currently lives in configuration files).
 
 More documentation: [`docs/telemetry-conventions.md`](docs/telemetry-conventions.md).
 
