@@ -53,6 +53,11 @@ export function Tasks() {
   const rows = useMemo(() => query.data?.items ?? [], [query.data]);
   const total = query.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // A live refresh can remove the last page. Re-query the last valid page
+  // before rendering an empty table or an impossible page count.
+  if (query.data && !query.isPending && !query.isError && page >= pageCount) {
+    setPage(pageCount - 1);
+  }
   const maxDuration = useMemo(
     () => rows.reduce((m, t) => Math.max(m, t.duration_ms ?? 0), 0),
     [rows],
@@ -188,7 +193,14 @@ export function Tasks() {
               {query.isPending ? "…" : `${formatNumber(total)} task${total === 1 ? "" : "s"}`}
             </span>
           </DetailTag>
-          <TimeRangePicker value={range} onChange={setRange} idPrefix="tasks-range" />
+          <TimeRangePicker
+            value={range}
+            onChange={(next) => {
+              setRange(next);
+              setPage(0);
+            }}
+            idPrefix="tasks-range"
+          />
         </div>
       </header>
 
@@ -282,17 +294,15 @@ export function Tasks() {
             </DetailHeader>
           </div>
           <div className="p-3">
-            <div className="table-wrapper" tabIndex={0} style={{ border: "none", borderRadius: 12 }}>
-              <DataTable
-                caption="Tasks seen by the Kyurem gateway"
-                columns={columns}
-                rows={rows}
-                rowKey={(task) => task.task_id}
-                onRowClick={(task) => setDrawerTask(task)}
-                emptyTitle="No tasks match these filters"
-                emptyDescription="Try a wider time range or clear the filters."
-              />
-            </div>
+            <DataTable
+              caption="Tasks seen by the Kyurem gateway"
+              columns={columns}
+              rows={rows}
+              rowKey={(task) => task.task_id}
+              onRowClick={(task) => setDrawerTask(task)}
+              emptyTitle="No tasks match these filters"
+              emptyDescription="Try a wider time range or clear the filters."
+            />
             <div className="pagination flex-wrap px-3 pb-1">
               <span className="mono" aria-live="polite">
                 Page {page + 1} of {pageCount}

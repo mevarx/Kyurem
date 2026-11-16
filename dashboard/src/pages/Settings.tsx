@@ -49,8 +49,8 @@ export function Settings() {
           <p className="page-subtitle">Gateway status and dashboard preferences.</p>
         </div>
         <StatusBadge
-          label={query.isError ? "gateway unreachable" : "gateway reachable"}
-          tone={query.isError ? "bad" : "good"}
+          label={query.isPending ? "checking gateway" : query.isError ? "settings unavailable" : "gateway reachable"}
+          tone={query.isPending ? "neutral" : query.isError ? "bad" : "good"}
         />
       </header>
 
@@ -59,7 +59,7 @@ export function Settings() {
           <TableSkeleton rows={5} />
         </DashboardCard>
       ) : query.isError ? (
-        <ErrorState error={query.error} onRetry={() => void query.refetch()} title="Could not reach the gateway" />
+        <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : !settings ? (
         <DashboardCard aria-label="Gateway status loading">
           <TableSkeleton rows={5} />

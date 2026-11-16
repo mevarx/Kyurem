@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { Task } from "../api/types";
 import { useTasks } from "../api/hooks";
@@ -89,5 +89,35 @@ describe("Tasks page", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveTextContent("gateway is down");
+  });
+});
+
+
+describe("task pagination regressions", () => {
+  it("returns to page one when page two is narrowed to a one-task time range", () => {
+    mockedUseTasks.mockImplementation((filters) => ({
+      data: { items: filters.from === "15m" && filters.offset !== 0 ? [] : [task], total: filters.from === "15m" ? 1 : 51 },
+      isPending: false, isError: false,
+    }) as ReturnType<typeof useTasks>);
+    render(<MemoryRouter><Tasks /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("Page 2 of 2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "15m" }));
+    expect(screen.getByText("1 task · page 1 of 1")).toBeInTheDocument();
+    expect(mockedUseTasks.mock.lastCall?.[0]).toMatchObject({ from: "15m", offset: 0 });
+    expect(screen.getByRole("link", { name: "task-42" })).toBeInTheDocument();
+  });
+  it("requests a valid page after a live refresh shrinks the total", () => {
+    mockTasks([task], 51);
+    const view = render(<MemoryRouter><Tasks /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("Page 2 of 2")).toBeInTheDocument();
+    mockTasks([], 1);
+    view.rerender(<MemoryRouter><Tasks /></MemoryRouter>);
+    expect(mockedUseTasks.mock.lastCall?.[0]).toMatchObject({ offset: 0 });
+    mockTasks([task], 1);
+    view.rerender(<MemoryRouter><Tasks /></MemoryRouter>);
+    expect(screen.getByText("Page 1 of 1")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "task-42" })).toBeInTheDocument();
   });
 });

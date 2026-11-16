@@ -14,7 +14,7 @@ import {
 import { StatusBadge } from "../components/StatusBadge";
 import { TimeRangePicker } from "../components/TimeRangePicker";
 import { formatCost, formatDuration, formatNumber, formatPercent, formatRelativeTime } from "../lib/format";
-import { breakerStateTone, cardStatusTone, isUnknownState } from "../lib/status";
+import { breakerStateTone, cardStatusTone, verificationTone } from "../lib/status";
 import { DEFAULT_TIME_RANGE, toApiWindow, type TimeRange } from "../lib/time";
 
 /** Interactive agent-to-agent call graph with a detail side panel. */
@@ -105,6 +105,15 @@ export function AgentGraph() {
             <DetailHeader title="Agent" subtitle={selected ? "Selected node inspector" : "Select a node to inspect"}>
               {selected ? <DetailTag><span className="min-w-0 break-all">{selected}</span></DetailTag> : null}
             </DetailHeader>
+            {agentsQuery.isPending ? (
+              <p className="muted">Loading agent metadata…</p>
+            ) : agentsQuery.isError ? (
+              <ErrorState
+                error={agentsQuery.error}
+                title="Could not load agent metadata"
+                onRetry={() => void agentsQuery.refetch()}
+              />
+            ) : null}
             {selected === null ? (
               <EmptyState title="No agent selected" description="Click a node to inspect the agent." />
             ) : (
@@ -114,6 +123,9 @@ export function AgentGraph() {
                 node={nodeByName.get(selected)}
                 errors={errorsQuery.data?.items ?? []}
                 errorsPending={errorsQuery.isPending}
+                errorsError={errorsQuery.isError ? errorsQuery.error : null}
+                onRetryErrors={() => void errorsQuery.refetch()}
+                metadataUnavailable={agentsQuery.isPending || agentsQuery.isError}
               />
             )}
           </DashboardCard>
@@ -129,12 +141,18 @@ function AgentDetail({
   node,
   errors,
   errorsPending,
+  errorsError,
+  onRetryErrors,
+  metadataUnavailable,
 }: {
   name: string;
   agent?: AgentInfo;
   node?: GraphNode;
   errors: Array<{ task_id: string; error_message?: string; started_at: string }>;
   errorsPending: boolean;
+  errorsError: Error | null;
+  onRetryErrors: () => void;
+  metadataUnavailable: boolean;
 }) {
   const cardStatus = agent?.card_status ?? "unknown";
   const verification = agent?.verification ?? "unknown";
@@ -144,11 +162,12 @@ function AgentDetail({
     <div className="agent-detail min-w-0">
       <h3 className="agent-detail-name mono min-w-0 break-all">{name}</h3>
 
+      {!metadataUnavailable && !agent ? <p className="muted">No registry metadata returned for this agent.</p> : null}
       <div className="badge-row">
         <StatusBadge label={`card: ${cardStatus}`} tone={cardStatusTone(cardStatus)} />
         <StatusBadge
           label={`verification: ${verification}`}
-          tone={isUnknownState(verification) ? "neutral" : "good"}
+          tone={verificationTone(verification)}
         />
         {breaker ? (
           <StatusBadge label={`breaker: ${breaker}`} tone={breakerStateTone(breaker)} />
@@ -204,6 +223,8 @@ function AgentDetail({
       <h3 className="sub-heading">Recent errors</h3>
       {errorsPending ? (
         <p className="muted">Loading errors…</p>
+      ) : errorsError ? (
+        <ErrorState error={errorsError} title="Could not load recent errors" onRetry={onRetryErrors} />
       ) : errors.length === 0 ? (
         <EmptyState title="No recent errors" />
       ) : (

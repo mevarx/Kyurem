@@ -18,9 +18,9 @@ export interface ApiErrorPayload {
   };
 }
 
-/** Error thrown for any non-2xx response of the management API. */
+/** Error thrown for a transport failure or non-2xx management API response. */
 export class ApiError extends Error {
-  /** HTTP status code of the failing response. */
+  /** HTTP status code of the failing response; 0 for a transport failure. */
   readonly status: number;
   /** Machine readable error code reported by the gateway, when present. */
   readonly code: string;
@@ -158,11 +158,18 @@ export async function apiFetch<T>(path: string, options: ApiRequestOptions = {})
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(buildUrl(path, options.query), {
-    method: options.method ?? "GET",
-    headers,
-    signal: options.signal,
-  });
+  let response: Response;
+  try {
+    response = await fetch(buildUrl(path, options.query), {
+      method: options.method ?? "GET",
+      headers,
+      signal: options.signal,
+    });
+  } catch (error) {
+    const aborted = typeof error === "object" && error !== null && "name" in error && error.name === "AbortError";
+    if (options.signal?.aborted || aborted) throw error;
+    throw new ApiError(0, "Could not connect to the management API", "network_error");
+  }
 
   if (!response.ok) {
     throw await toApiError(response);

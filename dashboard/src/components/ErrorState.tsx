@@ -110,26 +110,32 @@ function GatewayError({
   online: boolean;
   onPhaseChange?: (phase: ConnectionPhase) => void;
 }) {
-  const detail = error instanceof ApiError ? `HTTP ${error.status} — ${error.message}` : errorMessage(error);
+  const detail = error instanceof ApiError && error.status > 0 ? `HTTP ${error.status} — ${error.message}` : errorMessage(error);
   // Banner retries drive the same refetch; the panel unmounts once it succeeds,
   // so the probe reports "not yet" and the backoff schedule advances on failure.
+  const isNetworkError = error instanceof ApiError && error.code === "network_error";
+  const isAuthError = error instanceof ApiError && (error.status === 401 || error.status === 403);
+  const guidance = isAuthError
+    ? "Check the management API bearer token in Settings and confirm it has permission for this request."
+    : "Check that the gateway management API is running (the example uses 127.0.0.1:8082). Confirm VITE_KYUREM_API_BASE or the development proxy target KYUREM_API_ORIGIN is configured correctly. An HTTP error can also indicate a gateway failure; check its logs.";
   const probe = checkConnection ?? (onRetry ? () => Promise.resolve(onRetry()).then(() => false) : undefined);
   return (
     <div>
-      <ConnectionLost
+      {isNetworkError ? <ConnectionLost
         online={online}
         retryDelays={retryDelays}
         pendingChanges={pendingChanges}
         checkConnection={probe}
         onPhaseChange={onPhaseChange}
-      />
+      /> : null}
       <div className="state-card" role="alert" style={{ marginTop: 12, ...enter }}>
-        <UnpluggedScene />
+        {isNetworkError ? <UnpluggedScene /> : null}
         <p className="state-title">
           <StatusDot color="var(--warning)" />
           {heading}
         </p>
         <p className="state-mono">{detail}</p>
+        <p className="state-description">{guidance}</p>
         <div className="state-action">
           {onRetry ? (
             <button type="button" className="button button-primary" onClick={onRetry}>
@@ -137,7 +143,7 @@ function GatewayError({
             </button>
           ) : null}
           <Link className="button" to="/settings">
-            Check gateway URL · {getApiBaseUrl()}
+            Settings · API {getApiBaseUrl()}
           </Link>
         </div>
       </div>
@@ -254,7 +260,11 @@ export function ErrorState({
   reportHref,
   dashboardHref = "/",
 }: ErrorStateProps) {
-  const heading = title ?? (variant === "app" ? "Something went wrong" : "Can't reach the gateway");
+  const heading = title ?? (variant === "app" ? "Something went wrong"
+    : error instanceof ApiError && error.status === 401 ? "Management API authentication required"
+    : error instanceof ApiError && error.status === 403 ? "Management API access denied"
+    : error instanceof ApiError && error.code === "network_error" ? "Management API unavailable"
+    : "Management API request failed");
   if (variant === "app") {
     return (
       <AppError

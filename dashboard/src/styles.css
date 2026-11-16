@@ -361,6 +361,8 @@ a {
 /* ================================ shell ================================ */
 
 .app-shell {
+  min-width: 0;
+  width: 100%;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -412,6 +414,8 @@ a {
 }
 
 .page {
+  min-width: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -499,7 +503,7 @@ a {
 
 .panel-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
   gap: 16px;
   align-items: start;
 }
@@ -784,10 +788,26 @@ a {
 /* --------------------------------- table ------------------------------- */
 
 .table-wrapper {
+  min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   background: var(--surface);
+}
+
+/* Wide tables retain a visible scroll affordance inside the shell. */
+.capitalio-dashboard .table-wrapper {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.capitalio-dashboard .table-wrapper::-webkit-scrollbar {
+  display: block;
+  height: 6px;
+}
+.capitalio-dashboard .table-wrapper::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 6px;
 }
 
 .data-table {
@@ -1873,7 +1893,7 @@ select:focus {
 
 @media (max-width: 1000px) {
   .graph-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -2220,8 +2240,9 @@ select:focus {
  * The global prefers-reduced-motion rule zeroes these transitions for
  * users who request reduced motion. Desktop (>=768px) untouched.
  * ======================================================================= */
+/* Let flex children shrink to the viewport; tables own their scrolling. */
 .m4-shell {
-  overflow-x: clip;
+  min-width: 0;
 }
 
 /* Off-canvas nav drawer (Sheet side="left" on mobile): opacity + translate. */

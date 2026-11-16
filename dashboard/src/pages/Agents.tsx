@@ -14,7 +14,7 @@ import { TableSkeleton } from "../components/Skeleton";
 import { StatusBadge } from "../components/StatusBadge";
 import { TimeRangePicker } from "../components/TimeRangePicker";
 import { formatCost, formatDuration, formatNumber, formatPercent, formatRelativeTime } from "../lib/format";
-import { breakerStateTone, cardStatusTone, isUnknownState } from "../lib/status";
+import { breakerStateTone, cardStatusTone, verificationTone } from "../lib/status";
 import { DEFAULT_TIME_RANGE, toApiWindow, type TimeRange } from "../lib/time";
 
 /** Registry of the agents known to the gateway. */
@@ -49,7 +49,7 @@ export function Agents() {
           />
           <StatusBadge
             label={agent.verification}
-            tone={isUnknownState(agent.verification) ? "neutral" : "good"}
+            tone={verificationTone(agent.verification)}
             title="Card signature verification"
           />
           {agent.breaker_state && agent.breaker_state !== "unknown" ? (

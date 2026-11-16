@@ -112,7 +112,7 @@ describe("task detail not-found handling", () => {
     expect(await screen.findByText("Task not found")).toBeInTheDocument();
     expect(screen.getByText(/missing-task/)).toBeInTheDocument();
     expect(screen.queryByText(/offline/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/check gateway URL/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Settings · API/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
   });
 
@@ -130,7 +130,7 @@ describe("task detail not-found handling", () => {
 
     expect(await screen.findByText("Could not load task")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
-    expect(screen.getByText(/check gateway URL/i)).toBeInTheDocument();
+    expect(screen.getByText(/Settings · API/i)).toBeInTheDocument();
     expect(screen.queryByText("Task not found")).not.toBeInTheDocument();
   });
 });

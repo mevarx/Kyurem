@@ -17,7 +17,7 @@ import {
 import type { AgentInfo, GraphEdge, GraphNode } from "../api/types";
 import { useTheme } from "../lib/useTheme";
 import { formatCost, formatDuration, formatNumber, formatPercent } from "../lib/format";
-import { breakerStateTone, cardStatusTone, errorRateTone, isUnknownState } from "../lib/status";
+import { breakerStateTone, cardStatusTone, errorRateTone, isUnknownState, verificationTone } from "../lib/status";
 import { StatusBadge } from "./StatusBadge";
 
 export type AgentNodeData = {
@@ -85,7 +85,7 @@ const AgentNode = memo(function AgentNode({ data, selected }: NodeProps<AgentFlo
         />
         <StatusBadge
           label={`verify: ${verification}`}
-          tone={isUnknownState(verification) ? "neutral" : "good"}
+          tone={verificationTone(verification)}
           title="Card signature verification"
         />
         {data.breakerState && !isUnknownState(data.breakerState) ? (
