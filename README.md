@@ -62,7 +62,6 @@ The gateway is stateless and streams request and response bodies. Telemetry expo
 | **Trust and policy** | Bearer or mTLS callers; agent card signatures verified against operator-configured keys; deny-overrides rules; bounded audit records. |
 | **Resilience** | Bounded retry budget, same-binding failover and per-upstream circuit breakers. |
 
-![Kyurem dashboard overview with sample data]
 ## Quick start
 
 **Requirements:** Go 1.26+. The Python agents and failover walkthrough also need Python 3.11+ with [`uv`](https://docs.astral.sh/uv/) and Node 22. Docker is required only for the telemetry stack.
