@@ -55,3 +55,11 @@ in the running dashboard without that verification browser. The regular app
 continues to use the actual management API. See dashboard-verification.md for
 real example gateway and authentication setup details. Existing build chunk
 warnings and ESLint warnings remain outside this visual change.
+
+Final validation: production build passed; ESLint passed with the same eight
+pre-existing warnings; all 79 tests passed. Populated fixtures passed in light
+and dark mode at 320, 390 and 1440px. An independent browser review exercised
+Settings, Policy, Costs, graph, Tasks, drawer and full trace against the real
+gateway at desktop/mobile widths, with no runtime errors. A final mobile
+refinement keeps small decimal cost totals on one line. Mobile checks are
+Chromium emulation rather than physical-device testing.

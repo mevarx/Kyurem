@@ -106,7 +106,7 @@ export function Costs() {
   };
 
   return (
-    <div className="page">
+    <div className="page costs-page">
       <header className="page-header">
         <div className="page-title-pair">
           <span className="page-kicker">Manage</span>
@@ -149,12 +149,7 @@ export function Costs() {
                 <span className="stat-label">Total cost</span>
                 <span
                   className="stat-value"
-                  style={{
-                    fontSize: "clamp(1.75rem, 1rem + 2.2vw, 2.75rem)",
-                    lineHeight: 1.05,
-                    letterSpacing: "-0.02em",
-                    overflowWrap: "anywhere",
-                  }}
+                  style={{ fontSize: "clamp(1.6rem, 2vw, 2.2rem)", lineHeight: 1.15, letterSpacing: "-0.02em", whiteSpace: "nowrap" }}
                 >
                   {formatCost(report?.total_usd ?? null)}
                 </span>

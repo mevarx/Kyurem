@@ -6,6 +6,7 @@ import { join } from 'node:path';
 const mode = process.argv[2] ?? 'fixtures';
 const browser = await chromium.launch();
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+if (process.env.VERIFY_THEME) await context.addInitScript(theme => localStorage.setItem('kyurem.theme', theme), process.env.VERIFY_THEME);
 const page = await context.newPage();
 const runtimeErrors = [];
 page.on('pageerror', e => runtimeErrors.push(e.message));
@@ -44,9 +45,14 @@ if (mode === 'fixtures') await page.route('**/api/v1/**', async route => {
     input_tokens: 120, output_tokens: 60, buckets: agents.map(a => ({ key: a.name, cost_usd: 0.12,
       input_tokens: 20, output_tokens: 10, spans: 12, unknown_spans: 0 })) });
   if (endpoint === 'settings') return json({ version: 'fixture', spec_version: '1', service_name: 'fixture-gateway', agents: 6, storage: { driver: 'memory' }, telemetry: { exporting: false, queue_depth: 0, queue_capacity: 2048, spans_ended: 72, spans_exported: 0, spans_dropped: {} } });
-  if (endpoint === 'overview') return json({ tasks_total: 51, tasks_succeeded: 0, tasks_failed: 51, error_rate: 1,
-    active_agents: 6, spans_total: 51, total_cost_usd: 5.1, tasks_over_time: [], cost_over_time: [],
-    top_agents_by_cost: [], top_failing_agents: [], recent_failed_tasks: tasks.slice(0, 3) });
+  if (endpoint === 'overview') {
+    const buckets = Array.from({ length: 24 }, (_, i) => ({ bucket: new Date(Date.now() - (23-i)*3600000).toISOString(), succeeded: [30,24,20,18,26,45,65,48,56,70,68,82,61,73,89,94,82,68,77,90,86,72,80,96][i], failed: i % 3 + 1, unknown: 0, spans: 100, cost_usd: (i % 5 + 2)*0.16 }));
+    return json({ tasks_total: 1584, tasks_succeeded: 1536, tasks_failed: 48, error_rate: 0.0303,
+      p50_task_duration_ms: 180, p95_task_duration_ms: 1240, active_agents: 6, spans_total: 4620,
+      total_cost_usd: 24.72, tasks_over_time: buckets, cost_over_time: buckets,
+      top_agents_by_cost: agents.slice(0,5).map((a,i) => ({ key: a.name, cost_usd: [8.24,6.1,4.8,3.2,2.38][i], spans: 800-i*100, unknown_spans: 0 })),
+      top_failing_agents: agents.slice(0,3).map((a,i) => ({ name: a.name, errors: 12-i*3, error_rate: 0.08-i*0.02 })), recent_failed_tasks: tasks.slice(0,3) });
+  }
   return route.fulfill({ status: 404, json: { error: { message: 'fixture endpoint unavailable' } } });
 });
 const visible = text => page.getByText(text, { exact: true }).first().waitFor();
@@ -58,6 +64,7 @@ async function fits(label) {
     const boundary = document.querySelector('.page').getBoundingClientRect().right;
     return [...document.querySelectorAll('.page *')].filter(e => !e.closest('.table-wrapper') && e.getBoundingClientRect().right > boundary + 1).map(e => ({ tag: e.tagName, class: e.className, text: e.textContent.slice(0, 100) }));
   }));
+  assert(sizes.regions.length >= 2, `${label}: routed page did not render`);
   assert(sizes.document <= sizes.viewport, `${label}: ${JSON.stringify(sizes)}`);
   for (const r of sizes.regions) assert(r.scroll <= r.client + 1, `${label}: ${JSON.stringify(sizes)}`);
   console.log('PASS', label, JSON.stringify(sizes));
@@ -67,22 +74,24 @@ try {
   if (['fixtures', 'live'].includes(mode)) {
     for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
-      for (const path of ['/tasks', '/agents', '/policy', '/costs', '/graph']) {
+      for (const path of ['/', '/tasks', '/agents', '/policy', '/costs', '/graph']) {
         await goto(path);
-        if (path === '/graph') await page.locator('.react-flow__node').first().waitFor();
+        if (path === '/') await page.locator('.overview-kpi').first().waitFor();
+        else if (path === '/graph') await page.locator('.react-flow__node').first().waitFor();
         else if (path === '/policy') await page.locator('.detail-grid').first().waitFor();
         else await page.locator('.data-table').first().waitFor();
         await page.waitForTimeout(300);
         await fits(`${mode} ${path} ${width}px`);
-        if (process.env.VERIFY_SCREENSHOTS && path === '/agents') {
+        if (process.env.VERIFY_SCREENSHOTS) {
           await mkdir(process.env.VERIFY_SCREENSHOTS, { recursive: true });
-          await page.screenshot({ path: join(process.env.VERIFY_SCREENSHOTS, `${mode}-agents-${width}.png`), fullPage: true });
+          await page.waitForTimeout(1200); // let numeric/chart entrances settle before visual QA
+          await page.screenshot({ path: join(process.env.VERIFY_SCREENSHOTS, `${mode}-${path.slice(1) || 'overview'}-${width}-${process.env.VERIFY_THEME || 'light'}.png`), fullPage: false });
         }
         if (mode === 'fixtures' && path === '/agents') {
           for (const [i, tone] of ['good', 'bad', 'warn', 'neutral', 'neutral', 'neutral'].entries())
             assert(await page.getByText(statuses[i], { exact: true }).evaluate((e, t) => e.classList.contains(`badge-${t}`), tone));
         }
-        if (width === 390 && path !== '/graph') {
+        if (width === 390 && path !== '/graph' && path !== '/') {
           const table = page.locator('.table-wrapper').filter({ has: page.locator('table') }).last();
           const d = await table.evaluate(e => ({ client: e.clientWidth, scroll: e.scrollWidth, tabindex: e.tabIndex, overflow: getComputedStyle(e).overflowX }));
           assert.equal(d.tabindex, 0); assert.equal(d.overflow, 'auto');

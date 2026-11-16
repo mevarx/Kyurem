@@ -10,7 +10,7 @@
  * --accent, --border, --sidebar-*) are canonical because every primitive
  * consumes them. Family suffixes: `-foreground` = text/icon on the base
  * token; `-bg` = ~12% tint wash; `-border` = ~25% border; `-ink` =
- * theme-readable brand-ink alias (icy cyan in dark, deep teal in light).
+ * theme-readable brand-ink alias (soft violet in dark, deep violet in light).
  * Status pairs: `--destructive*` is the shadcn alias of `--danger*`;
  * both are kept so Tailwind (`bg-destructive`, `text-destructive-…`)
  * and hand CSS (`var(--danger)`) keep working — same values, do not fork.
@@ -124,7 +124,7 @@
   --dur-med: 220ms;
 
   /* ---- aliases (exact-value twins kept by design: --bg/--surface/--surface-overlay/--text
-     mirror canonical names; --accent-ink = readable brand ink, cyan on dark) ---- */
+     mirror canonical names; --accent-ink = readable brand ink, violet on dark) ---- */
   --bg: var(--background);
   --surface: var(--card);
   --surface-overlay: var(--popover);
@@ -193,9 +193,7 @@
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
   --sidebar-border: var(--border);
-  /* Deliberate asymmetry: --sidebar-ring resolves through --ring (deep teal
-     #0e7490 ink) rather than --primary's surface usage, so the focus ring stays
-     high-contrast on white instead of a low-contrast tint. */
+  /* Resolve sidebar focus through the shared ring token in both themes. */
   --sidebar-ring: var(--ring);
 
   --shadow-float: 0 12px 32px rgb(15 23 42 / 14%);
@@ -2249,4 +2247,9 @@ select:focus {
     min-width: 0;
   }
   .filter-toolbar .field-end { margin-left: 0; }
+}
+
+@media (max-width: 640px) {
+  .costs-page .stat-grid > .stat-card:first-child,
+  .costs-page .stat-grid > .stat-card:last-child { grid-column: 1 / -1; }
 }
