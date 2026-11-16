@@ -299,7 +299,7 @@ export function JsonExplorer({
 
   return (
     <TooltipProvider delayDuration={500}>
-      <div className={cn("flex w-full min-w-0 max-w-[460px] flex-col overflow-hidden rounded-2xl border bg-card text-sm shadow-xs/5", className)}>
+      <div className={cn("flex w-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-card text-sm shadow-xs/5", className)}>
         <div className="flex items-center gap-1 border-b p-2">
           <InputGroup className="h-8 min-w-0 flex-1">
             <InputGroupAddon>

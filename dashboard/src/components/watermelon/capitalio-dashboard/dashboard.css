@@ -37,10 +37,6 @@
   position: relative;
   z-index: 3;
 }
-.m4-topbar .theme-toggle {
-  width: 32px;
-  height: 32px;
-}
 @media (prefers-reduced-motion: reduce) {
   .kyurem-sidebar .sidebar-nav-item { transition: none; }
 }

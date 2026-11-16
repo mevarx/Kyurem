@@ -420,6 +420,29 @@ a {
   gap: 16px;
 }
 
+.costs-page-controls {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.costs-page-controls .costs-group-field {
+  flex: 0 1 148px;
+  min-width: 140px;
+}
+
+.costs-page-controls .time-range-picker {
+  align-items: flex-end;
+}
+
+.costs-export-button {
+  flex: none;
+  white-space: nowrap;
+}
+
 .page-title-pair {
   display: flex;
   flex-direction: column;
@@ -1490,39 +1513,6 @@ select:focus {
 
 /* --------------------------------- misc -------------------------------- */
 
-.theme-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 36px;
-  padding: 5px 12px;
-  border-radius: var(--radius-control);
-  border: 1px solid var(--border-strong);
-  background: var(--surface-raised);
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-  transition: border-color var(--dur-fast) var(--ease);
-}
-
-.theme-toggle:hover {
-  border-color: var(--primary);
-}
-
-.theme-toggle svg {
-  width: 16px;
-  height: 16px;
-  stroke-width: 1.8;
-}
-
-.theme-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 12px;
-}
-
 .pagination {
   display: flex;
   gap: 8px;
@@ -2045,6 +2035,31 @@ select:focus {
 
   .time-range-picker {
     align-items: stretch;
+    width: 100%;
+  }
+
+  .costs-page-controls {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    justify-content: stretch;
+    gap: 8px;
+  }
+
+  .costs-page-controls .costs-group-field {
+    min-width: 0;
+  }
+
+  .costs-page-controls .time-range-picker {
+    align-items: stretch;
+  }
+
+  .costs-page-controls .time-range-presets {
+    justify-content: space-between;
+  }
+
+  .costs-export-button {
     width: 100%;
   }
 

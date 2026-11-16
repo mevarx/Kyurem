@@ -1,4 +1,4 @@
-// Vite must be running. Run: node scripts/verify-dashboard.mjs fixtures|live|down|auth
+// Vite must be running. Run: node scripts/verify-dashboard.mjs fixtures|clicks|live|down|auth
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
@@ -19,12 +19,26 @@ const agents = statuses.map((verification, i) => ({ name: i ? `agent-${i}-long-r
 const tasks = Array.from({ length: 51 }, (_, i) => ({ task_id: `task-${i}`, trace_id: `trace-${i}`, status: 'failed',
   started_at: now, duration_ms: 1200, agents: ['echo'], root_caller: 'echo', cost_usd: 0.1,
   tokens_known: true, span_count: 1, input_tokens: 10, output_tokens: 20 }));
+const taskDetail = {
+  task: { ...tasks[0], span_count: 2, error_type: 'fixture_failure', error_message: 'fixture task failed' },
+  spans: [{ trace_id: 'trace-0', span_id: 'span-0', name: 'echo.call', kind: 'agent', service_name: 'echo', agent: 'echo',
+    caller: 'root', started_at: now, duration_ms: 1200, status_code: 'ERROR', status_message: 'fixture failure',
+    attributes: { 'fixture.key': 'fixture value' } },
+  { trace_id: 'trace-0', span_id: 'span-0-child', parent_span_id: 'span-0', name: 'upper.call', kind: 'agent',
+    service_name: 'upper', agent: 'upper', caller: 'echo', started_at: now, duration_ms: 500, status_code: 'OK', attributes: {} }],
+  root_cause: { span_id: 'span-0', span_name: 'echo.call', agent: 'echo', error_type: 'fixture_failure',
+    message: 'The fixture agent returned a controlled error.', affected_span_ids: ['span-0'], confidence: 'heuristic' },
+  cost: { group_by: 'agent', total_usd: 0.1, input_tokens: 10, output_tokens: 20, spans: 1, unknown_spans: 0,
+    buckets: [{ key: 'echo', cost_usd: 0.1, input_tokens: 10, output_tokens: 20, spans: 1, unknown_spans: 0 }] },
+  events: [{ span_id: 'span-0', time: now, name: 'fixture.error', attributes: { level: 'error', source: 'fixture' } }],
+};
 let errorsFail = false, metadataFail = false, errorsDelay = false, shrink = false, releaseErrors;
-if (mode === 'fixtures') await page.route('**/api/v1/**', async route => {
+if (['fixtures', 'clicks'].includes(mode)) await page.route('**/api/v1/**', async route => {
   const u = new URL(route.request().url()), endpoint = u.pathname.split('/').pop();
   const json = body => route.fulfill({ json: body });
   const fail = message => route.fulfill({ status: 500, json: { error: { code: 'fixture_failure', message } } });
   if (endpoint === 'agents') return metadataFail ? fail('fixture registry unavailable') : json({ items: agents });
+  if (u.pathname.startsWith('/api/v1/tasks/') && endpoint !== 'tasks') return json(taskDetail);
   if (endpoint === 'graph') return json({ nodes: agents.map(a => ({ ...a, calls: 12, p50_ms: 10 })),
     edges: [{ from: 'echo', to: agents[1].name, calls: 12, errors: 1, error_rate: 0.08, p95_ms: 22, p50_ms: 10, cost_usd: 0.1 }] });
   if (endpoint === 'tasks') {
@@ -39,7 +53,7 @@ if (mode === 'fixtures') await page.route('**/api/v1/**', async route => {
   if (endpoint === 'policy') return json({ mode: 'warn', default: 'allow', callers: agents.map(a => a.name),
     callees: agents.map(a => a.name), rules: [{ name: 'example-rule', caller: 'echo', callee: '*', skills: ['echo'], effect: 'deny' }],
     matrix: agents.flatMap(a => agents.map(b => ({ caller: a.name, callee: b.name, decision: 'allow' }))) });
-  if (endpoint === 'decisions') return json({ items: [{ timestamp: now, kind: 'policy', caller: 'echo',
+  if (endpoint === 'decisions') return json({ items: [{ timestamp: now, kind: 'auth', caller: 'echo',
     callee: agents[1].name, decision: 'deny', reason: 'fixture denied' }], total: 1 });
   if (endpoint === 'costs') return json({ group_by: 'agent', total_usd: 0.72, spans: 72, unknown_spans: 0,
     input_tokens: 120, output_tokens: 60, buckets: agents.map(a => ({ key: a.name, cost_usd: 0.12,
@@ -56,7 +70,7 @@ if (mode === 'fixtures') await page.route('**/api/v1/**', async route => {
   return route.fulfill({ status: 404, json: { error: { message: 'fixture endpoint unavailable' } } });
 });
 const visible = text => page.getByText(text, { exact: true }).first().waitFor();
-async function goto(path) { await page.goto('http://127.0.0.1:5173' + path); await page.locator('h1').waitFor(); }
+async function goto(path) { await page.goto('http://127.0.0.1:5173' + path, { waitUntil: 'domcontentloaded' }); await page.locator('h1').waitFor(); }
 async function fits(label) {
   const sizes = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth,
     regions: [...document.querySelectorAll('.app-main,.page')].map(e => ({ client: e.clientWidth, scroll: e.scrollWidth })) }));
@@ -117,7 +131,7 @@ try {
       }
     }
   }
-  if (mode === 'fixtures') {
+  if (['fixtures', 'clicks'].includes(mode)) {
     await page.setViewportSize({ width: 390, height: 844 });
     await goto('/tasks'); await visible('Page 1 of 2');
     await page.getByRole('button', { name: 'Next', exact: true }).click(); await visible('Page 2 of 2');
@@ -137,6 +151,131 @@ try {
     assert(await page.locator('.react-flow__node').count() > 0);
     metadataFail = false; await page.getByRole('button', { name: 'Try again', exact: true }).click(); await visible('verification: verified');
     console.log('PASS fixtures: graph loading, empty, HTTP 500, metadata failure and retry recovery');
+
+    // Exercise the actual interactive paths in each page, not just direct URL rendering.
+    const destinations = [
+      ['Overview', '/'], ['Tasks', '/tasks'], ['Agent graph', '/graph'], ['Costs', '/costs'],
+      ['Agents', '/agents'], ['Policy & audit', '/policy'], ['Settings', '/settings'],
+    ];
+    await page.setViewportSize({ width: 1440, height: 900 });
+    for (const [label, path] of destinations) {
+      await goto('/');
+      await page.getByRole('link', { name: label, exact: true }).click();
+      await page.waitForURL(`**${path}`);
+      await page.locator('h1').waitFor();
+    }
+    console.log('PASS fixtures: all sidebar destinations navigate to their pages');
+
+    await goto('/');
+    await page.keyboard.press('Control+k');
+    await page.getByRole('dialog', { name: 'Command menu' }).waitFor();
+    await page.getByPlaceholder('Go to a page or paste a task id…').fill('Go to Costs');
+    await page.keyboard.press('Enter');
+    await page.waitForURL('**/costs');
+    console.log('PASS fixtures: command menu search navigates with the keyboard');
+
+    await goto('/');
+    await page.getByRole('radio', { name: '1h', exact: true }).check();
+    await page.getByRole('link', { name: 'task-0', exact: true }).click();
+    await page.getByRole('heading', { name: 'task-0' }).waitFor();
+    await goto('/agents');
+    await page.getByRole('radio', { name: '1h', exact: true }).check();
+    await goto('/graph');
+    await page.getByRole('radio', { name: '1h', exact: true }).check();
+    await page.getByRole('button', { name: 'Zoom in' }).click();
+    await page.getByRole('button', { name: 'Zoom out' }).click();
+    console.log('PASS fixtures: Overview, Agents and Graph time controls plus graph zoom');
+
+    await goto('/tasks');
+    await page.getByLabel('Task id').fill('task-0');
+    await visible('task-0');
+    await page.getByLabel('Clear task filter').click();
+    await page.locator('tbody tr').first().click();
+    await page.getByRole('dialog', { name: /Task task-0/ }).waitFor();
+    await page.getByRole('button', { name: 'Close task details' }).click();
+    await page.getByRole('link', { name: 'task-0', exact: true }).click();
+    await page.getByRole('heading', { name: 'task-0' }).waitFor();
+    await page.locator('summary').filter({ hasText: 'Task payload' }).click();
+    await page.getByRole('tree', { name: 'task' }).waitFor();
+    if (process.env.VERIFY_SCREENSHOTS) {
+      await mkdir(process.env.VERIFY_SCREENSHOTS, { recursive: true });
+      await page.screenshot({ path: join(process.env.VERIFY_SCREENSHOTS, 'task-detail-payload.png'), fullPage: false });
+    }
+    await page.getByRole('button', { name: 'Expand all' }).click();
+    await page.getByRole('button', { name: 'Collapse all' }).waitFor();
+    await page.getByLabel('Search keys and values').fill('task_id');
+    await page.getByRole('button', { name: 'Next match' }).click();
+    await page.getByRole('button', { name: 'Clear search' }).click();
+    await page.getByRole('button', { name: 'Copy path data.task_id' }).click();
+    await page.getByRole('button', { name: 'Collapse span echo.call' }).click();
+    await page.getByRole('button', { name: 'Select span echo.call, affected by root cause' }).click();
+    await page.getByRole('button', { name: /Select span echo\.call, echo/ }).click();
+    await page.getByRole('button', { name: 'Pause stream' }).click();
+    await page.getByRole('button', { name: 'Resume stream' }).click();
+    await page.getByLabel('Search logs').fill('fixture');
+    await page.getByRole('button', { name: 'Clear search' }).last().click();
+    console.log('PASS fixtures: task row drawer, payload tree, search, disclosure and event stream controls');
+
+    await goto('/costs');
+    await page.getByLabel('Group by').selectOption('task');
+    await visible('Cost per task');
+    await page.getByRole('radio', { name: '1h', exact: true }).check();
+    if (process.env.VERIFY_SCREENSHOTS) {
+      await mkdir(process.env.VERIFY_SCREENSHOTS, { recursive: true });
+      await page.screenshot({ path: join(process.env.VERIFY_SCREENSHOTS, 'costs-desktop.png'), fullPage: false });
+    }
+    const csv = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Export CSV' }).click();
+    assert.equal((await csv).suggestedFilename(), 'kyurem-costs-task.csv');
+    await page.locator('[aria-label="Share of spend breakdown"] button').first().click();
+    console.log('PASS fixtures: costs grouping, time range, CSV export and spend filter');
+
+    await goto('/policy');
+    await page.getByLabel('Kind').selectOption('auth');
+    const reviewQueue = page.getByRole('region', { name: /Review queue/ });
+    await reviewQueue.waitFor({ state: 'visible' });
+    await reviewQueue.getByRole('button', { name: 'Edit' }).click();
+    await page.getByLabel('Edit before approving').waitFor();
+    await reviewQueue.getByRole('button', { name: 'Cancel' }).click();
+    await reviewQueue.getByRole('button', { name: 'Reject' }).click();
+    await visible('Queue clear');
+    await page.getByRole('button', { name: 'Reload queue' }).click();
+    console.log('PASS fixtures: policy decision filter and local review actions');
+
+    await goto('/settings');
+    const themeButtons = page.getByRole('button', { name: /theme.*switch to/i });
+    assert.equal(await themeButtons.count(), 1, 'a single visible theme switch');
+    const currentTheme = await page.locator('html').getAttribute('data-theme');
+    await themeButtons.click();
+    await page.waitForFunction(before => document.documentElement.dataset.theme !== before, currentTheme);
+    await page.getByRole('button', { name: 'Show token' }).click();
+    await page.getByRole('button', { name: 'Hide token' }).click();
+    await page.locator('#api-token').fill('fixture-token');
+    await page.getByRole('button', { name: 'Save token' }).click();
+    await visible('Token saved.');
+    await page.getByRole('button', { name: 'Clear token' }).click();
+    await page.getByRole('region', { name: 'Workspace. Press question mark for keyboard shortcuts.' }).focus();
+    await page.keyboard.press('?');
+    await page.getByRole('dialog', { name: 'Keyboard shortcuts' }).waitFor();
+    await page.keyboard.press('Escape');
+    await page.getByRole('dialog', { name: 'Keyboard shortcuts' }).waitFor({ state: 'detached' });
+    await page.getByRole('button', { name: 'Shortcuts' }).click();
+    await page.getByRole('dialog', { name: 'Keyboard shortcuts' }).waitFor();
+    await page.getByRole('button', { name: 'Close shortcuts' }).click();
+    console.log('PASS fixtures: theme, token and shortcut controls on Settings');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await goto('/');
+    await page.getByRole('button', { name: 'Open navigation' }).click();
+    await page.getByRole('link', { name: 'Costs', exact: true }).click();
+    await page.getByRole('heading', { name: 'Costs' }).waitFor();
+    if (process.env.VERIFY_SCREENSHOTS) {
+      await mkdir(process.env.VERIFY_SCREENSHOTS, { recursive: true });
+      await page.screenshot({ path: join(process.env.VERIFY_SCREENSHOTS, 'costs-mobile.png'), fullPage: false });
+    }
+    assert.equal(await page.getByRole('button', { name: 'Open navigation' }).getAttribute('aria-expanded'), 'false');
+    await fits('mobile navigation click');
+    console.log('PASS fixtures: mobile menu opens, navigates and closes');
   }
   if (['down', 'auth'].includes(mode)) {
     for (const path of ['/', '/tasks', '/agents', '/policy', '/costs', '/graph']) {

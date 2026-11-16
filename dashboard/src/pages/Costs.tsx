@@ -113,9 +113,30 @@ export function Costs() {
           <h1>Costs</h1>
           <p className="page-subtitle">What the selected window cost — and who spent it.</p>
         </div>
-        <div className="page-header-meta">
-          <DetailTag>{`grouped by ${groupBy}`}</DetailTag>
+        <div className="page-header-meta costs-page-controls">
+          <div className="field costs-group-field">
+            <label htmlFor="cost-group-by">Group by</label>
+            <select
+              id="cost-group-by"
+              value={groupBy}
+              onChange={(event) => setGroupBy(event.target.value as CostGroupBy)}
+            >
+              {GROUP_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <TimeRangePicker value={range} onChange={setRange} idPrefix="costs-range" />
+          <button
+            type="button"
+            className="button button-primary costs-export-button"
+            onClick={exportCsv}
+            disabled={!report || report.buckets.length === 0}
+          >
+            Export CSV
+          </button>
         </div>
       </header>
 
@@ -180,33 +201,6 @@ export function Costs() {
           )}
         </section>
       )}
-
-      <section className="filter-toolbar max-sm:flex-col max-sm:items-stretch" aria-label="Cost controls">
-        <div className="field" style={{ flexGrow: 0, minWidth: 150 }}>
-          <label htmlFor="cost-group-by">Group by</label>
-          <select
-            id="cost-group-by"
-            value={groupBy}
-            onChange={(event) => setGroupBy(event.target.value as CostGroupBy)}
-          >
-            {GROUP_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field field-end" style={{ flexGrow: 0 }}>
-          <button
-            type="button"
-            className="button button-primary"
-            onClick={exportCsv}
-            disabled={!report || report.buckets.length === 0}
-          >
-            Export CSV
-          </button>
-        </div>
-      </section>
 
       {query.isPending ? (
         <DashboardCard aria-label="Costs loading">

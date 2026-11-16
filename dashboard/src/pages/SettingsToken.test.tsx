@@ -80,6 +80,9 @@ describe("settings API token", () => {
   it("hides the token by default and toggles its visibility", async () => {
     renderSettings();
 
+    // Theme is controlled in the global top bar, so Settings must not render a second switch.
+    expect(screen.getAllByRole("button", { name: /theme.*switch to/i })).toHaveLength(1);
+
     const input = await screen.findByLabelText(/API token/i);
     expect(input).toHaveAttribute("type", "password");
 

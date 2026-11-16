@@ -11,7 +11,6 @@ import {
 } from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
 import { ShortcutSheet } from "../components/shortcut-sheet";
 import { StatusBadge } from "../components/StatusBadge";
-import { ThemeToggle } from "../components/ThemeToggle";
 import { formatNumber, formatUptime } from "../lib/format";
 
 /** Gateway status, telemetry counters, storage and dashboard preferences. */
@@ -46,7 +45,7 @@ export function Settings() {
         <div className="page-title-pair">
           <span className="page-kicker">Manage</span>
           <h1>Settings</h1>
-          <p className="page-subtitle">Gateway status and dashboard preferences.</p>
+          <p className="page-subtitle">Gateway status, API access and keyboard shortcuts.</p>
         </div>
         <StatusBadge
           label={query.isPending ? "checking gateway" : query.isError ? "settings unavailable" : "gateway reachable"}
@@ -271,10 +270,6 @@ export function Settings() {
           {tokenSaved ? <span className="muted">Token saved.</span> : null}
         </div>
 
-        <div className="theme-row">
-          <span className="stat-label">Theme</span>
-          <ThemeToggle />
-        </div>
       </DashboardCard>
 
       <DashboardCard aria-label="Keyboard shortcuts">
