@@ -36,17 +36,17 @@ export default function DashboardLayout({ children, onSearch }: DashboardLayoutP
     <SidebarProvider
       open={sidebarOpen}
       onOpenChange={handleSidebarOpenChange}
-      className="capitalio-dashboard m4-shell h-svh overflow-hidden no-scrollbar"
+      className="capitalio-dashboard m4-shell h-svh overflow-hidden"
       style={
         {
-          '--sidebar-width': '14rem',
+          '--sidebar-width': '13.25rem',
         } as CSSProperties
       }
     >
       <DashboardSidebar />
 
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-0.5 pl-0">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background shadow-custom">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
           <DashboardTopbar onSearch={onSearch} />
           <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
         </div>

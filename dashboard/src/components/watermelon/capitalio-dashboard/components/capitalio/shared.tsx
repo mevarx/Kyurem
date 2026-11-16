@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react'
 import { cn } from '@/lib/utils'
 
 type DashboardTooltipPayload = {
@@ -24,7 +25,8 @@ export function DashboardCard({
   children,
   className,
   interactive = false,
-}: {
+  ...props
+}: ComponentProps<'article'> & {
   children: React.ReactNode
   className?: string
   /** Opt-in hover lift for cards that act as links or buttons. Defaults to static. */
@@ -32,8 +34,9 @@ export function DashboardCard({
 }) {
   return (
     <article
+      {...props}
       className={cn(
-        'shadow-custom min-w-0 rounded-lg border border-border bg-card p-4 text-card-foreground',
+        'dashboard-card shadow-custom min-w-0 rounded-xl border border-border bg-card p-5 text-card-foreground',
         interactive &&
           'transition-[transform,box-shadow] duration-150 ease-out motion-safe:hover:-translate-y-px motion-safe:hover:shadow-[var(--shadow-float)]',
         className,
@@ -56,9 +59,9 @@ export function DetailHeader({
   return (
     <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
-        <h2 className="truncate text-lg font-medium leading-6">{title}</h2>
+        <h2 className="truncate text-[13px] font-semibold leading-5">{title}</h2>
         {subtitle ? (
-          <div className="mt-1 truncate text-sm leading-none text-muted-foreground">{subtitle}</div>
+          <div className="mt-1 text-[11px] leading-4 text-muted-foreground">{subtitle}</div>
         ) : null}
       </div>
       {children ? <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">{children}</div> : null}
@@ -80,13 +83,13 @@ export function DetailTag({
     <span
       onClick={onClick}
       className={cn(
-        'inline-flex items-center gap-2 rounded-lg px-3 py-1 text-sm leading-5 text-foreground',
+        'inline-flex items-center gap-2 rounded-md px-2 py-1 text-[11px] leading-4 text-muted-foreground',
         onClick &&
           'cursor-pointer transition-[background-color,filter] duration-150 ease-out motion-safe:hover:brightness-125',
       )}
       style={{
-        backgroundColor: `color-mix(in oklab, ${color} 12%, transparent)`,
-        border: `1px solid color-mix(in oklab, ${color} 25%, transparent)`,
+        backgroundColor: `color-mix(in oklab, ${color} 5%, transparent)`,
+        border: `1px solid color-mix(in oklab, ${color} 14%, transparent)`,
       }}
     >
       <span

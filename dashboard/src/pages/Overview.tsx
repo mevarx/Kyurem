@@ -1,5 +1,7 @@
 import { memo, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { Activity, ArrowUpRight, Clock3, Coins, Layers3, ShieldAlert, type LucideIcon } from "lucide-react";
+import "./overview.css";
 import {
   Area,
   AreaChart,
@@ -26,8 +28,7 @@ import { OverviewSkeleton } from "../components/Skeleton";
 import { StatusBadge } from "../components/StatusBadge";
 import { TimeRangePicker } from "../components/TimeRangePicker";
 import { useCountUp } from "../lib/useCountUp";
-import { useLastVisit } from "../lib/lastVisit";
-import { formatCost, formatDateTime, formatDuration, formatNumber, formatPercent, formatTime, formatTokens, formatUptime } from "../lib/format";
+import { formatCost, formatDuration, formatNumber, formatPercent, formatTime, formatTokens, formatUptime } from "../lib/format";
 import { taskStatusTone } from "../lib/status";
 import { DEFAULT_TIME_RANGE, toApiWindow, type TimeRange } from "../lib/time";
 
@@ -58,7 +59,6 @@ export function Overview() {
   const spendSeries = useMemo(() => (data?.cost_over_time ?? []).map((b) => b.cost_usd ?? 0), [data]);
 
 
-  const lastVisit = useLastVisit();
   const recentDurations = useTasks({ limit: 100 }, { refetchInterval: LIVE_REFETCH_INTERVAL_MS });
   const latencyBins = useMemo(() => {
     const durations = (recentDurations.data?.items ?? [])
@@ -109,7 +109,7 @@ export function Overview() {
 
   if (query.isPending) {
     return (
-      <div className="page">
+      <div className="page overview-page">
         <PageHeader range={range} onRangeChange={setRange} />
         <OverviewSkeleton />
       </div>
@@ -118,7 +118,7 @@ export function Overview() {
 
   if (query.isError) {
     return (
-      <div className="page">
+      <div className="page overview-page">
         <PageHeader range={range} onRangeChange={setRange} />
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       </div>
@@ -128,14 +128,13 @@ export function Overview() {
   const overview: OverviewData | undefined = data;
 
   return (
-    <div className="page">
+    <div className="page overview-page">
       <PageHeader range={range} onRangeChange={setRange} />
-
-      <GatewayHealthStrip />
 
       <section className="kpi-grid" aria-label="Key indicators">
         <KpiCard
           label="Throughput"
+          icon={Activity}
           value={formatNumber(overview?.tasks_total)}
           numeric={overview?.tasks_total ?? null}
           format={(v) => formatNumber(Math.round(v))}
@@ -145,6 +144,7 @@ export function Overview() {
         />
         <KpiCard
           label="Error rate"
+          icon={ShieldAlert}
           value={formatPercent(overview?.error_rate)}
           numeric={
             overview?.error_rate === null || overview?.error_rate === undefined
@@ -159,6 +159,7 @@ export function Overview() {
         />
         <KpiCard
           label="p95 latency"
+          icon={Clock3}
           value={formatDuration(overview?.p95_task_duration_ms)}
           numeric={overview?.p95_task_duration_ms ?? null}
           format={(v) => formatDuration(v)}
@@ -167,6 +168,7 @@ export function Overview() {
         />
         <KpiCard
           label="Active agents"
+          icon={Layers3}
           value={formatNumber(overview?.active_agents)}
           numeric={overview?.active_agents ?? null}
           format={(v) => formatNumber(Math.round(v))}
@@ -176,6 +178,7 @@ export function Overview() {
         />
         <KpiCard
           label="Cost"
+          icon={Coins}
           value={formatCost(overview?.total_cost_usd)}
           numeric={overview?.total_cost_usd ?? null}
           format={(v) =>
@@ -187,13 +190,15 @@ export function Overview() {
         />
       </section>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        <DashboardCard aria-label="Throughput" className="min-w-0 xl:col-span-8">
-          <DetailHeader title="Throughput" subtitle="Requests per bucket across the window">
-            <DetailTag color="var(--chart-1)">
-              {formatNumber(overview?.tasks_total)} tasks · {formatPercent(overview?.error_rate)} errors
-            </DetailTag>
+      <div className="overview-panels">
+        <DashboardCard aria-label="Throughput" className="overview-panel-main">
+          <DetailHeader title="Traffic overview" subtitle="Task activity over the selected window">
+            <Link className="overview-card-link" to="/tasks">View tasks <ArrowUpRight size={14} /></Link>
           </DetailHeader>
+          <div className="overview-chart-summary">
+            <div><strong>{formatNumber(overview?.tasks_total)}</strong><span>total tasks</span></div>
+            <div className="overview-chart-legend"><span><i />All tasks</span><span><i />Succeeded</span></div>
+          </div>
           <div id="throughput" className="sr-only">Throughput</div>
           {taskChart.length === 0 ? (
             <EmptyState
@@ -207,7 +212,7 @@ export function Overview() {
                 <AreaChart data={taskChart} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
                   <defs>
                     <linearGradient id="tputFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.3} />
+                      <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.2} />
                       <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
@@ -232,8 +237,8 @@ export function Overview() {
                     cursor={false}
                     content={
                       <DashboardChartTooltip
-                        colors={{ total: "var(--chart-1)" }}
-                        names={{ total: "requests" }}
+                        colors={{ total: "var(--chart-1)", succeeded: "var(--chart-2)" }}
+                        names={{ total: "tasks", succeeded: "succeeded" }}
                       />
                     }
                   />
@@ -247,15 +252,25 @@ export function Overview() {
                     dot={false}
                     activeDot={{ r: 4, fill: "var(--chart-1)", stroke: "var(--card)" }}
                   />
+                  <Area
+                    type="monotone"
+                    dataKey="succeeded"
+                    name="succeeded"
+                    stroke="var(--chart-2)"
+                    strokeWidth={2}
+                    fill="transparent"
+                    dot={false}
+                    activeDot={{ r: 4, fill: "var(--chart-2)", stroke: "var(--card)" }}
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           )}
           </DashboardCard>
 
-        <DashboardCard aria-label="Top agents" className="flex min-w-0 flex-col xl:col-span-4">
+        <DashboardCard aria-label="Top agents" className="overview-panel-side flex flex-col">
           <DetailHeader title="Top agents" subtitle="Ranked by spend in this window">
-            <DetailTag>Ranked list</DetailTag>
+            <span className="overview-section-icon"><Coins size={16} /></span>
           </DetailHeader>
           {(data?.top_agents_by_cost?.length ?? 0) === 0 ? (
             <EmptyState title="No agent cost data" icon="coins" />
@@ -271,8 +286,8 @@ export function Overview() {
         </DashboardCard>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        <DashboardCard aria-label="Top failing agents" className="min-w-0 xl:col-span-4">
+      <div className="overview-panels overview-panels-secondary">
+        <DashboardCard aria-label="Top failing agents" className="overview-panel-side">
           <DetailHeader title="Top failing agents" subtitle="Where the errors concentrate">
             <DetailTag color="var(--destructive)">{formatNumber(overview?.tasks_failed)} failures</DetailTag>
           </DetailHeader>
@@ -291,7 +306,7 @@ export function Overview() {
           )}
         </DashboardCard>
 
-        <DashboardCard aria-label="Recent failed tasks" className="min-w-0 xl:col-span-8">
+        <DashboardCard aria-label="Recent failed tasks" className="overview-panel-main">
           <DetailHeader title="Recent failed tasks" subtitle="Newest failures first">
             <Link className="link-inline" to="/tasks">All tasks</Link>
           </DetailHeader>
@@ -320,9 +335,9 @@ export function Overview() {
         </DashboardCard>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+      <div className="overview-panels">
         <LatencyHistogram
-          className="h-full min-w-0 max-w-none xl:col-span-8"
+          className="overview-panel-main h-full min-w-0 max-w-none"
           bins={latencyBins.bins}
           binSize={latencyBins.binSize}
           caption={`Bucketed client-side from the latest ${recentDurations.data?.items.length ?? 0} task durations · markers are window p50/p95`}
@@ -330,7 +345,7 @@ export function Overview() {
           title="Task latency"
         />
         <SinceYouLeft
-          className="h-full min-w-0 max-w-none xl:col-span-4"
+          className="overview-panel-side h-full min-w-0 max-w-none"
           metrics={[
             { id: "requests", label: "Requests", good: "up", format: (v) => formatNumber(Math.round(v)), series: { visit: throughputTotals } },
             { id: "success", label: "Success rate", good: "up", format: (v) => `${v.toFixed(1)}%`, series: { visit: successSeries } },
@@ -341,12 +356,13 @@ export function Overview() {
             {
               id: "visit",
               label: "This window",
-              caption: lastVisit ? `Since your last visit · ${formatDateTime(lastVisit)}` : "Since your last visit",
+              caption: "Compare the start and end of this window",
             },
           ]}
-          title="Since you left"
+          title="Window comparison"
         />
       </div>
+      <GatewayHealthStrip />
     </div>
   );
 }
@@ -402,7 +418,7 @@ function GatewayHealthStrip() {
   return (
     <section
       aria-label="Gateway health"
-      className="card flex flex-wrap items-center gap-x-5 gap-y-2 text-sm"
+      className="overview-health flex flex-wrap items-center gap-x-5 gap-y-2 text-sm"
     >
       <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
         Gateway
@@ -445,16 +461,10 @@ function GatewayHealthStrip() {
 }
 
 function KpiCard({
-  label,
-  value,
-  numeric,
-  format,
-  pill,
-  hint,
-  sparkValues,
-  sparkStroke,
+  label, icon: Icon, value, numeric, format, pill, hint, sparkValues, sparkStroke,
 }: {
   label: string;
+  icon: LucideIcon;
   value: string;
   numeric: number | null;
   format?: (v: number) => string;
@@ -464,54 +474,16 @@ function KpiCard({
   sparkStroke?: string;
 }) {
   const animated = useCountUp(numeric ?? Number.NaN);
-  const display =
-    numeric === null || !Number.isFinite(numeric) || !format ? value : format(animated);
+  const display = numeric === null || !Number.isFinite(numeric) || !format ? value : format(animated);
   return (
-    <div className="card kpi-card">
-      <span
-        className="kpi-label"
-        style={{
-          fontSize: 12,
-          fontWeight: 600,
-          letterSpacing: "1.5px",
-          textTransform: "uppercase",
-          color: "var(--text-subtle)",
-        }}
-      >
-        {label}
-      </span>
-      <span
-        className="kpi-value"
-        style={{
-          color: "var(--accent-ink)",
-          fontFamily: "var(--font-sans)",
-          fontWeight: 700,
-          letterSpacing: "-1.5px",
-          // Long values (e.g. "$0.000027") shrink the display size instead of
-          // wrapping mid-number; short values keep the full premium scale.
-          fontSize:
-            display.length > 6
-              ? "clamp(1.25rem, 0.9rem + 1.1vw, 1.9rem)"
-              : "clamp(1.75rem, 1rem + 2vw, 2.5rem)",
-          lineHeight: 1,
-          fontVariantNumeric: "tabular-nums",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {display}
-      </span>
-      <div className="kpi-foot">
-        {pill}
-        {hint ? <span className="kpi-hint">{hint}</span> : null}
+    <div className="card kpi-card overview-kpi">
+      <div className="overview-kpi-top"><span className="overview-metric-icon"><Icon size={14} /></span><span className="kpi-label">{label}</span></div>
+      <div className="overview-kpi-reading">
+        <span className="kpi-value" title={display}>{display}</span>
+        {sparkValues.length >= 2 ? <Sparkline values={sparkValues} stroke={sparkStroke} /> : null}
       </div>
-      {sparkValues.length >= 2 ? (
-        <Sparkline values={sparkValues} stroke={sparkStroke} />
-      ) : (
-        <span className="spark-empty" aria-hidden="true">
-          <span className="spark-empty-line" />
-          <span className="spark-empty-label">no trend data</span>
-        </span>
-      )}
+      <div className="kpi-foot">{pill}</div>
+      {hint ? <span className="kpi-hint">{hint}</span> : null}
     </div>
   );
 }
@@ -554,33 +526,16 @@ const RankedBars = memo(function RankedBars({ rows }: { rows: RankedRow[] }) {
   );
 });
 
-function PageHeader({
-  range,
-  onRangeChange,
-}: {
+function PageHeader({ range, onRangeChange }: {
   range: TimeRange;
   onRangeChange: (range: TimeRange) => void;
 }) {
   return (
-    <header className="page-header pt-8">
+    <header className="page-header overview-header">
       <div className="page-title-pair">
-        <span
-          className="page-kicker"
-          style={{
-            fontSize: 12,
-            fontWeight: 600,
-            letterSpacing: "1.5px",
-            textTransform: "uppercase",
-            color: "var(--muted-foreground)",
-          }}
-        >
-          Operate
-        </span>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <h1>Overview</h1>
-          <StatusBadge label="live" tone="good" title={`Refreshing every ${LIVE_REFETCH_INTERVAL_MS / 1000}s`} />
-        </div>
-        <p className="page-subtitle">Tasks, traces, cost and policy across every agent in the selected window.</p>
+        <span className="page-kicker">Workspace analytics</span>
+        <h1>Overview</h1>
+        <p className="page-subtitle">A clear view of your agents, traffic and spend.</p>
       </div>
       <TimeRangePicker value={range} onChange={onRangeChange} idPrefix="overview-range" />
     </header>

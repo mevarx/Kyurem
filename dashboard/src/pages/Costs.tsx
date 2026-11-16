@@ -148,7 +148,7 @@ export function Costs() {
               <div className="stat-card">
                 <span className="stat-label">Total cost</span>
                 <span
-                  className="stat-value mono"
+                  className="stat-value"
                   style={{
                     fontSize: "clamp(1.75rem, 1rem + 2.2vw, 2.75rem)",
                     lineHeight: 1.05,
@@ -161,16 +161,16 @@ export function Costs() {
               </div>
               <div className="stat-card">
                 <span className="stat-label">Input tokens</span>
-                <span className="stat-value mono">{formatTokens(report?.input_tokens ?? null)}</span>
+                <span className="stat-value">{formatTokens(report?.input_tokens ?? null)}</span>
               </div>
               <div className="stat-card">
                 <span className="stat-label">Output tokens</span>
-                <span className="stat-value mono">{formatTokens(report?.output_tokens ?? null)}</span>
+                <span className="stat-value">{formatTokens(report?.output_tokens ?? null)}</span>
               </div>
               <div className="stat-card">
                 <span className="stat-label">Unknown usage</span>
                 {report === undefined ? (
-                  <span className="stat-value mono">unknown</span>
+                  <span className="stat-value">unknown</span>
                 ) : report.unknown_spans > 0 ? (
                   <DetailTag color="var(--muted-foreground)">
                     <span className="mono">
@@ -178,7 +178,7 @@ export function Costs() {
                     </span>
                   </DetailTag>
                 ) : (
-                  <span className="stat-value mono">complete</span>
+                  <span className="stat-value">complete</span>
                 )}
               </div>
             </>
@@ -224,6 +224,7 @@ export function Costs() {
       ) : (
         <>
           <CreditGauge
+            className="max-w-none! rounded-xl!"
             categories={chartData.map((bucket) => ({
               id: bucket.key,
               label: bucket.key,

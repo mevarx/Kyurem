@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Search } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { LIVE_REFETCH_INTERVAL_MS, useTasks } from "../api/hooks";
 import type { Task, TaskStatus } from "../api/types";
@@ -183,9 +184,9 @@ export function Tasks() {
     <div className="page">
       <header className="page-header">
         <div className="page-title-pair">
-          <span className="page-kicker">Operate</span>
+          <span className="page-kicker">Task operations</span>
           <h1>Tasks</h1>
-          <p className="page-subtitle">Every task the gateway proxied, newest first.</p>
+          <p className="page-subtitle">Follow every request from first call to final outcome.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <DetailTag>
@@ -204,19 +205,23 @@ export function Tasks() {
         </div>
       </header>
 
-      <section className="filter-toolbar max-sm:flex-col max-sm:items-stretch" aria-label="Task filters">
+      <section className="filter-toolbar px-5! py-4! max-sm:flex-col! max-sm:items-stretch!" aria-label="Task filters">
         <div className="field">
           <label htmlFor="task-search">Task id</label>
+          <div className="relative flex min-w-0">
+          <Search className="pointer-events-none absolute left-3 top-3 size-3.5 text-muted-foreground" aria-hidden="true" />
           <input
+            className="w-full min-w-0 pl-9!"
             id="task-search"
             type="search"
-            placeholder="Task id"
+            placeholder="Search task ID…"
             value={taskId}
             onChange={(event) => {
               setTaskId(event.target.value);
               setPage(0);
             }}
           />
+          </div>
         </div>
         <div className="field" style={{ flexGrow: 0, minWidth: 150 }}>
           <label htmlFor="task-status">Status</label>
@@ -285,16 +290,17 @@ export function Tasks() {
       ) : query.isError ? (
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : (
-        <DashboardCard aria-label="Tasks" className="overflow-hidden p-0">
-          <div className="p-4 pb-0">
-            <DetailHeader title="Tasks" subtitle="Click a row to inspect it">
+        <DashboardCard aria-label="Tasks" className="overflow-hidden p-0!">
+          <div className="p-5">
+            <DetailHeader title="Task activity" subtitle="Select a task to inspect its trace and outcome">
               <DetailTag>
                 {formatNumber(total)} task{total === 1 ? "" : "s"} · page {page + 1} of {pageCount}
               </DetailTag>
             </DetailHeader>
           </div>
-          <div className="p-3">
+          <div>
             <DataTable
+              className="rounded-none! border-x-0! border-b-0!"
               caption="Tasks seen by the Kyurem gateway"
               columns={columns}
               rows={rows}
@@ -303,7 +309,7 @@ export function Tasks() {
               emptyTitle="No tasks match these filters"
               emptyDescription="Try a wider time range or clear the filters."
             />
-            <div className="pagination flex-wrap px-3 pb-1">
+            <div className="pagination flex-wrap border-t border-border px-5 py-4">
               <span className="mono" aria-live="polite">
                 Page {page + 1} of {pageCount}
               </span>

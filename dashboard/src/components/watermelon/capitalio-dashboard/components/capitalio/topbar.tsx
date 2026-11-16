@@ -3,6 +3,7 @@ import { PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { useSettings } from '@/api/hooks'
 
 const TITLES: Record<string, { section: string; title: string }> = {
   '/': { section: 'Operate', title: 'Overview' },
@@ -23,6 +24,9 @@ function titleFor(pathname: string): { section: string; title: string } {
 
 export function DashboardTopbar({ onSearch }: { onSearch: () => void }) {
   const { pathname } = useLocation()
+  const settingsQuery = useSettings({ refetchInterval: 30_000 })
+  const status = settingsQuery.isPending ? 'Connecting' : settingsQuery.isError ? 'API unavailable' : 'Connected'
+  const statusColor = settingsQuery.isPending ? 'var(--text-subtle)' : settingsQuery.isError ? 'var(--danger)' : 'var(--success)'
   const { section, title } = titleFor(pathname)
   const { open, openMobile, toggleSidebar } = useSidebar()
   const triggerRef = React.useRef<HTMLButtonElement>(null)
@@ -33,7 +37,7 @@ export function DashboardTopbar({ onSearch }: { onSearch: () => void }) {
   }, [openMobile])
 
   return (
-    <header className="m4-topbar flex h-14 w-full shrink-0 items-center gap-2 border-b border-border bg-background px-4 md:h-16 md:gap-3 md:px-8">
+    <header className="m4-topbar flex h-14 w-full shrink-0 items-center gap-2 border-b border-border bg-card px-3 md:h-16 md:gap-3 md:px-7">
       <SidebarTrigger
         ref={triggerRef}
         aria-label="Open navigation"
@@ -56,14 +60,14 @@ export function DashboardTopbar({ onSearch }: { onSearch: () => void }) {
         )}
       </button>
 
-      <nav className="flex min-w-0 flex-1 items-center gap-2 text-sm" aria-label="Breadcrumb">
+      <nav className="flex min-w-0 flex-1 items-center gap-2 text-xs" aria-label="Breadcrumb">
         <span className="hidden shrink-0 text-muted-foreground sm:inline">{section}</span>
         <span className="hidden shrink-0 text-muted-foreground sm:inline" aria-hidden="true">
           /
         </span>
         <span
           key={pathname}
-          className="topbar-title-swap truncate text-[15px] font-semibold tracking-tight text-foreground"
+          className="topbar-title-swap truncate text-[13px] font-medium tracking-tight text-foreground"
         >
           {title}
         </span>
@@ -73,22 +77,24 @@ export function DashboardTopbar({ onSearch }: { onSearch: () => void }) {
         <button
           type="button"
           onClick={onSearch}
-          className="topbar-search-trigger flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card px-0 text-sm text-muted-foreground transition-colors hover:text-foreground md:w-52 md:justify-start md:px-2.5"
+          className="topbar-search-trigger flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background px-0 text-xs text-muted-foreground transition-colors hover:text-foreground md:w-56 md:justify-start md:gap-2 md:px-3"
         >
           <Search className="size-4 shrink-0" aria-hidden="true" />
-          <span className="hidden truncate md:inline">Search</span>
+          <span className="hidden truncate md:inline">Search anything…</span>
           <kbd className="ml-auto hidden rounded border border-border bg-muted px-1.5 font-mono text-[11px] md:inline">
-            ⌘K
+            Ctrl K
           </kbd>
           <span className="sr-only">Open command palette</span>
         </button>
 
         <span
-          className="flex shrink-0 items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 font-mono text-xs text-muted-foreground"
-          title="Dashboard polls the gateway every 5 seconds"
+          className="flex shrink-0 items-center gap-2 px-1 text-[11px] text-muted-foreground md:mx-2"
+          title={`Management API: ${status}`}
+          role="status"
+          aria-label={`Management API: ${status}`}
         >
-          <span className="size-2 shrink-0 rounded-full bg-success" aria-hidden="true" />
-          <span className="hidden sm:inline">Live · 5s</span>
+          <span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: statusColor }} aria-hidden="true" />
+          <span className="hidden lg:inline">{status}</span>
         </span>
 
         <ThemeToggle />

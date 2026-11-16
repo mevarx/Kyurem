@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useSettings } from '@/api/hooks'
+import { ApiError } from '@/api/client'
 import { formatUptime } from '@/lib/format'
 import {
   Sidebar,
@@ -64,17 +65,6 @@ const manageSection: NavSection = {
 }
 
 function Brand({ onNavigate }: { onNavigate?: () => void }) {
-  const settingsQuery = useSettings({ refetchInterval: 30_000 })
-  const liveLabel = settingsQuery.isPending
-    ? 'Connecting'
-    : settingsQuery.isError
-      ? 'Offline'
-      : 'Live'
-  const liveDot = settingsQuery.isPending
-    ? 'bg-subtle'
-    : settingsQuery.isError
-      ? 'bg-danger'
-      : 'bg-success'
   return (
     <NavLink
       to="/"
@@ -82,18 +72,15 @@ function Brand({ onNavigate }: { onNavigate?: () => void }) {
       onClick={onNavigate}
       title="Kyurem home"
     >
-      <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-lg font-bold text-primary-foreground group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:text-base">
-        K
-      </div>
-      <span className="flex min-w-0 flex-col leading-tight group-data-[collapsible=icon]:hidden">
-        <span className="flex items-center gap-2">
-          <span className="truncate text-[15px] font-semibold tracking-tight text-foreground">Kyurem</span>
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-card px-1.5 py-px font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-            <span className={cn('size-1.5 shrink-0 rounded-full', liveDot)} aria-hidden="true" />
-            {liveLabel}
-          </span>
-        </span>
-        <span className="font-mono text-[11px] text-subtle">a2a gateway</span>
+      <span className="kyurem-brand-mark" aria-hidden="true">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path d="M6 3h5v7l6-7h6l-8 9 8 9h-6l-6-7v7H6V3Z" fill="currentColor" />
+          <path d="M2 7h3v10H2V7Z" fill="currentColor" opacity=".45" />
+        </svg>
+      </span>
+      <span className="flex min-w-0 flex-col gap-1 leading-none group-data-[collapsible=icon]:hidden">
+        <span className="text-[17px] font-semibold tracking-tight text-foreground">Kyurem<span className="text-primary">.</span></span>
+        <span className="text-[10px] tracking-wide text-subtle">AGENT WORKSPACE</span>
       </span>
     </NavLink>
   )
@@ -126,9 +113,8 @@ function NavLinkButton({ item }: { item: NavItem }) {
           'text-sm font-medium text-muted-foreground',
           '[&>svg]:text-subtle',
           'hover:bg-[var(--surface-raised)] hover:text-foreground hover:[&>svg]:text-foreground',
-          'data-[active=true]:bg-[var(--surface-raised)] data-[active=true]:text-foreground',
+          'data-[active=true]:bg-accent data-[active=true]:text-primary',
           'data-[active=true]:[&>svg]:text-primary',
-          isActive && 'active-sidebar-item',
         )}
       >
         <NavLink to={item.href} end={item.href === '/'} onClick={handleClick}>
@@ -166,7 +152,7 @@ function SidebarNavSection({ section }: { section: NavSection }) {
       <Collapsible.Root defaultOpen={section.defaultOpen ?? true}>
         <SidebarGroup className="group-data-[collapsible=icon]:p-0">
           {section.label ? (
-            <Collapsible.Trigger className="flex w-full cursor-pointer items-center justify-between px-2 py-2 text-xs font-semibold tracking-wider text-subtle uppercase transition-colors group-data-[collapsible=icon]:hidden hover:text-muted-foreground [&>svg]:size-3.5! [&>svg]:transition-transform [&>svg]:duration-200 [&>svg]:ease-out data-panel-open:[&>svg]:rotate-180">
+            <Collapsible.Trigger className="flex w-full cursor-pointer items-center justify-between px-2 py-2 text-[10px] font-medium tracking-[0.1em] text-subtle uppercase transition-colors group-data-[collapsible=icon]:hidden hover:text-muted-foreground [&>svg]:size-3.5! [&>svg]:transition-transform [&>svg]:duration-200 [&>svg]:ease-out data-panel-open:[&>svg]:rotate-180">
               {section.label}
               <ChevronDown className="shrink-0" />
             </Collapsible.Trigger>
@@ -182,7 +168,7 @@ function SidebarNavSection({ section }: { section: NavSection }) {
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:p-0">
       {section.label ? (
-        <SidebarGroupLabel className="px-2 py-2 text-xs font-semibold tracking-wider text-subtle uppercase group-data-[collapsible=icon]:hidden">
+        <SidebarGroupLabel className="px-2 py-2 text-[10px] font-medium tracking-[0.1em] text-subtle uppercase group-data-[collapsible=icon]:hidden">
           {section.label}
         </SidebarGroupLabel>
       ) : null}
@@ -193,7 +179,8 @@ function SidebarNavSection({ section }: { section: NavSection }) {
 
 function GatewayStatusCard() {
   const settingsQuery = useSettings({ refetchInterval: 30_000 })
-  const reachable = !settingsQuery.isError
+  const reachable = !settingsQuery.isPending && !settingsQuery.isError
+  const httpError = settingsQuery.error instanceof ApiError && settingsQuery.error.status > 0
   const version = settingsQuery.data?.version
   const uptime = settingsQuery.data?.uptime_seconds
 
@@ -201,26 +188,26 @@ function GatewayStatusCard() {
     ? 'Connecting…'
     : reachable
       ? 'Gateway live'
-      : 'Unreachable'
+      : httpError ? 'API access issue' : 'Unreachable'
 
   return (
     <div
       role="status"
       aria-label={`Gateway status: ${statusLabel}`}
       title={statusLabel}
-      className="rounded-lg border border-border bg-card p-3 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0"
+      className="kyurem-gateway-card rounded-xl border border-border bg-background p-3 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0"
     >
       <div className="flex items-center gap-2 text-xs font-semibold text-foreground group-data-[collapsible=icon]:gap-0">
         <span
           className="size-2 shrink-0 rounded-full"
           style={{
-            backgroundColor: reachable ? 'var(--success)' : 'var(--danger)',
+            backgroundColor: settingsQuery.isPending ? 'var(--text-subtle)' : reachable ? 'var(--success)' : 'var(--danger)',
           }}
           aria-hidden="true"
         />
         <span className="group-data-[collapsible=icon]:hidden">{statusLabel}</span>
       </div>
-      <dl className="mt-2 space-y-1 font-mono text-[11px] text-muted-foreground group-data-[collapsible=icon]:hidden">
+      <dl className="mt-2 space-y-1 text-[11px] text-muted-foreground group-data-[collapsible=icon]:hidden">
         <div className="flex justify-between gap-2">
           <dt className="text-subtle">Version</dt>
           <dd className="truncate">{version ?? '—'}</dd>
@@ -240,17 +227,17 @@ export function DashboardSidebar() {
     if (isMobile) setOpenMobile(false)
   }
   return (
-    <Sidebar collapsible="icon" className="border-none! p-0.5 capitalio-dashboard">
-      <SidebarHeader className="mb-4 flex-row items-start gap-2 px-4 pt-6 pb-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-1.5">
+    <Sidebar collapsible="icon" className="kyurem-sidebar border-r border-border capitalio-dashboard">
+      <SidebarHeader className="mb-5 h-16 flex-row items-center gap-2 border-b border-border px-5 py-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-1.5">
         <Brand onNavigate={closeOnNavigate} />
       </SidebarHeader>
 
-      <SidebarContent className="gap-2 px-4 pb-4 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">
+      <SidebarContent className="gap-5 px-3 pb-4 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">
         <SidebarNavSection section={operateSection} />
         <SidebarNavSection section={manageSection} />
       </SidebarContent>
 
-      <SidebarFooter className="gap-3 px-4 pt-0 pb-6 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">
+      <SidebarFooter className="gap-3 px-4 pt-0 pb-4 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">
         <GatewayStatusCard />
       </SidebarFooter>
 

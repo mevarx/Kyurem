@@ -1,95 +1,46 @@
-/* Capitalio block utilities, mapped onto Kyurem tokens only. */
-
-/* custom classes */
+/* Shell details shared by the dashboard and its mobile navigation sheet. */
 .shadow-custom {
-  box-shadow: inset 4px 0 0 0 var(--border);
+  box-shadow: 0 2px 5px color-mix(in oklab, var(--foreground) 3%, transparent);
 }
-
-.active-sidebar-item {
-  position: relative;
+.kyurem-brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  color: var(--primary);
 }
-
-.active-sidebar-item::before {
-  position: absolute;
-  inset-block: 6px;
-  inset-inline-start: 0;
+.kyurem-sidebar [data-slot="sidebar-inner"] {
+  background: var(--card);
+}
+.kyurem-sidebar .sidebar-nav-item {
+  min-height: 36px;
+  border-radius: 7px;
+  padding-inline: 11px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.kyurem-sidebar .sidebar-nav-item[data-active="true"] {
+  background: var(--accent);
+  color: var(--primary);
+}
+.kyurem-sidebar .sidebar-active-bar {
   width: 2px;
-  border-radius: 2px;
-  background: var(--primary);
-  content: "";
-  pointer-events: none;
+  top: 10px;
+  bottom: 10px;
 }
-
-.no-scrollbar,
-.no-scrollbar * {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+.kyurem-gateway-card {
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 2%, transparent);
 }
-
-.no-scrollbar::-webkit-scrollbar,
-.no-scrollbar *::-webkit-scrollbar {
-  display: none;
+.m4-topbar {
+  position: relative;
+  z-index: 3;
 }
-
-.custom-scrollbar-x {
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+.m4-topbar .theme-toggle {
+  width: 32px;
+  height: 32px;
 }
-
-.custom-scrollbar-x::-webkit-scrollbar {
-  height: 0.375rem;
-}
-
-.custom-scrollbar-x::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.custom-scrollbar-x::-webkit-scrollbar-thumb {
-  background-color: var(--border);
-  border-radius: 9999px;
-}
-
-.custom-scrollbar-x::-webkit-scrollbar-thumb:hover {
-  background-color: var(--muted-foreground);
-}
-
-[data-slot="dropdown-menu-content"] [data-slot="dropdown-menu-item"],
-[data-slot="dropdown-menu-content"] [data-slot="dropdown-menu-sub-trigger"] {
-  padding-inline: 0.625rem;
-  padding-block: 0.625rem;
-}
-
-[data-slot="dropdown-menu-content"] [data-slot="dropdown-menu-checkbox-item"],
-[data-slot="dropdown-menu-content"] [data-slot="dropdown-menu-radio-item"] {
-  padding-block: 0.625rem;
-  padding-left: 0.625rem;
-  padding-right: 2rem;
-}
-
-
-
-.capitalio-dashboard .dashboard-dot-grid {
-  background-image: radial-gradient(
-    circle,
-    color-mix(in oklab, var(--foreground) 12%, transparent) 0.0625rem,
-    transparent 0.0625rem
-  );
-  background-size: 1.5rem 1.5rem;
-}
-
-.capitalio-dashboard .dashboard-progress-fill {
-  transform-origin: left;
-  animation: dashboard-progress-grow 700ms ease-out both;
-}
-
-@keyframes dashboard-progress-grow {
-  from {
-    transform: scaleX(0);
-  }
-
-  to {
-    transform: scaleX(1);
-  }
+@media (prefers-reduced-motion: reduce) {
+  .kyurem-sidebar .sidebar-nav-item { transition: none; }
 }

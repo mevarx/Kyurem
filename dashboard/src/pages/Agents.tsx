@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Activity, Bot, ShieldCheck, Workflow } from "lucide-react";
 import { useAgents } from "../api/hooks";
 import type { AgentInfo } from "../api/types";
 import { DataTable, type DataTableColumn } from "../components/DataTable";
@@ -9,7 +10,6 @@ import {
 } from "../components/watermelon/capitalio-dashboard/components/capitalio/shared";
 import { AgentAvatar } from "../components/CopyableId";
 import { ErrorState } from "../components/ErrorState";
-import { RadialGauge } from "../components/radial-gauge";
 import { TableSkeleton } from "../components/Skeleton";
 import { StatusBadge } from "../components/StatusBadge";
 import { TimeRangePicker } from "../components/TimeRangePicker";
@@ -139,9 +139,9 @@ export function Agents() {
     <div className="page">
       <header className="page-header">
         <div className="page-title-pair">
-          <span className="page-kicker">Manage</span>
+          <span className="page-kicker">Fleet management</span>
           <h1>Agents</h1>
-          <p className="page-subtitle">Registry, cards and traffic of every known agent.</p>
+          <p className="page-subtitle">Your agent directory, verification and traffic in one place.</p>
         </div>
         <div className="page-header-meta">
           <DetailTag>{`${formatNumber(rows.length)} agents`}</DetailTag>
@@ -156,27 +156,30 @@ export function Agents() {
       ) : query.isError ? (
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : (
-        <div className="panel-row">
-          <DashboardCard aria-label="Fleet error rate">
-            <RadialGauge
-              bands={[
-                { to: 1, label: "Healthy", tone: "success" },
-                { to: 5, label: "Elevated", tone: "warning" },
-                { to: 100, label: "Critical", tone: "destructive" },
-              ]}
-              caption={`Mean error rate across ${formatNumber(rows.length)} agents · lower is better`}
-              label="Fleet error rate"
-              unit="%"
-              value={meanErrorRate}
-            />
-          </DashboardCard>
-          <DashboardCard aria-label="Registered agents" className="overflow-hidden p-0">
-          <div className="p-4 pb-0">
-            <DetailHeader title="Registered agents" subtitle="Cards, verification and traffic">
-              <DetailTag>{formatNumber(rows.length)} agents</DetailTag>
-            </DetailHeader>
-          </div>
-          <div className="p-3">
+        <>
+          <section className="grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Fleet summary">
+            {[
+              { label: "Registered agents", value: formatNumber(rows.length), hint: "Known to the gateway", Icon: Bot },
+              { label: "Verified cards", value: formatNumber(rows.filter(agent => agent.verification === "verified").length), hint: "Signature verified", Icon: ShieldCheck },
+              { label: "Recorded spans", value: formatNumber(rows.reduce((sum, agent) => sum + (agent.spans ?? 0), 0)), hint: "In the selected window", Icon: Workflow },
+              { label: "Fleet error rate", value: rows.length ? `${meanErrorRate.toFixed(1)}%` : "—", hint: "Mean across agents", Icon: Activity },
+            ].map(({ label, value, hint, Icon }) => (
+              <DashboardCard key={label} className="p-4!">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-muted-foreground">{label}</span>
+                  <Icon className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+                </div>
+                <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums">{value}</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">{hint}</p>
+              </DashboardCard>
+            ))}
+          </section>
+          <DashboardCard aria-label="Registered agents" className="overflow-hidden p-0!">
+            <div className="p-5">
+              <DetailHeader title="Agent directory" subtitle="Card health, trust and traffic across your fleet">
+                <DetailTag>{formatNumber(rows.length)} agents</DetailTag>
+              </DetailHeader>
+            </div>
             <DataTable
               caption="Agents registered in the Kyurem gateway"
               columns={columns}
@@ -184,11 +187,13 @@ export function Agents() {
               rowKey={(agent) => agent.name}
               emptyTitle="No agents registered"
               emptyDescription="The gateway does not know any agent yet."
-              className="tabular"
+              className="tabular rounded-none! border-x-0! border-b-0!"
             />
-          </div>
-        </DashboardCard>
-        </div>
+            <div className="border-t border-border px-5 py-3 text-[11px] text-muted-foreground">
+              Verification reflects the gateway’s latest agent-card check.
+            </div>
+          </DashboardCard>
+        </>
       )}
     </div>
   );
