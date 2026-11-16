@@ -59,9 +59,9 @@ export function DetailHeader({
   return (
     <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
-        <h2 className="truncate text-[13px] font-semibold leading-5">{title}</h2>
+        <h2 className="truncate text-sm font-semibold leading-5">{title}</h2>
         {subtitle ? (
-          <div className="mt-1 text-[11px] leading-4 text-muted-foreground">{subtitle}</div>
+          <div className="mt-1 text-xs leading-5 text-muted-foreground">{subtitle}</div>
         ) : null}
       </div>
       {children ? <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">{children}</div> : null}
@@ -83,7 +83,7 @@ export function DetailTag({
     <span
       onClick={onClick}
       className={cn(
-        'inline-flex items-center gap-2 rounded-md px-2 py-1 text-[11px] leading-4 text-muted-foreground',
+        'inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs leading-5 text-muted-foreground',
         onClick &&
           'cursor-pointer transition-[background-color,filter] duration-150 ease-out motion-safe:hover:brightness-125',
       )}

@@ -161,7 +161,7 @@ export function ShortcutSheet({ groups, children, defaultPlatform, title = "Keyb
         {isOpen && (
           <motion.div
             animate={{ opacity: 1 }}
-            className="absolute inset-0 z-10 flex items-end bg-background/40 p-2 backdrop-blur-[2px]"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-background/40 p-4 backdrop-blur-[2px]"
             exit={{ opacity: 0, transition: { duration: 0.15 } }}
             initial={{ opacity: 0 }}
             key="scrim"
@@ -177,7 +177,7 @@ export function ShortcutSheet({ groups, children, defaultPlatform, title = "Keyb
               animate={{ opacity: 1, y: 0, scale: 1 }}
               aria-labelledby={titleId}
               aria-modal="true"
-              className="flex h-full w-full flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg/5"
+              className="flex h-[min(80vh,40rem)] w-full max-w-2xl flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-lg/5"
               exit={reduce ? { opacity: 0 } : { opacity: 0, y: 12, scale: 0.98, transition: { duration: 0.15, ease: "easeOut" } }}
               initial={reduce ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.98 }}
               onKeyDown={(event) => {

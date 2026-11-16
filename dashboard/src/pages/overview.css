@@ -1,6 +1,6 @@
 .overview-page { gap: 20px; }
 .overview-header { padding-top: 0; }
-.overview-header .page-kicker { font-size: 10px; letter-spacing: .1em; }
+.overview-header .page-kicker { font-size: 12px; letter-spacing: .1em; }
 .overview-header h1 { font-size: 25px; letter-spacing: -.035em; font-weight: 650; }
 .overview-header .page-subtitle { margin-top: 5px; }
 .overview-page .kpi-grid { gap: 12px; }
@@ -12,8 +12,8 @@
 .overview-kpi .kpi-value { font-size: clamp(21px, 1.8vw, 28px); color: var(--foreground); font-weight: 600; letter-spacing: -.045em; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .overview-kpi .spark { width: 62px; height: 28px; flex: 0 0 62px; opacity: .85; }
 .overview-kpi .kpi-foot { min-height: 0; }
-.overview-kpi .pill { padding: 2px 5px; font-size: 9px; border-radius: 4px; font-weight: 500; }
-.overview-kpi .kpi-hint { font-size: 10px; line-height: 1.5; font-family: var(--font-sans); overflow-wrap: anywhere; }
+.overview-kpi .pill { padding: 2px 5px; font-size: 12px; border-radius: 4px; font-weight: 500; }
+.overview-kpi .kpi-hint { font-size: 12px; line-height: 1.5; font-family: var(--font-sans); overflow-wrap: anywhere; }
 .overview-panels { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr); gap: 16px; min-width: 0; }
 .overview-panel-main, .overview-panel-side { min-width: 0; border-color: var(--border); border-radius: 10px; }
 .overview-panels-secondary { grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr); }
@@ -22,13 +22,13 @@
 .overview-chart-summary { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-top: 22px; }
 .overview-chart-summary > div:first-child { display: flex; flex-direction: column; gap: 3px; }
 .overview-chart-summary strong { font-size: 29px; font-weight: 600; letter-spacing: -.045em; line-height: 1.1; }
-.overview-chart-summary span { font-size: 11px; color: var(--muted-foreground); }
+.overview-chart-summary span { font-size: 12px; color: var(--muted-foreground); }
 .overview-chart-legend { display: flex; align-items: center; gap: 14px; }
 .overview-chart-legend span { display: flex; align-items: center; gap: 6px; }
 .overview-chart-legend i { width: 7px; height: 7px; background: var(--chart-1); border-radius: 2px; }
 .overview-chart-legend span:last-child i { background: var(--chart-2); }
 .overview-page .chart-frame-main { height: 250px; margin-top: 18px; }
-.overview-card-link { display: inline-flex; align-items: center; gap: 5px; color: var(--muted-foreground); font-size: 11px; }
+.overview-card-link { display: inline-flex; align-items: center; gap: 5px; color: var(--muted-foreground); font-size: 12px; }
 .overview-card-link:hover { color: var(--primary); }
 .overview-section-icon { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; background: var(--accent); color: var(--primary); border-radius: 8px; }
 .overview-page .ranked-list { margin-top: 22px; gap: 12px; }
@@ -38,14 +38,14 @@
 .overview-page .ranked-value { font-size: 12px; }
 .overview-page .ranked-bar-track { height: 4px; }
 .overview-page .avatar { border-radius: 8px; background: var(--accent); color: var(--primary); border: none; }
-.overview-page .card-footer { margin-top: auto; padding-top: 18px; border-top: 1px solid var(--border); font-size: 11px; }
+.overview-page .card-footer { margin-top: auto; padding-top: 18px; border-top: 1px solid var(--border); font-size: 12px; }
 .overview-page .task-list { margin-top: 15px; }
 .overview-page .task-list-item { padding: 11px 0; }
 .overview-page .task-id-link { font-size: 12px; color: var(--foreground); }
-.overview-page .task-list-error { font-size: 11px; }
-.overview-page .task-list-meta { font-size: 10px; }
-.overview-health { padding: 14px 0 4px; border-top: 1px solid var(--border); font-size: 11px; }
-.overview-health .badge, .overview-health .text-sm { font-size: 10px; }
+.overview-page .task-list-error { font-size: 12px; }
+.overview-page .task-list-meta { font-size: 12px; }
+.overview-health { padding: 14px 0 4px; border-top: 1px solid var(--border); font-size: 12px; }
+.overview-health .badge, .overview-health .text-sm { font-size: 12px; }
 @media (max-width: 1100px) {
   .overview-page .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .overview-page .overview-kpi { min-height: 140px; }

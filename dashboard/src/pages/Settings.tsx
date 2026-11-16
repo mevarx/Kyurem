@@ -280,13 +280,15 @@ export function Settings() {
       <DashboardCard aria-label="Keyboard shortcuts">
         <DetailHeader title="Keyboard shortcuts" subtitle="Command menu and shortcut panel" />
         <ShortcutSheet
+          className="mt-4"
           groups={[
             {
               title: "Command menu",
               shortcuts: [
                 { label: "Open command menu", keys: [["mod", "K"]], keywords: ["palette", "search", "go to"] },
                 { label: "Run highlighted action", keys: [["enter"]], keywords: ["select", "confirm"] },
-                { label: "Move selection", keys: [["up"], ["down"]], keywords: ["navigate", "arrows"] },
+                { label: "Move selection up", keys: [["up"]], keywords: ["navigate", "arrows"] },
+                { label: "Move selection down", keys: [["down"]], keywords: ["navigate", "arrows"] },
                 { label: "Close menu", keys: [["esc"]], keywords: ["dismiss", "exit"] },
               ],
             },
@@ -300,7 +302,7 @@ export function Settings() {
             },
           ]}
         >
-          <p className="muted">Focus this card, then press the keys below. The command menu works anywhere.</p>
+          <p className="muted px-4 py-4">Focus this card, then press ? to see shortcuts. The command menu works anywhere.</p>
         </ShortcutSheet>
       </DashboardCard>
     </div>
