@@ -219,3 +219,27 @@ func TestStreamCapRejectsExtraStreamAndAccountingStaysExact(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+func TestMatchesConditionalUsesEntityTagMembers(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	const etag = `"card-123"`
+
+	for _, tc := range []struct {
+		name   string
+		header string
+		want   bool
+	}{
+		{name: "exact", header: etag, want: true},
+		{name: "weak comparison", header: `W/"card-123"`, want: true},
+		{name: "list member", header: `"other", ` + etag, want: true},
+		{name: "wildcard", header: `*`, want: true},
+		{name: "substring is not a match", header: `"prefix-card-123-suffix"`, want: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req.Header.Set("If-None-Match", tc.header)
+			if got := matchesConditional(req, etag); got != tc.want {
+				t.Errorf("matchesConditional(%q) = %t, want %t", tc.header, got, tc.want)
+			}
+		})
+	}
+}

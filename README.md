@@ -39,7 +39,9 @@ store (TP-1/TP-2), deny-overrides authorization rules with a caller ×
 callee matrix (TP-3), a bounded in-process audit ring of trust/policy/auth
 decisions (TP-4), per-agent off/warn/enforce modes, and a dashboard
 Policy & audit page plus trust columns on the Agents page (TP-5). The
-gateway now serves `/api/v1/policy` and `/api/v1/decisions`.
+gateway serves `/api/v1/policy` and `/api/v1/decisions`; these features are
+implemented in the current codebase. The milestone tracking page records
+verification and completion status: [`docs/milestones.md`](docs/milestones.md).
 
 The milestone plan, including what is explicitly out of scope, lives in
 [`docs/milestones.md`](docs/milestones.md).
@@ -79,7 +81,11 @@ semantic-convention commit live in
 | Task detail | The span tree of one task, its events, its cost breakdown and a **root-cause hint** (a heuristic, labelled as such) |
 | Agent graph | Caller-to-callee edges with call counts, error rate, p95 latency and cost |
 | Costs | Token usage read from what the agent reported, priced from a config table, aggregated per agent/task/model/window — unknown stays unknown |
-| Dashboard | React + TypeScript + Vite app (`dashboard/`), dark and light themes, generated API types |
+| Dashboard | React + TypeScript + Vite app (`dashboard/`), dark and light themes, generated API types; includes task, graph, cost, agent, settings and policy/audit views |
+
+![Kyurem dashboard overview](docs/images/dashboard.png)
+
+The screenshot shows the dashboard with sample data.
 
 ## What M4 delivers
 
@@ -184,6 +190,8 @@ is `kyurem-demo` (set it in the dashboard's Settings page).
 | `GET /api/v1/graph` | agent-to-agent edges with counts, error rate, latency, cost |
 | `GET /api/v1/agents` | registry, card status, verification, health, traffic |
 | `GET /api/v1/costs` | cost and token roll-ups (by agent, model, task, window) |
+| `GET /api/v1/policy` | configured authorization rules and caller-to-callee decision matrix |
+| `GET /api/v1/decisions` | recent trust, policy and authentication decisions |
 | `GET /api/v1/settings` | versions, telemetry counters, storage driver |
 
 Costs are honest: an agent that does not report token usage yields

@@ -1,7 +1,7 @@
 {
   "name": "kyurem-dashboard",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Management dashboard for the Kyurem A2A gateway.",
   "scripts": {

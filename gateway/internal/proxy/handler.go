@@ -32,8 +32,7 @@ import (
 type ctxKey int
 
 const (
-	ctxOutboundURL ctxKey = iota
-	ctxHandoff
+	ctxHandoff ctxKey = iota
 )
 
 // Handler is the A2A data-path HTTP handler:
