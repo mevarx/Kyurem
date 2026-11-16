@@ -22,7 +22,8 @@ Kyurem is a Go gateway that transparently proxies [A2A](https://a2a-protocol.org
 
 Agents point at the gateway; agent code does not change.
 
-![Task detail view showing retry and failover events](docs/images/dashboard-failover.png)
+![Task detail view showing retry and failover events](docs/images/dashboard.png)
+
 
 ## Architecture
 
@@ -61,8 +62,7 @@ The gateway is stateless and streams request and response bodies. Telemetry expo
 | **Trust and policy** | Bearer or mTLS callers; agent card signatures verified against operator-configured keys; deny-overrides rules; bounded audit records. |
 | **Resilience** | Bounded retry budget, same-binding failover and per-upstream circuit breakers. |
 
-![Kyurem dashboard overview with sample data](docs/images/dashboard.png)
-
+![Kyurem dashboard overview with sample data]
 ## Quick start
 
 **Requirements:** Go 1.26+. The Python agents and failover walkthrough also need Python 3.11+ with [`uv`](https://docs.astral.sh/uv/) and Node 22. Docker is required only for the telemetry stack.
