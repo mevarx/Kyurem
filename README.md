@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="docs/images/banner.png" alt="Kyurem" width="100%">
-</p>
-
 <h1 align="center">Kyurem</h1>
 
 <p align="center">
